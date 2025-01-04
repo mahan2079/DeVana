@@ -100,7 +100,7 @@ Contributions are welcome! Fork the repository, create a branch for your feature
 
 **Mahan Dashti Gohari**  
 Email: [mahan.dashti.gohari@gmail.com](mailto:mahan.dashti.gohari@gmail.com)  
-GitHub: [https://github.com/yourusername](https://github.com/mahan2079)
+GitHub: [https://github.com/mahan2079](https://github.com/mahan2079)
 
 ---
 
