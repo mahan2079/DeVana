@@ -1,6 +1,6 @@
 # DeVana: Dynamic Vibration Absorber Optimization Framework
 
-![DeVana Logo](DeVana.png)
+![DeVana Logo](Logo.png)
 
 **Version:** 1.0  
 **Release Date:** December 2024  
