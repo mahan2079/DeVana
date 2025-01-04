@@ -85,29 +85,6 @@ Update configuration files with results and validate the system.
    pip install -r requirements.txt
    ```
 
-## File Structure
-
-```
-DeVana/
-├── config/
-│   ├── system_config.json
-│   ├── dva_config.json
-│   ├── performance_targets.json
-├── docs/
-│   └── user_manual.pdf
-├── output/
-│   ├── frf_plots/
-│   ├── sobol_results/
-│   ├── ga_logs/
-│   └── ga_results/
-├── main.py
-├── requirements.txt
-├── LICENSE
-├── README.md
-└── DeVana.png
-```
-
----
 
 ## Contributing
 
