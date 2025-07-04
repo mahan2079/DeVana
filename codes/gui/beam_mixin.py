@@ -4,7 +4,16 @@ from PyQt5.QtGui import *
 import os
 import pandas as pd
 
-from Continues_beam.utils import ForceRegionManager
+from gui.widgets import ModernQTabWidget
+from Continues_beam.ui.cross_section_visualizer import CrossSectionVisualizer
+from Continues_beam.ui.force_regions_panel import ForceRegionsPanel
+
+# Check if beam module imports are successful
+BEAM_IMPORTS_SUCCESSFUL = True
+try:
+    from Continues_beam.utils import ForceRegionManager
+except ImportError:
+    BEAM_IMPORTS_SUCCESSFUL = False
 
 class ContinuousBeamMixin:
         def create_continuous_beam_page(self):

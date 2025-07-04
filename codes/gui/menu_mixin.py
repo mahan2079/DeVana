@@ -279,3 +279,127 @@ class MenuMixin:
         for action in self.findChildren(QAction):
             if action.text() == "Toggle &Theme":
                 action.setToolTip(f"Switch to {'Light' if theme == 'Dark' else 'Dark'} Theme")
+
+    def import_parameters(self):
+        """Import parameters from a JSON file"""
+        from PyQt5.QtWidgets import QFileDialog
+        import json
+        
+        try:
+            # Open file dialog
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Import Parameters",
+                "",
+                "JSON Files (*.json);;All Files (*.*)"
+            )
+            
+            if not file_path:
+                return
+                
+            # Read JSON file
+            with open(file_path, 'r') as f:
+                params = json.load(f)
+                
+            # Update main system parameters
+            if 'main_system' in params:
+                main_params = params['main_system']
+                if 'mu' in main_params:
+                    self.mu_box.setValue(main_params['mu'])
+                if 'landa' in main_params:
+                    for i, val in enumerate(main_params['landa']):
+                        if i < len(self.landa_boxes):
+                            self.landa_boxes[i].setValue(val)
+                if 'nu' in main_params:
+                    for i, val in enumerate(main_params['nu']):
+                        if i < len(self.nu_boxes):
+                            self.nu_boxes[i].setValue(val)
+                            
+            # Update DVA parameters
+            if 'dva' in params:
+                dva_params = params['dva']
+                if 'beta' in dva_params:
+                    for i, val in enumerate(dva_params['beta']):
+                        if i < len(self.beta_boxes):
+                            self.beta_boxes[i].setValue(val)
+                if 'lambda' in dva_params:
+                    for i, val in enumerate(dva_params['lambda']):
+                        if i < len(self.lambda_boxes):
+                            self.lambda_boxes[i].setValue(val)
+                if 'mu' in dva_params:
+                    for i, val in enumerate(dva_params['mu']):
+                        if i < len(self.mu_dva_boxes):
+                            self.mu_dva_boxes[i].setValue(val)
+                if 'nu' in dva_params:
+                    for i, val in enumerate(dva_params['nu']):
+                        if i < len(self.nu_dva_boxes):
+                            self.nu_dva_boxes[i].setValue(val)
+                            
+            # Update frequency parameters
+            if 'frequency' in params:
+                freq_params = params['frequency']
+                if 'omega_start' in freq_params:
+                    self.omega_start_box.setValue(freq_params['omega_start'])
+                if 'omega_end' in freq_params:
+                    self.omega_end_box.setValue(freq_params['omega_end'])
+                if 'omega_points' in freq_params:
+                    self.omega_points_box.setValue(freq_params['omega_points'])
+                    
+            self.status_bar.showMessage("Parameters imported successfully", 3000)
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Import Error",
+                f"Failed to import parameters: {str(e)}"
+            )
+            
+    def export_parameters(self):
+        """Export parameters to a JSON file"""
+        from PyQt5.QtWidgets import QFileDialog
+        import json
+        
+        try:
+            # Open file dialog
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Parameters",
+                "",
+                "JSON Files (*.json);;All Files (*.*)"
+            )
+            
+            if not file_path:
+                return
+                
+            # Collect parameters
+            params = {
+                'main_system': {
+                    'mu': self.mu_box.value(),
+                    'landa': [box.value() for box in self.landa_boxes],
+                    'nu': [box.value() for box in self.nu_boxes]
+                },
+                'dva': {
+                    'beta': [box.value() for box in self.beta_boxes],
+                    'lambda': [box.value() for box in self.lambda_boxes],
+                    'mu': [box.value() for box in self.mu_dva_boxes],
+                    'nu': [box.value() for box in self.nu_dva_boxes]
+                },
+                'frequency': {
+                    'omega_start': self.omega_start_box.value(),
+                    'omega_end': self.omega_end_box.value(),
+                    'omega_points': self.omega_points_box.value()
+                }
+            }
+            
+            # Save to JSON file
+            with open(file_path, 'w') as f:
+                json.dump(params, f, indent=4)
+                
+            self.status_bar.showMessage("Parameters exported successfully", 3000)
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Error",
+                f"Failed to export parameters: {str(e)}"
+            )

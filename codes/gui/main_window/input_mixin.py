@@ -2,7 +2,8 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from gui.widgets import ModernQTabWidget
 
 class InputTabsMixin:
@@ -653,8 +654,6 @@ class InputTabsMixin:
         layout.addWidget(self.sobol_sub_tabs)
         self.sobol_tab.setLayout(layout)
 
-
-        
     def get_main_system_params(self):
         """Get the main system parameters in a tuple format"""
         return (
@@ -879,5 +878,47 @@ class InputTabsMixin:
         
         # Add scroll area to the tab's layout
         layout.addWidget(scroll_area)
+
+    def refresh_sensitivity_plot(self):
+        """Refresh the sensitivity analysis plots with current data"""
+        try:
+            # Get current tab index
+            current_tab = self.vis_tabs.currentIndex()
+            
+            # Clear existing plots
+            if current_tab == 0:  # Convergence plot
+                self.convergence_fig.clear()
+                ax = self.convergence_fig.add_subplot(111)
+                
+                # Add convergence plot data here
+                # This is a placeholder - actual implementation would depend on your data
+                ax.set_title('Slope Convergence')
+                ax.set_xlabel('Iteration')
+                ax.set_ylabel('Slope')
+                
+                self.convergence_canvas.draw()
+                
+            else:  # Relative change plot
+                self.rel_change_fig.clear()
+                ax = self.rel_change_fig.add_subplot(111)
+                
+                # Add relative change plot data here
+                # This is a placeholder - actual implementation would depend on your data
+                ax.set_title('Relative Change')
+                ax.set_xlabel('Iteration')
+                ax.set_ylabel('Relative Change')
+                
+                self.rel_change_canvas.draw()
+            
+            # Enable save button
+            self.sensitivity_save_plot_btn.setEnabled(True)
+            
+            # Hide no data labels
+            self.convergence_no_data_label.setVisible(False)
+            self.rel_change_no_data_label.setVisible(False)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", 
+                               f"Failed to refresh sensitivity plot: {str(e)}")
 
 
