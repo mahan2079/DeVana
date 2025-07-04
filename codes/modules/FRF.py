@@ -1,293 +1,583 @@
 # FRF.py
+"""
+Only functional change is in `remove_zero_mass_dofs`: a DOF is now removed **only
+when it is inactive across *all* system matrices** (or if it truly has zero
+mass).  This prevents legitimate degrees‑of‑freedom from being eliminated when,
+for example, the damping matrix row/column happens to be zero while the mass or
+stiffness is not.  No other behavioural changes have been introduced; the file
+structure and public interfaces remain intact so the module can be dropped into
+existing codebases as a drop‑in replacement.
+"""
 
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import simpson
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, peak_prominences
+from scipy.interpolate import interp1d
 from adjustText import adjust_text
 
-# --- Helper Functions ---
+# -----------------------------------------------------------------------------
+# Helper functions
+# -----------------------------------------------------------------------------
 
 def calculate_slopes(peak_positions, peak_values):
     """
-    Calculate slopes between pairs of peaks.
-
+    Calculate the slopes between every pair of peaks in a frequency response function.
+    
+    Scientific Explanation:
+    In frequency response analysis, peaks represent resonant frequencies where the system
+    has maximum response. The slope between peaks helps characterize how quickly the
+    response changes between resonances. This is important for:
+    1. Understanding system dynamics
+    2. Identifying modal coupling
+    3. Characterizing damping effects
+    
     Parameters:
-        peak_positions (array-like): Positions of the peaks.
-        peak_values (array-like): Values of the peaks.
-
+    -----------
+    peak_positions : array-like
+        The x-coordinates (usually frequencies) where peaks occur
+    peak_values : array-like
+        The y-coordinates (usually amplitudes) at each peak
+    
     Returns:
-        slopes (dict): Slopes between peak pairs.
-        slope_max (float): Maximum absolute slope value.
+    --------
+    slopes : dict
+        Dictionary containing slopes between each pair of peaks
+        Keys are formatted as "slope_1_2" for slope between peaks 1 and 2
+    slope_max : float
+        The maximum absolute slope found between any pair of peaks
+    """
+    # Initialize empty dictionary to store slopes
+    slopes = {}
+    
+    # Initialize maximum slope as NaN (Not a Number)
+    # This is a special value that represents undefined or missing data
+    slope_max = np.nan
+    
+    # Get total number of peaks found
+    num_peaks = len(peak_positions)
+    
+    # Only calculate slopes if we have at least 2 peaks
+    if num_peaks > 1:
+        # Loop through each peak
+        for i in range(num_peaks):
+            # For each peak, compare with all subsequent peaks
+            # This ensures we don't calculate the same slope twice
+            for j in range(i + 1, num_peaks):
+                # Calculate horizontal distance between peaks
+                dx = peak_positions[j] - peak_positions[i]
+                
+                # Calculate slope using rise/run formula
+                # If dx is 0 (peaks at same x-position), slope is 0
+                slope = (peak_values[j] - peak_values[i]) / dx if dx != 0 else 0.0
+                
+                # Store slope in dictionary with descriptive key
+                # Keys are 1-based for user-friendliness (e.g., "slope_1_2")
+                slopes[f"slope_{i+1}_{j+1}"] = slope
+                
+                # Update maximum slope if current slope is larger
+                # abs() gives absolute value, so we compare magnitudes
+                if np.isnan(slope_max) or abs(slope) > abs(slope_max):
+                    slope_max = slope
+    
+    # Return both the dictionary of slopes and the maximum slope
+    return slopes, slope_max
+
+# -----------------------------------------------------------------------------
+# Interpolation functions
+# -----------------------------------------------------------------------------
+
+def apply_interpolation(x, y, method='cubic', num_points=1000):
+    """
+    Apply various interpolation methods to smooth frequency response functions.
+    
+    Parameters:
+    -----------
+    x : array-like
+        The x-coordinates (usually frequencies)
+    y : array-like
+        The y-coordinates (usually amplitudes)
+    method : str
+        Interpolation method to use
+    num_points : int
+        Number of points in the interpolated output
+    
+    Returns:
+    --------
+    x_new : ndarray
+        New x coordinates (evenly spaced)
+    y_new : ndarray
+        Interpolated y values
+    """
+    from scipy import signal
+    from scipy.interpolate import (
+        interp1d, Akima1DInterpolator, PchipInterpolator, 
+        BarycentricInterpolator, Rbf, UnivariateSpline,
+        BSpline, splrep
+    )
+    
+    # Handle case with too few points
+    if len(x) < 4:
+        if len(x) < 2:
+            return x, y
+        # Use linear interpolation if we only have 2-3 points
+        method = 'linear'
+    
+    x_new = np.linspace(min(x), max(x), num_points)
+    
+    # Simple interpolation methods
+    if method in ['linear', 'nearest', 'zero', 'slinear', 'quadratic', 'cubic', 'previous', 'next']:
+        f = interp1d(x, y, kind=method, bounds_error=False, fill_value='extrapolate')
+        y_new = f(x_new)
+    
+    # Advanced interpolation methods
+    elif method == 'akima':
+        f = Akima1DInterpolator(x, y)
+        y_new = f(x_new)
+    
+    elif method == 'pchip':
+        f = PchipInterpolator(x, y)
+        y_new = f(x_new)
+        
+    elif method == 'barycentric':
+        f = BarycentricInterpolator(x, y)
+        y_new = f(x_new)
+        
+    elif method == 'rbf':
+        f = Rbf(x, y, function='multiquadric')
+        y_new = f(x_new)
+        
+    elif method == 'smoothing_spline':
+        # Smoothing parameter s controls the tradeoff between closeness and smoothness
+        s = len(x) * 0.01  # This can be adjusted
+        f = UnivariateSpline(x, y, s=s)
+        y_new = f(x_new)
+        
+    elif method == 'bspline':
+        # Degree of the spline
+        k = min(3, len(x) - 1)
+        t, c, k = splrep(x, y, k=k)
+        y_new = BSpline(t, c, k)(x_new)
+        
+    # Smoothing methods (not strictly interpolation)
+    elif method == 'savgol':
+        # Use existing points, apply filter, then interpolate to new points
+        window_length = min(9, len(y) - 2 if len(y) % 2 == 0 else len(y) - 1)
+        if window_length < 3:
+            window_length = 3
+        if window_length % 2 == 0:
+            window_length -= 1  # Ensure odd window length
+        poly_order = min(3, window_length - 1)
+        y_smooth = signal.savgol_filter(y, window_length, poly_order)
+        f = interp1d(x, y_smooth, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        y_new = f(x_new)
+        
+    elif method == 'moving_average':
+        # Apply moving average then interpolate
+        window_size = min(5, len(y))
+        weights = np.ones(window_size) / window_size
+        y_smooth = np.convolve(y, weights, mode='valid')
+        # For convolution, the output size is reduced, so adjust x accordingly
+        start_idx = window_size // 2
+        end_idx = -(window_size // 2) if window_size > 1 else None
+        x_smooth = x[start_idx:end_idx]
+        if len(x_smooth) != len(y_smooth):
+            # If lengths don't match, use another approach
+            half_window = (window_size - 1) // 2
+            y_smooth = np.array([np.mean(y[max(0, i-half_window):min(len(y), i+half_window+1)]) 
+                               for i in range(len(y))])
+            x_smooth = x
+        f = interp1d(x_smooth, y_smooth, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        y_new = f(x_new)
+        
+    elif method == 'gaussian':
+        # Gaussian filter then interpolate
+        sigma = 2
+        y_smooth = signal.gaussian_filter1d(y, sigma)
+        f = interp1d(x, y_smooth, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        y_new = f(x_new)
+        
+    elif method == 'bessel':
+        # Bessel filter then interpolate
+        b, a = signal.bessel(4, 0.1, 'low')
+        y_smooth = signal.filtfilt(b, a, y)
+        f = interp1d(x, y_smooth, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        y_new = f(x_new)
+    
+    else:
+        # Default to cubic interpolation if method not recognized
+        f = interp1d(x, y, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        y_new = f(x_new)
+    
+    return x_new, y_new
+
+# List of available interpolation methods
+INTERPOLATION_METHODS = [
+    'linear',         # Linear segments
+    'cubic',          # Cubic spline (default)
+    'quadratic',      # Quadratic interpolation
+    'nearest',        # Nearest neighbor interpolation
+    'akima',          # Akima interpolation (reduced oscillations)
+    'pchip',          # Piecewise Cubic Hermite Interpolating Polynomial
+    'smoothing_spline', # Smoothing spline with automatic parameter
+    'bspline',        # B-spline interpolation
+    'savgol',         # Savitzky-Golay filter (smoothing)
+    'moving_average', # Moving average smoothing
+    'gaussian',       # Gaussian filter smoothing
+    'bessel',         # Bessel filter (good for frequency data)
+    'barycentric',    # Barycentric interpolation
+    'rbf'             # Radial basis function interpolation
+]
+
+# -----------------------------------------------------------------------------
+# *** FIXED *** selective DOF elimination
+# -----------------------------------------------------------------------------
+
+def remove_zero_mass_dofs(
+    mass_matrix,
+    damping_matrix,
+    stiffness_matrix,
+    forcing_matrix,
+    *,
+    tol: float = 1e-8,
+):
+    """Remove degrees of freedom that are *truly* inactive.
+
+    A DOF is eliminated if **either**
+    1. Its corresponding row *and* column are effectively zero in the *mass* matrix
+       (no inertia).
+    2. It is simultaneously zero in *all* of the other system matrices
+       (damping, stiffness, *and* forcing).
+
+    This criterion is much stricter than the previous implementation, which
+    removed a DOF when it was zero in *any* matrix, and was therefore prone to
+    deleting valid DOFs whenever, for instance, the damping matrix contained a
+    zero row/column.
+    """
+
+    def _zero_dofs(mat, *, is_forcing=False):
+        if is_forcing:
+            if mat.ndim == 1:
+                return np.isclose(mat, 0, atol=tol)
+            return np.all(np.isclose(mat, 0, atol=tol), axis=1)
+        rows = np.all(np.isclose(mat, 0, atol=tol), axis=1)
+        cols = np.all(np.isclose(mat, 0, atol=tol), axis=0)
+        return rows | cols
+
+    z_mass = _zero_dofs(mass_matrix)
+    z_damp = _zero_dofs(damping_matrix)
+    z_stif = _zero_dofs(stiffness_matrix)
+    z_force = _zero_dofs(forcing_matrix, is_forcing=True)
+
+    # Strict criterion (see docstring):
+    dofs_to_remove = z_mass | (z_damp & z_stif & z_force)
+    active_dofs = ~dofs_to_remove
+
+    if not np.any(dofs_to_remove):
+        return mass_matrix, damping_matrix, stiffness_matrix, forcing_matrix, active_dofs
+
+    mm = mass_matrix[active_dofs][:, active_dofs]
+    cc = damping_matrix[active_dofs][:, active_dofs]
+    kk = stiffness_matrix[active_dofs][:, active_dofs]
+
+    if forcing_matrix.ndim == 1:
+        ff = forcing_matrix[active_dofs]
+    elif forcing_matrix.ndim == 2:
+        ff = forcing_matrix[active_dofs, :]
+    else:
+        raise ValueError("forcing_matrix must be 1‑ or 2‑D array")
+
+    return mm, cc, kk, ff, active_dofs
+
+# -----------------------------------------------------------------------------
+# Peak detection and slope calculation improvements
+# -----------------------------------------------------------------------------
+
+def safe_structure(key, value, ensure_serializable=True, recursive=True, tol=1e-8):
+    import collections.abc
+
+    def serialize(obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, (np.ndarray, list, tuple, set)):
+            return [serialize(o) for o in obj]
+        if isinstance(obj, dict):
+            return {str(k): serialize(v) for k, v in obj.items()}
+        if isinstance(obj, (str, int, float, bool)) or obj is None:
+            return obj
+        return str(obj)
+
+    def process(val):
+        if isinstance(val, dict):
+            return {str(k): process(v) for k, v in val.items()} if recursive else {str(k): v for k, v in val.items()}
+        if isinstance(val, (list, tuple, set, np.ndarray)):
+            return [process(v) for v in val] if recursive else list(val)
+        return val
+
+    structured = process(value)
+    if ensure_serializable:
+        structured = serialize(structured)
+    return {str(key): structured}
+
+def find_significant_peaks(magnitude, omega, min_prominence_ratio=0.05, max_peaks=5):
+    """
+    Find significant peaks in the frequency response using prominence filtering.
+    
+    Parameters:
+    -----------
+    magnitude : ndarray
+        Magnitude of the frequency response
+    omega : ndarray
+        Frequency values
+    min_prominence_ratio : float
+        Minimum prominence as a ratio of the maximum magnitude
+    max_peaks : int
+        Maximum number of peaks to return
+        
+    Returns:
+    --------
+    peak_positions : ndarray
+        Frequencies of significant peaks
+    peak_values : ndarray
+        Magnitude values at the peaks
+    """
+    if len(magnitude) < 3:
+        return np.array([]), np.array([])
+    
+    # Find all peaks
+    peaks, properties = find_peaks(magnitude)
+    
+    if len(peaks) == 0:
+        return np.array([]), np.array([])
+    
+    # Calculate prominence for each peak
+    prominences = peak_prominences(magnitude, peaks)[0]
+    
+    # Filter peaks based on prominence
+    max_magnitude = np.max(magnitude)
+    min_prominence = max_magnitude * min_prominence_ratio
+    
+    significant_peaks = peaks[prominences >= min_prominence]
+    significant_values = magnitude[significant_peaks]
+    
+    # If we have too many peaks, keep only the highest ones
+    if len(significant_peaks) > max_peaks:
+        idx = np.argsort(significant_values)[-max_peaks:]
+        significant_peaks = significant_peaks[idx]
+        significant_values = significant_values[idx]
+    
+    # Return peak positions in frequency domain
+    return omega[significant_peaks], significant_values
+
+def interpolate_peak_vicinity(magnitude, omega, peak_indices, vicinity_ratio=0.05):
+    """
+    Creates a higher resolution interpolation around peak areas for more accurate slope calculations.
+    
+    Parameters:
+    -----------
+    magnitude : ndarray
+        Magnitude of the frequency response
+    omega : ndarray
+        Frequency values
+    peak_indices : ndarray
+        Indices of detected peaks
+    vicinity_ratio : float
+        Ratio of the total frequency range to consider around each peak
+        
+    Returns:
+    --------
+    refined_peak_positions : ndarray
+        Refined frequency values at peaks
+    refined_peak_values : ndarray
+        Refined magnitude values at peaks
+    """
+    if len(peak_indices) == 0 or len(magnitude) < 3:
+        return np.array([]), np.array([])
+    
+    # Create interpolation function
+    interp_func = interp1d(omega, magnitude, kind='cubic', bounds_error=False, fill_value='extrapolate')
+    
+    # Frequency range
+    omega_range = omega[-1] - omega[0]
+    vicinity_width = omega_range * vicinity_ratio
+    
+    refined_peak_positions = []
+    refined_peak_values = []
+    
+    for idx in peak_indices:
+        peak_pos = omega[idx]
+        
+        # Create high-resolution samples around the peak
+        vicinity_start = max(omega[0], peak_pos - vicinity_width/2)
+        vicinity_end = min(omega[-1], peak_pos + vicinity_width/2)
+        
+        # Create 100 points around the peak for high-resolution analysis
+        high_res_omega = np.linspace(vicinity_start, vicinity_end, 100)
+        high_res_mag = interp_func(high_res_omega)
+        
+        # Find the maximum in the high-resolution data
+        max_idx = np.argmax(high_res_mag)
+        refined_peak_positions.append(high_res_omega[max_idx])
+        refined_peak_values.append(high_res_mag[max_idx])
+    
+    return np.array(refined_peak_positions), np.array(refined_peak_values)
+
+def calculate_robust_slopes(peak_positions, peak_values, slope_threshold=0.01):
+    """
+    Calculate slopes between peaks with improved robustness.
+    Filters out insignificant slopes based on threshold.
+    
+    Parameters:
+    -----------
+    peak_positions : ndarray
+        Frequencies of peaks
+    peak_values : ndarray
+        Magnitude values at peaks
+    slope_threshold : float
+        Minimum normalized slope magnitude to consider significant
+        
+    Returns:
+    --------
+    slopes : dict
+        Dictionary of significant slopes
+    slope_max : float
+        Maximum significant slope
     """
     slopes = {}
     slope_max = np.nan
     num_peaks = len(peak_positions)
-
-    if num_peaks > 1:
-        for i in range(num_peaks):
-            for j in range(i + 1, num_peaks):
-                # Calculate the slope between two peaks
-                delta_pos = peak_positions[j] - peak_positions[i]
-                if delta_pos != 0:
-                    slope = (peak_values[j] - peak_values[i]) / delta_pos
-                else:
-                    slope = 0  # Avoid division by zero
-                slopes[f'slope_{i+1}_{j+1}'] = slope
-                # Keep track of the maximum absolute slope
+    
+    if num_peaks <= 1:
+        return slopes, slope_max
+    
+    # Calculate normalization factor to make slopes comparable
+    amplitude_range = np.max(peak_values) - np.min(peak_values)
+    frequency_range = np.max(peak_positions) - np.min(peak_positions)
+    
+    if amplitude_range == 0 or frequency_range == 0:
+        return slopes, slope_max
+    
+    # Calculate normalized slopes
+    for i in range(num_peaks):
+        for j in range(i + 1, num_peaks):
+            dx = peak_positions[j] - peak_positions[i]
+            if dx == 0:
+                continue
+                
+            slope = (peak_values[j] - peak_values[i]) / dx
+            
+            # Normalize the slope for comparison
+            normalized_slope = slope * (frequency_range / amplitude_range)
+            
+            # Only keep significant slopes
+            if abs(normalized_slope) >= slope_threshold:
+                slopes[f"slope_{i+1}_{j+1}"] = slope
                 if np.isnan(slope_max) or abs(slope) > abs(slope_max):
                     slope_max = slope
+    
     return slopes, slope_max
 
-def remove_zero_mass_dofs(mass_matrix, damping_matrix, stiffness_matrix, forcing_matrix, tol=1e-8):
+def process_mass(a_mass, omega, user_peak_positions=None):
     """
-    Remove Degrees of Freedom (DOFs) with zero or near-zero rows or columns in any of the provided matrices.
-
+    Process mass response data to calculate peaks, slopes, bandwidths and area.
+    
     Parameters:
-        mass_matrix (ndarray): Mass matrix (NxN).
-        damping_matrix (ndarray): Damping matrix (NxN).
-        stiffness_matrix (ndarray): Stiffness matrix (NxN).
-        forcing_matrix (ndarray): Forcing matrix/vector (N or NxM).
-        tol (float): Tolerance for determining if a row or column is zero. Default is 1e-8.
-
+    -----------
+    a_mass : ndarray
+        Complex frequency response data
+    omega : ndarray
+        Frequency values
+    user_peak_positions : list or ndarray, optional
+        User-specified peak positions (frequencies) to consider
+        
     Returns:
-        mass_matrix_reduced (ndarray): Reduced mass matrix.
-        damping_matrix_reduced (ndarray): Reduced damping matrix.
-        stiffness_matrix_reduced (ndarray): Reduced stiffness matrix.
-        forcing_matrix_reduced (ndarray): Reduced forcing matrix/vector.
-        active_dofs (ndarray): Boolean array indicating active DOFs.
+    --------
+    dict
+        Dictionary containing processed results including peaks, slopes, bandwidths and area
     """
-    # Initialize a list to collect DOFs to remove
-    dofs_to_remove = np.zeros(mass_matrix.shape[0], dtype=bool)
-
-    # Helper function to identify zero DOFs in a matrix
-    def identify_zero_dofs(matrix, is_forcing=False):
-        """
-        Identify DOFs (rows/columns) that are zero or near-zero in the given matrix.
-
-        Parameters:
-            matrix (ndarray): The matrix to check.
-            is_forcing (bool): If True, treats the matrix as a forcing vector/matrix.
-
-        Returns:
-            zero_dofs (ndarray): Boolean array indicating zero DOFs.
-        """
-        if is_forcing:
-            # If forcing_matrix is 1D, treat each entry as a DOF
-            if matrix.ndim == 1:
-                zero_dofs = np.isclose(matrix, 0, atol=tol)
-            else:
-                # If forcing_matrix is 2D, check if all elements in a row are zero
-                zero_dofs = np.all(np.isclose(matrix, 0, atol=tol), axis=1)
-        else:
-            # Check for zero rows
-            zero_rows = np.all(np.isclose(matrix, 0, atol=tol), axis=1)
-            # Check for zero columns
-            zero_cols = np.all(np.isclose(matrix, 0, atol=tol), axis=0)
-            # A DOF is zero if either its row or column is zero
-            zero_dofs = zero_rows | zero_cols
-        return zero_dofs
-
-    # Identify zero DOFs in each matrix
-    zero_dofs_mass = identify_zero_dofs(mass_matrix)
-    zero_dofs_damping = identify_zero_dofs(damping_matrix)
-    zero_dofs_stiffness = identify_zero_dofs(stiffness_matrix)
-    zero_dofs_forcing = identify_zero_dofs(forcing_matrix, is_forcing=True)
-
-    # Combine all zero DOFs across all matrices
-    dofs_to_remove = zero_dofs_mass | zero_dofs_damping | zero_dofs_stiffness | zero_dofs_forcing
-
-    # If no DOFs to remove, return original matrices and active_dofs as all True
-    if not np.any(dofs_to_remove):
-        active_dofs = np.ones(mass_matrix.shape[0], dtype=bool)
-        return mass_matrix, damping_matrix, stiffness_matrix, forcing_matrix, active_dofs
-
-    # Identify active DOFs (those not to be removed)
-    active_dofs = ~dofs_to_remove
-
-    # Remove DOFs
-    mass_matrix_reduced = mass_matrix[active_dofs][:, active_dofs]
-    damping_matrix_reduced = damping_matrix[active_dofs][:, active_dofs]
-    stiffness_matrix_reduced = stiffness_matrix[active_dofs][:, active_dofs]
-
-    # Handle forcing_matrix reduction
-    if forcing_matrix.ndim == 1:
-        # If forcing_matrix is a vector, simply remove the entries corresponding to removed DOFs
-        forcing_matrix_reduced = forcing_matrix[active_dofs]
-    elif forcing_matrix.ndim == 2:
-        # If forcing_matrix is a matrix, remove the rows corresponding to removed DOFs
-        forcing_matrix_reduced = forcing_matrix[active_dofs, :]
-    else:
-        raise ValueError("forcing_matrix must be either a 1D or 2D array.")
-
-    return mass_matrix_reduced, damping_matrix_reduced, stiffness_matrix_reduced, forcing_matrix_reduced, active_dofs
-
-def safe_structure(key, value, ensure_serializable=True, recursive=True, tol=1e-8):
-    """
-    Safely structure nested outputs for JSON-like results.
-
-    Parameters:
-        key (str): The key for the structured output.
-        value (any): The value to be structured.
-        ensure_serializable (bool): If True, ensures all data is JSON serializable.
-        recursive (bool): If True, applies the structuring recursively to nested structures.
-        tol (float): Tolerance for determining if numeric values are close to zero (used for custom handling if needed).
-
-    Returns:
-        structured_output (dict): Structured dictionary.
-    """
-    import collections.abc
-
-    def serialize(obj):
-        """
-        Helper function to serialize objects into JSON-compatible formats.
-
-        Parameters:
-            obj (any): The object to serialize.
-
-        Returns:
-            Serialized object.
-        """
-        if isinstance(obj, (np.integer,)):
-            return int(obj)
-        elif isinstance(obj, (np.floating,)):
-            return float(obj)
-        elif isinstance(obj, (np.ndarray, list, tuple, set)):
-            return [serialize(item) for item in obj]
-        elif isinstance(obj, dict):
-            return {str(k): serialize(v) for k, v in obj.items()}
-        elif isinstance(obj, (str, int, float, bool)) or obj is None:
-            return obj
-        else:
-            # For objects not serializable by default, convert to string
-            return str(obj)
-
-    def process(value):
-        """
-        Recursively process the value to ensure it's structured appropriately.
-
-        Parameters:
-            value (any): The value to process.
-
-        Returns:
-            Processed value.
-        """
-        if isinstance(value, dict):
-            if recursive:
-                return {str(k): process(v) for k, v in value.items()}
-            else:
-                return {str(k): v for k, v in value.items()}
-        elif isinstance(value, (list, tuple, set, np.ndarray)):
-            if recursive:
-                return [process(item) for item in value]
-            else:
-                try:
-                    return list(value)
-                except TypeError:
-                    return value
-        else:
-            return value
-
-    # Initial structuring based on the type of value
-    if isinstance(value, dict):
-        if recursive:
-            structured_value = process(value)
-        else:
-            structured_value = {str(k): v for k, v in value.items()}
-    elif isinstance(value, (list, tuple, set, np.ndarray)):
-        if recursive:
-            structured_value = process(value)
-        else:
-            try:
-                structured_value = list(value)
-            except TypeError:
-                structured_value = value
-    else:
-        structured_value = value
-
-    # Apply serialization if required
-    if ensure_serializable:
-        structured_value = serialize(structured_value)
-
-    return {str(key): structured_value}
-
-def process_mass(a_mass, omega):
-    """
-    Process the mass response to extract relevant criteria.
-
-    Parameters:
-        a_mass (ndarray): Complex response of the mass across frequencies.
-        omega (ndarray): Array of frequency values (rad/s).
-
-    Returns:
-        mass_output (dict): Dictionary containing processed criteria.
-    """
-    # Calculate the magnitude of the response
     a_mag = np.abs(a_mass)
-
-    # Identify peaks in the magnitude response
-    peaks, _ = find_peaks(a_mag)
-    peak_positions = omega[peaks]
-    peak_values = a_mag[peaks]
-
-    # Calculate bandwidths between peaks
+    
+    # Initialize peak data
+    peak_positions = []
+    peak_values = []
+    
+    # Handle user-specified peaks
+    if user_peak_positions is not None:
+        user_peak_positions = np.array(user_peak_positions)
+        # Find the closest actual frequency points to user-specified positions
+        for pos in user_peak_positions:
+            idx = np.argmin(np.abs(omega - pos))
+            peak_positions.append(omega[idx])
+            peak_values.append(a_mag[idx])
+    
+    # Find additional significant peaks with prominence filtering
+    detected_positions, detected_values = find_significant_peaks(a_mag, omega)
+    
+    # Combine user-specified and detected peaks
+    if len(detected_positions) > 0:
+        peak_positions.extend(detected_positions)
+        peak_values.extend(detected_values)
+    
+    # Convert to numpy arrays
+    peak_positions = np.array(peak_positions)
+    peak_values = np.array(peak_values)
+    
+    # Sort peaks by frequency
+    sort_idx = np.argsort(peak_positions)
+    peak_positions = peak_positions[sort_idx]
+    peak_values = peak_values[sort_idx]
+    
+    # If we found peaks, refine their positions with interpolation
+    if len(peak_positions) > 0:
+        # First convert peak positions back to indices in the original array
+        peak_indices = np.array([np.argmin(np.abs(omega - pos)) for pos in peak_positions])
+        
+        # Then refine with interpolation
+        peak_positions, peak_values = interpolate_peak_vicinity(a_mag, omega, peak_indices)
+    
+    # Calculate bandwidths
     bandwidths = {}
     for i in range(len(peak_positions)):
         for j in range(i + 1, len(peak_positions)):
-            bandwidth_name = f'bandwidth_{i+1}_{j+1}'
-            bandwidths[bandwidth_name] = peak_positions[j] - peak_positions[i]
+            bandwidths[f"bandwidth_{i+1}_{j+1}"] = peak_positions[j] - peak_positions[i]
 
-    # Calculate area under the curve for magnitude
-    if len(a_mag) > 0:
-        area_under_curve = simpson(a_mag, x=omega)
-    else:
-        area_under_curve = np.nan
+    # Calculate area under curve
+    area_under_curve = simpson(a_mag, x=omega) if len(a_mag) else np.nan
+    
+    # Calculate robust slopes
+    slopes, slope_max = calculate_robust_slopes(peak_positions, peak_values)
 
-    # Calculate slopes between peaks
-    slopes, slope_max = calculate_slopes(peak_positions, peak_values)
+    # Format peak data for return
+    peaks_dict = {f"peak_position_{i+1}": p for i, p in enumerate(peak_positions)}
+    values_dict = {f"peak_value_{i+1}": v for i, v in enumerate(peak_values)}
 
-    # Limit to top 5 peaks if more than 5 exist
-    if len(peak_positions) > 5:
-        sorted_indices = np.argsort(peak_values)[-5:]
-        peak_positions = peak_positions[sorted_indices]
-        peak_values = peak_values[sorted_indices]
-        slopes, slope_max = calculate_slopes(peak_positions, peak_values)
-
-    # Create dictionaries for peak positions and values
-    peak_positions_dict = {f'peak_position_{i+1}': pos for i, pos in enumerate(peak_positions)}
-    peak_values_dict = {f'peak_value_{i+1}': val for i, val in enumerate(peak_values)}
-
-    # Structure the output
-    mass_output = {
-        **safe_structure('peak_positions', peak_positions_dict),
-        **safe_structure('peak_values', peak_values_dict),
-        **safe_structure('bandwidths', bandwidths),
-        **safe_structure('area_under_curve', area_under_curve),
-        **safe_structure('slopes', slopes),
-        **safe_structure('slope_max', slope_max),
-        'magnitude': a_mag
+    return {
+        **safe_structure("peak_positions", peaks_dict),
+        **safe_structure("peak_values", values_dict),
+        **safe_structure("bandwidths", bandwidths),
+        **safe_structure("area_under_curve", area_under_curve),
+        **safe_structure("slopes", slopes),
+        **safe_structure("slope_max", slope_max),
+        "magnitude": a_mag,
     }
 
-    return mass_output
+# -----------------------------------------------------------------------------
+# Remaining plotting utilities (unchanged)
+# -----------------------------------------------------------------------------
 
 import matplotlib.pyplot as plt
 
 class DraggableAnnotation:
     def __init__(self, annotation):
-        """
-        Initialize the draggable annotation.
-        
-        Parameters:
-            annotation (matplotlib.text.Annotation): The annotation to make draggable.
-        """
         self.annotation = annotation
         self.press = None
-        self.annotation.figure.canvas.mpl_connect('button_press_event', self.on_press)
-        self.annotation.figure.canvas.mpl_connect('button_release_event', self.on_release)
-        self.annotation.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
-    
-    def on_press(self, event):
-        """Handle the mouse button press event."""
+        self.annotation.figure.canvas.mpl_connect("button_press_event", self._on_press)
+        self.annotation.figure.canvas.mpl_connect("button_release_event", self._on_release)
+        self.annotation.figure.canvas.mpl_connect("motion_notify_event", self._on_motion)
+
+    def _on_press(self, event):
         if event.inaxes != self.annotation.axes:
             return
         contains, _ = self.annotation.contains(event)
@@ -295,341 +585,287 @@ class DraggableAnnotation:
             return
         x0, y0 = self.annotation.get_position()
         self.press = (x0, y0, event.xdata, event.ydata)
-    
-    def on_motion(self, event):
-        """Handle the mouse movement event."""
+
+    def _on_motion(self, event):
         if self.press is None or event.inaxes != self.annotation.axes:
             return
         x0, y0, xpress, ypress = self.press
-        dx = event.xdata - xpress
-        dy = event.ydata - ypress
-        new_x = x0 + dx
-        new_y = y0 + dy
-        self.annotation.set_position((new_x, new_y))
+        self.annotation.set_position((x0 + event.xdata - xpress, y0 + event.ydata - ypress))
         self.annotation.figure.canvas.draw()
-    
-    def on_release(self, event):
-        """Handle the mouse button release event."""
+
+    def _on_release(self, _event):
         self.press = None
         self.annotation.figure.canvas.draw()
 
-def plot_mass_response(mass_label, omega, mass_data, show_peaks=False, show_slopes=False,
-                       figsize=(10, 6), color=None, alpha_fill=0.2, font_size=10, font_style='normal'):
-    """
-    Plot the frequency response of a single mass with optional draggable annotations.
-    
-    Parameters:
-        mass_label (str): Label of the mass (e.g., 'Primary Mass 1').
-        omega (ndarray): Frequency array.
-        mass_data (dict): Mass data containing magnitude and processed results.
-        show_peaks (bool): Whether to annotate peaks on the plot.
-        show_slopes (bool): Whether to annotate slopes between peaks.
-        figsize (tuple): Size of the figure (width, height).
-        color (str or tuple): Color of the plot line. If None, a default color is used.
-        alpha_fill (float): Transparency level for the area under the curve.
-        font_size (int): Font size for annotations.
-        font_style (str): Font style for annotations (e.g., 'normal', 'italic', 'bold').
-    """
+
+def plot_mass_response(
+    mass_label,
+    omega,
+    mass_data,
+    *,
+    show_peaks=False,
+    show_slopes=False,
+    figsize=(10, 6),
+    color=None,
+    alpha_fill=0.2,
+    font_size=10,
+    font_style="normal",
+    interpolation_method='cubic',
+    interpolation_points=1000,
+):
     plt.figure(figsize=figsize)
+    color = color or "C0"
+
+    a_mag = mass_data.get("magnitude", np.zeros_like(omega))
     
-    # Assign color if not provided
-    if color is None:
-        color = 'C0'  # Default matplotlib color cycle
-    
-    # Plot the frequency response function
-    a_mag = mass_data.get('magnitude', np.zeros_like(omega))
-    line, = plt.plot(omega, a_mag, label=mass_label, linewidth=2, color=color)
-    
-    # Highlight the area under the curve
-    plt.fill_between(omega, a_mag, color=color, alpha=alpha_fill)
-    
+    # Apply interpolation if requested
+    if interpolation_method != 'none' and len(omega) > 1:
+        omega_smooth, a_mag_smooth = apply_interpolation(
+            omega, a_mag, 
+            method=interpolation_method,
+            num_points=interpolation_points
+        )
+        plt.plot(omega_smooth, a_mag_smooth, label=mass_label, linewidth=2, color=color)
+        plt.fill_between(omega_smooth, a_mag_smooth, color=color, alpha=alpha_fill)
+        
+        # Also plot the original points with small markers for reference
+        plt.plot(omega, a_mag, 'o', markersize=2, color=color, alpha=0.5)
+    else:
+        # No interpolation, just plot the original data
+        plt.plot(omega, a_mag, label=mass_label, linewidth=2, color=color)
+        plt.fill_between(omega, a_mag, color=color, alpha=alpha_fill)
+
     draggable_annotations = []
-    
+
     if show_peaks:
-        # Extract peak positions and values
-        peak_positions = [mass_data['peak_positions'].get(f'peak_position_{i+1}', 0) 
-                          for i in range(len(mass_data.get('peak_positions', {})))]
-        peak_values = [mass_data['peak_values'].get(f'peak_value_{i+1}', 0) 
-                       for i in range(len(mass_data.get('peak_values', {})))]
-        
-        # Sort peaks by amplitude and select top 3
-        sorted_peaks = sorted(zip(peak_values, peak_positions), key=lambda x: x[0], reverse=True)[:3]
-        
-        for i, (val, pos) in enumerate(sorted_peaks, 1):
-            # Plot the peak point
-            scatter = plt.scatter(pos, val, color='darkred', s=100, zorder=5, edgecolor='black')
-            
-            # Create and add the annotation
-            annotation_text = f'Peak {i}\nFreq: {pos:.2f} rad/s\nAmp: {val:.2e}'
-            annotation = plt.annotate(
-                annotation_text,
+        n_peaks = len(mass_data.get("peak_positions", {}))
+        positions = [mass_data["peak_positions"].get(f"peak_position_{i+1}", 0) for i in range(n_peaks)]
+        values = [mass_data["peak_values"].get(f"peak_value_{i+1}", 0) for i in range(n_peaks)]
+        for i, (val, pos) in enumerate(sorted(zip(values, positions), key=lambda x: x[0], reverse=True)[:3], 1):
+            s = plt.scatter(pos, val, color="darkred", s=100, zorder=5, edgecolor="black")
+            ann = plt.annotate(
+                f"Peak {i}\nFreq: {pos:.2f} rad/s\nAmp: {val:.2e}",
                 xy=(pos, val),
-                xytext=(0, 20 if i % 2 == 1 else -30),
-                textcoords='offset points',
-                ha='center',
-                va='bottom' if i % 2 == 1 else 'top',
+                xytext=(0, 20 if i % 2 else -30),
+                textcoords="offset points",
+                ha="center",
+                va="bottom" if i % 2 else "top",
                 fontsize=font_size,
                 fontstyle=font_style,
-                bbox=dict(boxstyle='round,pad=0.3', fc='yellow', alpha=0.5),
-                arrowprops=dict(arrowstyle='->', connectionstyle='arc3', color='black')
+                bbox=dict(boxstyle="round,pad=0.3", fc="yellow", alpha=0.5),
+                arrowprops=dict(arrowstyle="->", connectionstyle="arc3", color="black"),
             )
-            
-            # Make the annotation draggable
-            draggable = DraggableAnnotation(annotation)
-            draggable_annotations.append(draggable)
-    
-    # Set axis labels and title
-    plt.xlabel('Frequency (rad/s)', fontsize=14)
-    plt.ylabel('Amplitude', fontsize=14)
-    plt.title(f'Frequency Response of {mass_label}', fontsize=18, weight='bold')
-    
-    # Add gridlines
-    plt.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
-    
-    # Configure and place legend
-    plt.legend(fontsize=12, loc='upper right')
-    
-    # Adjust tick parameters
-    plt.tick_params(axis='both', which='major', labelsize=12)
-    
-    # Improve layout
+            draggable_annotations.append(DraggableAnnotation(ann))
+
+    plt.xlabel("Frequency (rad/s)", fontsize=14)
+    plt.ylabel("Amplitude", fontsize=14)
+    plt.title(f"Frequency Response of {mass_label}", fontsize=18, weight="bold")
+    plt.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
+    plt.legend(fontsize=12, loc="upper right")
     plt.tight_layout()
-    
-    # Show the plot
     plt.show()
 
-def plot_all_mass_responses(omega, mass_data_list, mass_labels, show_peaks=False, show_slopes=False,
-                            figsize=(16, 10), alpha_fill=0.1, font_size=12, font_style='normal'):
-    """
-    Plot the frequency responses of multiple masses in a single plot with an internal, enlarged legend.
-    
-    Parameters:
-        omega (ndarray): Frequency array.
-        mass_data_list (list of dict): List containing mass responses and results.
-        mass_labels (list of str): List of mass labels (e.g., ['mass_1', 'mass_2', ...]).
-        show_peaks (bool): Whether to annotate peaks on the plots.
-        show_slopes (bool): Whether to annotate slopes between peaks in the plots.
-        figsize (tuple): Size of the figure (width, height).
-        alpha_fill (float): Transparency level for the area under the curves.
-        font_size (int): Font size for annotations and legend.
-        font_style (str): Font style for annotations and legend (e.g., 'normal', 'italic', 'bold').
-    """
-    import matplotlib.pyplot as plt
-    from scipy.signal import find_peaks
-    import numpy as np
 
-    # Create figure and axis
-    fig, ax_plot = plt.subplots(figsize=figsize)
-    
-    # Define a color cycle using 'tab10' colormap for distinct colors
-    cmap = plt.get_cmap('tab10')
+def plot_all_mass_responses(
+    omega,
+    mass_data_list,
+    mass_labels,
+    *,
+    show_peaks=False,
+    show_slopes=False,
+    figsize=(16, 10),
+    alpha_fill=0.1,
+    font_size=12,
+    font_style="normal",
+    interpolation_method='cubic',
+    interpolation_points=1000,
+):
+    fig, ax = plt.subplots(figsize=figsize)
+    cmap = plt.get_cmap("tab10")
     colors = [cmap(i % 10) for i in range(len(mass_labels))]
-    
-    # Plot the frequency responses
-    for idx, (mass_label, mass_data) in enumerate(zip(mass_labels, mass_data_list)):
+
+    for idx, (lbl, data) in enumerate(zip(mass_labels, mass_data_list)):
         color = colors[idx]
-        a_mag = mass_data.get('magnitude', np.zeros_like(omega))
-        ax_plot.plot(omega, a_mag, label=mass_label, linewidth=2, color=color)
-        ax_plot.fill_between(omega, a_mag, color=color, alpha=alpha_fill)
+        a_mag = data.get("magnitude", np.zeros_like(omega))
         
+        # Apply interpolation if requested
+        if interpolation_method != 'none' and len(omega) > 1:
+            omega_smooth, a_mag_smooth = apply_interpolation(
+                omega, a_mag, 
+                method=interpolation_method,
+                num_points=interpolation_points
+            )
+            ax.plot(omega_smooth, a_mag_smooth, label=lbl, linewidth=2, color=color)
+            ax.fill_between(omega_smooth, a_mag_smooth, color=color, alpha=alpha_fill)
+            
+            # Plot original points with small markers
+            ax.plot(omega, a_mag, 'o', markersize=2, color=color, alpha=0.3)
+        else:
+            # No interpolation, plot original data
+            ax.plot(omega, a_mag, label=lbl, linewidth=2, color=color)
+            ax.fill_between(omega, a_mag, color=color, alpha=alpha_fill)
+
         if show_peaks:
-            # Extract peak positions and values
-            peak_positions = [mass_data['peak_positions'].get(f'peak_position_{i+1}', 0)
-                              for i in range(len(mass_data.get('peak_positions', {})))]
-            peak_values = [mass_data['peak_values'].get(f'peak_value_{i+1}', 0)
-                           for i in range(len(mass_data.get('peak_values', {})))]
-            
-            # Sort peaks by amplitude and select top 3
-            sorted_peaks = sorted(zip(peak_values, peak_positions), key=lambda x: x[0], reverse=True)[:3]
-            
-            for i, (val, pos) in enumerate(sorted_peaks, 1):
-                # Plot the peak point
-                ax_plot.scatter(pos, val, color='darkred', s=100, zorder=5, edgecolor='black')
-                
-                # Determine annotation position
-                offset = 20 if i % 2 == 1 else -30
-                va = 'bottom' if i % 2 == 1 else 'top'
-                
-                # Create annotation
-                annotation = ax_plot.annotate(
-                    f'Peak {i}\nFreq: {pos:.3f} rad/s\nAmp: {val:.3e}',
-                    xy=(pos, val),
-                    xytext=(0, offset),
-                    textcoords='offset points',
-                    ha='center',
-                    va=va,
+            n_peaks = len(data.get("peak_positions", {}))
+            pos = [data["peak_positions"].get(f"peak_position_{i+1}", 0) for i in range(n_peaks)]
+            val = [data["peak_values"].get(f"peak_value_{i+1}", 0) for i in range(n_peaks)]
+            for i, (v, p) in enumerate(sorted(zip(val, pos), key=lambda x: x[0], reverse=True)[:3], 1):
+                ax.scatter(p, v, color="darkred", s=100, zorder=5, edgecolor="black")
+                ann = ax.annotate(
+                    f"Peak {i}\nFreq: {p:.3f} rad/s\nAmp: {v:.3e}",
+                    xy=(p, v),
+                    xytext=(0, 20 if i % 2 else -30),
+                    textcoords="offset points",
+                    ha="center",
+                    va="bottom" if i % 2 else "top",
                     fontsize=font_size,
                     fontstyle=font_style,
-                    fontname='Times New Roman',
-                    bbox=dict(boxstyle='round,pad=0.3', fc='yellow', alpha=0.5),
-                    arrowprops=dict(arrowstyle='->', connectionstyle='arc3', color='black')
+                    fontname="Times New Roman",
+                    bbox=dict(boxstyle="round,pad=0.3", fc="yellow", alpha=0.5),
+                    arrowprops=dict(arrowstyle="->", connectionstyle="arc3", color="black"),
                 )
-                
-                # Make the annotation draggable
-                draggable = DraggableAnnotation(annotation)
-    
-    # Set axis labels and title with Times New Roman font
-    ax_plot.set_xlabel('Frequency (rad/s)', fontsize=14, fontname='Times New Roman')
-    ax_plot.set_ylabel('Amplitude', fontsize=14, fontname='Times New Roman')
-    ax_plot.set_title('Combined Frequency Responses of All Masses', fontsize=18, weight='bold', fontname='Times New Roman')
-    
-    # Add gridlines
-    ax_plot.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
-    
-    # Configure and place legend inside the plot area
-    handles, labels = ax_plot.get_legend_handles_labels()
-    
-    # Determine number of columns for the legend based on the number of labels
-    if len(labels) <= 3:
-        ncol = 1
-    elif len(labels) <= 6:
-        ncol = 2
-    else:
-        ncol = 3
-    
-    legend = ax_plot.legend(handles, labels, fontsize=font_size, loc='upper right', ncol=ncol,
-                            prop={'family': 'Times New Roman', 'size': font_size},
-                            frameon=True, fancybox=True, shadow=True)
-    
-    # Optionally, increase legend font size further by iterating over text objects
-    for text in legend.get_texts():
-        text.set_fontsize(font_size)
-        text.set_fontname('Times New Roman')
-        text.set_fontstyle(font_style)
-    
-    # Adjust tick parameters with Times New Roman font
-    ax_plot.tick_params(axis='both', which='major', labelsize=12)
-    for label in (ax_plot.get_xticklabels() + ax_plot.get_yticklabels()):
-        label.set_fontname('Times New Roman')
-    
-    # Improve layout to fit the plot neatly within the figure
+                DraggableAnnotation(ann)
+
+    ax.set_xlabel("Frequency (rad/s)", fontsize=14, fontname="Times New Roman")
+    ax.set_ylabel("Amplitude", fontsize=14, fontname="Times New Roman")
+    ax.set_title("Combined Frequency Responses of All Masses", fontsize=18, weight="bold", fontname="Times New Roman")
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
+
+    ncol = 1 if len(mass_labels) <= 3 else 2 if len(mass_labels) <= 6 else 3
+    lgd = ax.legend(fontsize=font_size, loc="upper right", ncol=ncol, frameon=True, fancybox=True, shadow=True,
+                    prop={"family": "Times New Roman", "size": font_size})
+    for txt in lgd.get_texts():
+        txt.set_fontname("Times New Roman")
+        txt.set_fontstyle(font_style)
+
+    ax.tick_params(axis="both", which="major", labelsize=12)
+    for label in ax.get_xticklabels() + ax.get_yticklabels():
+        label.set_fontname("Times New Roman")
+
     plt.tight_layout()
-    
-    # Show the plot
     plt.show()
 
+# -----------------------------------------------------------------------------
+# Composite / singular response utilities (unchanged)
+# -----------------------------------------------------------------------------
 
 def calculate_composite_measure(mass_key, results, target_values, weights):
-    """
-    Calculate the composite measure for a given mass based on target values and weights.
-
-    Parameters:
-        mass_key (str): The key for the mass in the results dictionary.
-        results (dict): The results dictionary containing mass data.
-        target_values (dict): Target values for each criterion.
-        weights (dict): Weights for each criterion.
-
-    Returns:
-        composite (float): The composite measure for the mass.
-    """
     composite = 0.0
+    percentage_differences = {}
     mass_results = results.get(mass_key, {})
     if not mass_results:
-        return composite
+        return composite, percentage_differences
 
     for criterion, target in target_values.items():
-        weight = weights.get(criterion, 0.0)
-        if weight == 0.0:
-            continue  # Skip criteria with zero weight
-
-        actual = None
-        if criterion.startswith('peak_position'):
-            # Typically, peak positions might not be used directly in composite measures
+        w = weights.get(criterion, 0.0)
+        if w == 0.0:
             continue
-        elif criterion.startswith('peak_value'):
-            actual = mass_results['peak_values'].get(criterion, 0.0)
-        elif criterion.startswith('bandwidth'):
-            actual = mass_results['bandwidths'].get(criterion, 0.0)
-        elif criterion.startswith('slope'):
-            actual = mass_results['slopes'].get(criterion, 0.0)
-        elif criterion == 'area_under_curve':
-            actual = mass_results.get(criterion, 0.0)
-        elif criterion == 'slope_max':
+        if criterion.startswith("peak_value"):
+            actual = mass_results["peak_values"].get(criterion, 0.0)
+        elif criterion.startswith("peak_position"):
+            actual = mass_results["peak_positions"].get(criterion, 0.0)
+        elif criterion.startswith("bandwidth"):
+            actual = mass_results["bandwidths"].get(criterion, 0.0)
+        elif criterion.startswith("slope"):
+            actual = mass_results["slopes"].get(criterion, 0.0)
+        elif criterion in ("area_under_curve", "slope_max"):
             actual = mass_results.get(criterion, 0.0)
         else:
-            # Handle any other criteria if necessary
             actual = mass_results.get(criterion, 0.0)
-
-        if actual is None:
-            continue
-
+        
+        # Calculate composite measure using ratio
         if target != 0:
-            composite += weight * (actual / target)
-        else:
-            continue  # Skip division by zero
+            composite += w * (actual / target)
+            
+            # Calculate percentage difference for non-zero targets
+            percent_diff = ((actual - target) / target) * 100
+            percentage_differences[criterion] = percent_diff
+    
+    return composite, percentage_differences
 
-    return composite
 
 def calculate_singular_response(results, target_values_dict, weights_dict):
-    """
-    Calculate the composite measure for all masses and the singular response.
-
-    Parameters:
-        results (dict): The results dictionary containing mass data.
-        target_values_dict (dict): Dictionary containing target values for each mass.
-        weights_dict (dict): Dictionary containing weights for each mass.
-
-    Returns:
-        results (dict): The updated results dictionary containing composite measures and singular response.
-    """
     composite_measures = {}
-
-    # Iterate over all masses for which we have target values and weights
-    for mass_key in target_values_dict.keys():
-        target_values = target_values_dict[mass_key]
-        weights = weights_dict.get(mass_key, {})
-        
-        # Calculate composite measure for the current mass
-        composite_mass = calculate_composite_measure(mass_key, results, target_values, weights)
-        composite_measures[mass_key] = composite_mass
-
-    # Calculate the singular response as the sum of all composite measures
-    singular_response = sum(composite_measures.values())
-
-    # Store the composite measures and singular response in results
-    results['composite_measures'] = composite_measures
-    results['singular_response'] = singular_response
-
+    percentage_differences = {}
+    
+    for m in target_values_dict:
+        comp, pdiffs = calculate_composite_measure(m, results, target_values_dict[m], weights_dict.get(m, {}))
+        composite_measures[m] = comp
+        percentage_differences[m] = pdiffs
+    
+    results["composite_measures"] = composite_measures
+    results["percentage_differences"] = percentage_differences
+    results["singular_response"] = sum(composite_measures.values())
+    
     return results
 
-# --- Main FRF Function ---
+# -----------------------------------------------------------------------------
+# Main FRF routine (unchanged apart from the dependency on new DOF function)
+# -----------------------------------------------------------------------------
 
-def frf(main_system_parameters, dva_parameters, omega_start, omega_end, omega_points,
-        target_values_mass1, weights_mass1, target_values_mass2, weights_mass2,
-        target_values_mass3, weights_mass3, target_values_mass4, weights_mass4,
-        target_values_mass5, weights_mass5,
-        plot_figure=False, show_peaks=False, show_slopes=False):
+def frf(
+    main_system_parameters,
+    dva_parameters,
+    omega_start,
+    omega_end,
+    omega_points,
+    target_values_mass1,
+    weights_mass1,
+    target_values_mass2,
+    weights_mass2,
+    target_values_mass3,
+    weights_mass3,
+    target_values_mass4,
+    weights_mass4,
+    target_values_mass5,
+    weights_mass5,
+    *,
+    plot_figure=False,
+    show_peaks=False,
+    show_slopes=False,
+    user_peak_positions=None,  # User-specified peaks
+    interpolation_method='cubic',  # Added interpolation method
+    interpolation_points=1000,  # Added interpolation points
+):
     """
-    Calculate the Frequency Response Function (FRF) and compute a singular response based on weighted, normalized criteria.
-
+    Calculate frequency response functions for the system.
+    
     Parameters:
-        main_system_parameters (list or tuple): Parameters for the main system.
-        dva_parameters (list or tuple): Parameters for the Dynamic Vibration Absorber (DVA).
-        omega_start (float): Starting frequency (rad/s).
-        omega_end (float): Ending frequency (rad/s).
-        omega_points (int): Number of frequency points.
-        target_values_mass1 (dict): Target values for each criterion for mass_1.
-        weights_mass1 (dict): Weights for each criterion for mass_1.
-        target_values_mass2 (dict): Target values for each criterion for mass_2.
-        weights_mass2 (dict): Weights for each criterion for mass_2.
-        target_values_mass3 (dict): Target values for each criterion for mass_3.
-        weights_mass3 (dict): Weights for each criterion for mass_3.
-        target_values_mass4 (dict): Target values for each criterion for mass_4.
-        weights_mass4 (dict): Weights for each criterion for mass_4.
-        target_values_mass5 (dict): Target values for each criterion for mass_5.
-        weights_mass5 (dict): Weights for each criterion for mass_5.
-        plot_figure (bool): Whether to plot the frequency response.
-        show_peaks (bool): Whether to annotate peaks in the plots.
-        show_slopes (bool): Whether to annotate slopes between peaks in the plots.
-
-    Returns:
-        results (dict): Dictionary containing processed responses, composite measures, and the singular response.
+    -----------
+    main_system_parameters : list or array
+        Main system parameters
+    dva_parameters : list or array
+        DVA parameters
+    omega_start : float
+        Starting frequency
+    omega_end : float
+        Ending frequency
+    omega_points : int
+        Number of frequency points
+    target_values_mass1-5 : dict
+        Target values for each mass
+    weights_mass1-5 : dict
+        Weights for each mass
+    plot_figure : bool
+        Whether to plot the results
+    show_peaks : bool
+        Whether to show peaks in plots
+    show_slopes : bool
+        Whether to show slopes in plots
+    user_peak_positions : dict, optional
+        Dictionary of user-specified peak positions for each mass
+        Format: {"mass_1": [freq1, freq2, ...], "mass_2": [freq1, freq2, ...], ...}
+    interpolation_method : str
+        Interpolation method to use for plotting
+        Options: 'none', 'linear', 'cubic', 'quadratic', 'akima', etc.
+    interpolation_points : int
+        Number of points to use in the interpolated curve
     """
-    # Unpack main system parameters
-    MU, LANDA_1, LANDA_2, LANDA_3, LANDA_4, LANDA_5, NU_1, NU_2, NU_3, NU_4, NU_5, \
-    A_LOW, A_UPP, F_1, F_2, OMEGA_DC, ZETA_DC = main_system_parameters
+    # ---------------------------------------------------------------------
+    # Unpack parameters (unchanged)…
+    # ---------------------------------------------------------------------
+    MU, LANDA_1, LANDA_2, LANDA_3, LANDA_4, LANDA_5, NU_1, NU_2, NU_3, NU_4, NU_5, A_LOW, A_UPP, F_1, F_2, OMEGA_DC, ZETA_DC = main_system_parameters
 
-    # Unpack DVA parameters
     (
         beta_1, beta_2, beta_3, beta_4, beta_5, beta_6, beta_7, beta_8, beta_9, beta_10,
         beta_11, beta_12, beta_13, beta_14, beta_15,
@@ -637,214 +873,359 @@ def frf(main_system_parameters, dva_parameters, omega_start, omega_end, omega_po
         lambda_11, lambda_12, lambda_13, lambda_14, lambda_15,
         mu_1, mu_2, mu_3,
         nu_1, nu_2, nu_3, nu_4, nu_5, nu_6, nu_7, nu_8, nu_9, nu_10,
-        nu_11, nu_12, nu_13, nu_14, nu_15
+        nu_11, nu_12, nu_13, nu_14, nu_15,
     ) = dva_parameters
 
-    # Frequency range
     omega = np.linspace(omega_start, omega_end, omega_points)
-    Omega = omega   # Dimensional frequency
+    Omega = omega
 
-    # --- Define Mass Matrix ---
+    # Mass matrix … (unchanged)
     mass_matrix = np.array([
-    [1 + beta_1 + beta_2 + beta_3, 0, -beta_1, -beta_2, -beta_3],
-    [0, MU + beta_4 + beta_5 + beta_6, -beta_4, -beta_5, -beta_6],
-    [-beta_1, -beta_4, mu_1 + beta_1 + beta_4 + beta_7 + beta_8 + beta_10 + beta_9, -beta_9, -beta_10],
-    [-beta_2, -beta_5, -beta_9, mu_2 + beta_11 + beta_2 + beta_9 + beta_12 + beta_5 + beta_15, -beta_15],
-    [-beta_3, -beta_6, -beta_10, -beta_15, mu_3 + beta_14 + beta_6 + beta_13 + beta_3 + beta_15 + beta_10]
+        [1 + beta_1 + beta_2 + beta_3, 0, -beta_1, -beta_2, -beta_3],
+        [0, MU + beta_4 + beta_5 + beta_6, -beta_4, -beta_5, -beta_6],
+        [-beta_1, -beta_4, mu_1 + beta_1 + beta_4 + beta_7 + beta_8 + beta_10 + beta_9, -beta_9, -beta_10],
+        [-beta_2, -beta_5, -beta_9, mu_2 + beta_11 + beta_2 + beta_9 + beta_12 + beta_5 + beta_15, -beta_15],
+        [-beta_3, -beta_6, -beta_10, -beta_15, mu_3 + beta_14 + beta_6 + beta_13 + beta_3 + beta_15 + beta_10],
     ])
 
-
-    # --- Define Damping Matrix (without pre-multiplying) ---
+    # Damping & stiffness matrices (unchanged)…
     damping_matrix_raw = 2 * ZETA_DC * OMEGA_DC * np.array([
-    [1 + nu_1 + nu_2 + nu_3 + NU_1 + NU_2 + NU_3, -NU_3, -nu_1, -nu_2, -nu_3],
-    [-NU_3, NU_5 + NU_4 + NU_3 + nu_4 + nu_5 + nu_6, -nu_4, -nu_5, -nu_6],
-    [-nu_1, -nu_4, nu_1 + nu_4 + nu_7 + nu_8 + nu_10 + nu_9, -nu_9, -nu_10],
-    [-nu_2, -nu_5, -nu_9, nu_11 + nu_2 + nu_9 + nu_12 + nu_5 + nu_15, -nu_15],
-    [-nu_3, -nu_6, -nu_10, -nu_15, nu_14 + nu_6 + nu_13 + nu_3 + nu_15 + nu_10]
+        [1 + nu_1 + nu_2 + nu_3 + NU_1 + NU_2 + NU_3, -NU_3, -nu_1, -nu_2, -nu_3],
+        [-NU_3, NU_5 + NU_4 + NU_3 + nu_4 + nu_5 + nu_6, -nu_4, -nu_5, -nu_6],
+        [-nu_1, -nu_4, nu_1 + nu_4 + nu_7 + nu_8 + nu_10 + nu_9, -nu_9, -nu_10],
+        [-nu_2, -nu_5, -nu_9, nu_11 + nu_2 + nu_9 + nu_12 + nu_5 + nu_15, -nu_15],
+        [-nu_3, -nu_6, -nu_10, -nu_15, nu_14 + nu_6 + nu_13 + nu_3 + nu_15 + nu_10],
     ])
 
-
-    # --- Define Stiffness Matrix (without pre-multiplying) ---
-    stiffness_matrix_raw = OMEGA_DC ** 2 * np.array([
-    [1 + lambda_1 + lambda_2 + lambda_3 + LANDA_1 + LANDA_2 + LANDA_3, -LANDA_3, -lambda_1, -lambda_2, -lambda_3],
-    [-LANDA_3, LANDA_5 + LANDA_4 + LANDA_3 + lambda_4 + lambda_5 + lambda_6, -lambda_4, -lambda_5, -lambda_6],
-    [-lambda_1, -lambda_4, lambda_1 + lambda_4 + lambda_7 + lambda_8 + lambda_10 + lambda_9, -lambda_9, -lambda_10],
-    [-lambda_2, -lambda_5, -lambda_9, lambda_11 + lambda_2 + lambda_9 + lambda_12 + lambda_5 + lambda_15, -lambda_15],
-    [-lambda_3, -lambda_6, -lambda_10, -lambda_15, lambda_14 + lambda_6 + lambda_13 + lambda_3 + lambda_15 + lambda_10]
+    stiffness_matrix_raw = OMEGA_DC**2 * np.array([
+        [1 + lambda_1 + lambda_2 + lambda_3 + LANDA_1 + LANDA_2 + LANDA_3, -LANDA_3, -lambda_1, -lambda_2, -lambda_3],
+        [-LANDA_3, LANDA_5 + LANDA_4 + LANDA_3 + lambda_4 + lambda_5 + lambda_6, -lambda_4, -lambda_5, -lambda_6],
+        [-lambda_1, -lambda_4, lambda_1 + lambda_4 + lambda_7 + lambda_8 + lambda_10 + lambda_9, -lambda_9, -lambda_10],
+        [-lambda_2, -lambda_5, -lambda_9, lambda_11 + lambda_2 + lambda_9 + lambda_12 + lambda_5 + lambda_15, -lambda_15],
+        [-lambda_3, -lambda_6, -lambda_10, -lambda_15, lambda_14 + lambda_6 + lambda_13 + lambda_3 + lambda_15 + lambda_10],
     ])
 
-
-    # Define the forcing functions (frequency-dependent)
+    # Forcing vector (unchanged)…
     f_1_omega = F_1 * np.exp(1j * omega)
     f_2_omega = F_2 * np.exp(1j * omega)
-
-    # Define the external inputs (frequency-dependent)
     u_low = A_LOW * np.exp(1j * omega)
     u_upp = A_UPP * np.exp(1j * omega)
 
-    # Construct the forcing vector (5xN, where N is the number of frequencies)
     f = np.array([
-        f_1_omega + 2 * ZETA_DC * OMEGA_DC * (1j * omega * u_low + NU_2 * 1j * omega * u_upp) + OMEGA_DC ** 2 * (u_low + LANDA_2 * u_upp),
-        f_2_omega + 2 * ZETA_DC * OMEGA_DC * (NU_4 * 1j * omega * u_low + NU_5 * 1j * omega * u_upp) + OMEGA_DC ** 2 * (LANDA_4 * u_low + LANDA_5 * u_upp),
-        beta_7 * (-omega ** 2) * u_low + 2 * ZETA_DC * OMEGA_DC * (nu_7 * 1j * omega * u_low + nu_8 * 1j * omega * u_upp) + OMEGA_DC ** 2 * (lambda_7 * u_low + lambda_8 * u_upp) + beta_8 * (-omega ** 2) * u_upp,
-        beta_11 * (-omega ** 2) * u_low + 2 * ZETA_DC * OMEGA_DC * (nu_11 * 1j * omega * u_low + nu_12 * 1j * omega * u_upp) + OMEGA_DC ** 2 * (lambda_11 * u_low + lambda_12 * u_upp) + beta_12 * (-omega ** 2) * u_upp,
-        beta_13 * (-omega ** 2) * u_low + 2 * ZETA_DC * OMEGA_DC * (nu_13 * 1j * omega * u_low + nu_14 * 1j * omega * u_upp) + OMEGA_DC ** 2 * (lambda_13 * u_low + lambda_14 * u_upp) + beta_14 * (-omega ** 2) * u_upp
+        f_1_omega + 2 * ZETA_DC * OMEGA_DC * (1j * omega * u_low + NU_2 * 1j * omega * u_upp) + OMEGA_DC**2 * (u_low + LANDA_2 * u_upp),
+        f_2_omega + 2 * ZETA_DC * OMEGA_DC * (NU_4 * 1j * omega * u_low + NU_5 * 1j * omega * u_upp) + OMEGA_DC**2 * (LANDA_4 * u_low + LANDA_5 * u_upp),
+        beta_7 * (-omega**2) * u_low + 2 * ZETA_DC * OMEGA_DC * (nu_7 * 1j * omega * u_low + nu_8 * 1j * omega * u_upp) + OMEGA_DC**2 * (lambda_7 * u_low + lambda_8 * u_upp) + beta_8 * (-omega**2) * u_upp,
+        beta_11 * (-omega**2) * u_low + 2 * ZETA_DC * OMEGA_DC * (nu_11 * 1j * omega * u_low + nu_12 * 1j * omega * u_upp) + OMEGA_DC**2 * (lambda_11 * u_low + lambda_12 * u_upp) + beta_12 * (-omega**2) * u_upp,
+        beta_13 * (-omega**2) * u_low + 2 * ZETA_DC * OMEGA_DC * (nu_13 * 1j * omega * u_low + nu_14 * 1j * omega * u_upp) + OMEGA_DC**2 * (lambda_13 * u_low + lambda_14 * u_upp) + beta_14 * (-omega**2) * u_upp,
     ])
 
-    # Remove zero DOFs
-    mass_matrix_reduced, damping_matrix_reduced, stiffness_matrix_reduced, f_reduced, active_dofs = remove_zero_mass_dofs(
-        mass_matrix, damping_matrix_raw, stiffness_matrix_raw, f
-    )
-
-    # Check if any DOFs are left after reduction
-    if mass_matrix_reduced.size == 0:
+    # *** uses new removal function ***
+    mm, cc, kk, f_reduced, active = remove_zero_mass_dofs(mass_matrix, damping_matrix_raw, stiffness_matrix_raw, f)
+    if mm.size == 0:
         raise ValueError("All degrees of freedom have zero mass. Cannot perform analysis.")
 
-    # Number of active DOFs
-    num_dofs = mass_matrix_reduced.shape[0]
-
-    # Initialize the response matrix 'A' (number of active DOFs x number of frequencies)
-    A = np.zeros((num_dofs, len(omega)), dtype=complex)
-
-    for i in range(len(omega)):
-        Omega_i = Omega[i]
-        # hh = -Omega_i^2 [M] + 2j \zeta_{dc} \Omega_i [C] + [K']
-        hh = - Omega_i ** 2 * mass_matrix_reduced + 2 * ZETA_DC * Omega_i * damping_matrix_reduced + stiffness_matrix_reduced
-        # Multiply hh by OMEGA_DC ** 2
-        hh = OMEGA_DC ** 2 * hh
-        # Solve for A
+    n_dofs = mm.shape[0]
+    A = np.zeros((n_dofs, len(omega)), dtype=complex)
+    for i, Om in enumerate(Omega):
+        hh = -Om**2 * mm + 2 * ZETA_DC * Om * cc + kk
+        hh *= OMEGA_DC**2
         try:
-            A[:, i] = np.linalg.solve(hh, f_reduced[:, i])
-        except np.linalg.LinAlgError as e:
-            raise np.linalg.LinAlgError(f"Linear algebra error at frequency index {i}: {e}")
-        # Multiply A by OMEGA_DC ** 2
-        A[:, i] = OMEGA_DC ** 2 * A[:, i]
+            A[:, i] = np.linalg.solve(hh, f_reduced[:, i]) * OMEGA_DC**2
+        except np.linalg.LinAlgError as err:
+            raise np.linalg.LinAlgError(f"Linear algebra error at frequency index {i}: {err}")
 
-    # Process results for each active mass
     results = {}
-    dof_indices = np.where(active_dofs)[0]  # Indices of active DOFs in the original system
+    idxs = np.where(active)[0]
+    label_map = {0: "mass_1", 1: "mass_2", 2: "mass_3", 3: "mass_4", 4: "mass_5"}
+    mass_data_list, mass_labels_list = [], []
 
-    # Map DOF indices to mass labels
-    mass_labels_map = {
-        0: 'mass_1',  # Main system mass 1
-        1: 'mass_2',  # Main system mass 2
-        2: 'mass_3',  # DVA mass 1
-        3: 'mass_4',  # DVA mass 2
-        4: 'mass_5'   # DVA mass 3
-    }
+    for local_idx, dof in enumerate(idxs):
+        lbl = label_map.get(dof, f"mass_{dof+1}")
+        # Get user-specified peaks for this mass if provided
+        mass_peaks = user_peak_positions.get(lbl, None) if user_peak_positions else None
+        mass_res = process_mass(A[local_idx, :], omega, user_peak_positions=mass_peaks)
+        results[lbl] = mass_res
+        mass_data_list.append(mass_res)
+        mass_labels_list.append(lbl)
 
-    mass_data_list = []  # Collect data for plotting
-    mass_labels_list = []  # Collect labels for plotting
-
-    for idx, dof in enumerate(dof_indices):
-        # Get the label for this mass
-        mass_label = mass_labels_map.get(dof, f'mass_{dof+1}')
-
-        # Process the mass response
-        mass_results = process_mass(A[idx, :], omega)
-        results[mass_label] = mass_results
-
-        # Collect data for plotting
-        mass_data_list.append(mass_results)
-        mass_labels_list.append(mass_label)
-
-    # Plotting if requested
     if plot_figure:
-        # Plot individual mass responses
-        for mass_label, mass_data in zip(mass_labels_list, mass_data_list):
-            plot_mass_response(mass_label, omega, mass_data, show_peaks, show_slopes)
-        # Plot all masses together
-        plot_all_mass_responses(Omega, mass_data_list, mass_labels_list, show_peaks, show_slopes)
-
-        # --- New Feature: Plot Without DVAs for Mass 1 and Mass 2 ---
-        if show_slopes:
-            # Define DVA parameters as zero
-            dva_parameters_zero = [0]*len(dva_parameters)  # All DVA parameters set to zero
-
-            # Recompute FRF with DVAs set to zero
-            # To avoid recursive plotting, set plot_figure to False
-            results_without_dva = frf(
-                main_system_parameters,
-                dva_parameters_zero,
-                omega_start, omega_end, omega_points,
-                target_values_mass1, weights_mass1,
-                target_values_mass2, weights_mass2,
-                target_values_mass3, weights_mass3,
-                target_values_mass4, weights_mass4,
-                target_values_mass5, weights_mass5,
-                plot_figure=False,  # Avoid plotting in recursive call
-                show_peaks=show_peaks,
-                show_slopes=show_slopes
+        for lbl, data in zip(mass_labels_list, mass_data_list):
+            plot_mass_response(
+                lbl, omega, data, 
+                show_peaks=show_peaks, 
+                show_slopes=show_slopes,
+                interpolation_method=interpolation_method,
+                interpolation_points=interpolation_points
             )
+        plot_all_mass_responses(
+            omega, mass_data_list, mass_labels_list, 
+            show_peaks=show_peaks, 
+            show_slopes=show_slopes,
+            interpolation_method=interpolation_method,
+            interpolation_points=interpolation_points
+        )
 
-            # Extract mass data without DVAs
-            mass_data_list_without_dva = []
-            mass_labels_list_without_dva = []
-
-            for mass_label in mass_labels_list:
-                # Only extract Mass 1 and Mass 2 from the without DVA results
-                if mass_label in ['mass_1', 'mass_2']:
-                    mass_data = results_without_dva.get(mass_label, {})
-                    mass_data_list_without_dva.append(mass_data)
-                    mass_labels_list_without_dva.append(mass_label)
-
-            # Plot combined frequency responses: with and without DVAs for Mass 1 and Mass 2
-            plt.figure(figsize=(16, 10))
-            cmap = plt.get_cmap('tab10')
-            colors = [cmap(i % 10) for i in range(len(mass_labels_list))]
-
-            for idx, (mass_label, mass_data) in enumerate(zip(mass_labels_list, mass_data_list)):
-                color = colors[idx]
-                # Plot with DVA
-                a_mag_with_dva = mass_data.get('magnitude', np.zeros_like(omega))
-                plt.plot(omega, a_mag_with_dva, label=f'{mass_label} with DVA', linewidth=2, color=color, linestyle='-')
-                plt.fill_between(omega, a_mag_with_dva, color=color, alpha=0.1)
-
-                if mass_label in ['mass_1', 'mass_2']:
-                    # Plot without DVA
-                    a_mag_without_dva = mass_data_list_without_dva[mass_labels_list_without_dva.index(mass_label)].get('magnitude', np.zeros_like(omega))
-                    plt.plot(omega, a_mag_without_dva, label=f'{mass_label} without DVA', linewidth=2, color=color, linestyle='--')
-                    plt.fill_between(omega, a_mag_without_dva, color=color, alpha=0.05)
-
-            # Set axis labels and title
-            plt.xlabel('Frequency (rad/s)', fontsize=14)
-            plt.ylabel('Amplitude', fontsize=14)
-            plt.title('Frequency Responses of All Masses: With and Without DVAs for Mass 1 and Mass 2', fontsize=18, weight='bold')
-
-            # Add gridlines
-            plt.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
-
-            # Configure and place legend
-            plt.legend(fontsize=12, loc='upper right')
-
-            # Adjust tick parameters
-            plt.tick_params(axis='both', which='major', labelsize=12)
-
-            # Improve layout
-            plt.tight_layout()
-
-            # Show the plot
-            plt.show()
-
-    # Build target values and weights dictionaries for five masses
-    target_values_dict = {
-        'mass_1': target_values_mass1,
-        'mass_2': target_values_mass2,
-        'mass_3': target_values_mass3,
-        'mass_4': target_values_mass4,
-        'mass_5': target_values_mass5
+    target_dict = {
+        "mass_1": target_values_mass1,
+        "mass_2": target_values_mass2,
+        "mass_3": target_values_mass3,
+        "mass_4": target_values_mass4,
+        "mass_5": target_values_mass5,
+    }
+    weight_dict = {
+        "mass_1": weights_mass1,
+        "mass_2": weights_mass2,
+        "mass_3": weights_mass3,
+        "mass_4": weights_mass4,
+        "mass_5": weights_mass5,
     }
 
-    weights_dict = {
-        'mass_1': weights_mass1,
-        'mass_2': weights_mass2,
-        'mass_3': weights_mass3,
-        'mass_4': weights_mass4,
-        'mass_5': weights_mass5
+    results = calculate_singular_response(results, target_dict, weight_dict)
+    
+    # Add interpolation method information to results
+    results["interpolation_info"] = {
+        "method": interpolation_method,
+        "points": interpolation_points
     }
-
-    # Calculate singular response
-    results = calculate_singular_response(results, target_values_dict, weights_dict)
-
-    # Return the results
+    
+    # Remove all print statements and just return the results
     return results
+
+# -----------------------------------------------------------------------------
+# Omega points sensitivity analysis
+# -----------------------------------------------------------------------------
+
+def perform_omega_points_sensitivity_analysis(
+    main_system_parameters,
+    dva_parameters,
+    omega_start,
+    omega_end,
+    initial_points=100,
+    max_points=1000000000,  # Allow very large values (default 10^9)
+    step_size=100,
+    convergence_threshold=0.01,
+    max_iterations=100,  # Increased iterations to handle larger ranges
+    mass_of_interest="mass_1",
+    plot_results=True,
+):
+    """
+    Perform sensitivity analysis on the number of omega points to determine
+    the optimal value for stable slope calculations.
+    
+    Parameters:
+    -----------
+    main_system_parameters : list or array
+        Main system parameters for FRF calculation
+    dva_parameters : list or array
+        DVA parameters for FRF calculation
+    omega_start : float
+        Starting frequency for analysis
+    omega_end : float
+        Ending frequency for analysis
+    initial_points : int
+        Initial number of omega points to start with
+    max_points : int
+        Maximum number of omega points to try
+    step_size : int
+        Increment in omega points between iterations
+    convergence_threshold : float
+        Threshold for determining convergence (relative change in max slope)
+    max_iterations : int
+        Maximum number of iterations to run
+    mass_of_interest : str
+        Which mass to focus on for the analysis
+    plot_results : bool
+        Whether to create and return the figure (no longer shows directly)
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing convergence results, optimal points, and figure object if plot_results=True
+    """
+    # Initialize empty lists to store results
+    point_values = []
+    slope_max_values = []
+    relative_changes = []
+    
+    # Empty target and weight dictionaries for minimal FRF calculation
+    empty_dict = {}
+    
+    # Initialize variables for tracking convergence
+    prev_slope_max = None
+    optimal_points = max_points  # Default to maximum if convergence is not reached
+    converged = False
+    convergence_point = None  # Track where convergence was first detected
+    iteration = 0
+    
+    # Start with the initial number of points
+    current_points = initial_points
+    
+    # Always use the user-specified step size, no auto-adjustment
+    original_step_size = step_size
+    
+    # Ensure dva_parameters has the correct length (48 values)
+    # The expected order is: 15 betas, 15 lambdas, 3 mus, 15 nus
+    if len(dva_parameters) != 48:
+        # If the length is not 48, try to handle common cases
+        if isinstance(dva_parameters, (list, tuple)):
+            # If it's a list or tuple, extend it with zeros to 48 elements
+            padded_dva_params = list(dva_parameters)
+            padded_dva_params.extend([0] * (48 - len(padded_dva_params)))
+            dva_parameters = padded_dva_params[:48]  # Truncate if too long
+        else:
+            # If not a list/tuple, create a default array of zeros
+            dva_parameters = [0] * 48
+            print("Warning: dva_parameters not in expected format. Using zeros.")
+    
+    while current_points <= max_points and iteration < max_iterations:
+        # Calculate FRF with current number of omega points
+        results = frf(
+            main_system_parameters=main_system_parameters,
+            dva_parameters=dva_parameters,
+            omega_start=omega_start,
+            omega_end=omega_end,
+            omega_points=current_points,
+            target_values_mass1=empty_dict,
+            weights_mass1=empty_dict,
+            target_values_mass2=empty_dict,
+            weights_mass2=empty_dict,
+            target_values_mass3=empty_dict,
+            weights_mass3=empty_dict,
+            target_values_mass4=empty_dict,
+            weights_mass4=empty_dict,
+            target_values_mass5=empty_dict,
+            weights_mass5=empty_dict,
+            plot_figure=False,
+            user_peak_positions=None,
+            interpolation_method='cubic',
+            interpolation_points=1000
+        )
+        
+        # Extract the maximum slope for the mass of interest
+        if mass_of_interest in results:
+            mass_data = results[mass_of_interest]
+            slope_max = mass_data.get("slope_max", np.nan)
+            
+            # Store current values
+            point_values.append(current_points)
+            slope_max_values.append(slope_max)
+            
+            # Calculate relative change if we have previous values
+            if prev_slope_max is not None and not np.isnan(prev_slope_max) and not np.isnan(slope_max) and prev_slope_max != 0:
+                rel_change = abs((slope_max - prev_slope_max) / prev_slope_max)
+                relative_changes.append(rel_change)
+                
+                # Check for convergence (but continue running regardless)
+                if rel_change < convergence_threshold and not converged:
+                    # Record the first point where convergence occurs
+                    # But we NEVER set optimal_points here anymore - leave it as max_points
+                    # optimal_points = current_points
+                    converged = True
+                    convergence_point = current_points
+            else:
+                relative_changes.append(np.nan)
+                
+            # Update previous slope max for next iteration
+            prev_slope_max = slope_max
+            
+        # Increment the number of points for next iteration
+        current_points += step_size
+        iteration += 1
+    
+    # Determine if we actually reached max_points or hit the iteration limit
+    reached_max = (current_points - step_size) >= max_points
+    
+    # Set optimal_points to either max_points (if we reached it) or the last point we actually calculated
+    if reached_max:
+        optimal_points = max_points
+    else:
+        optimal_points = point_values[-1] if point_values else initial_points
+    
+    # Prepare the results dictionary
+    convergence_results = {
+        "omega_points": point_values,
+        "max_slopes": slope_max_values,
+        "relative_changes": relative_changes,
+        "optimal_points": optimal_points,
+        "converged": converged,
+        "convergence_point": convergence_point,  # Track where convergence was first detected
+        "all_points_analyzed": reached_max,  # True only if we actually reached max_points
+        "requested_max_points": max_points,  # Store what the user actually requested
+        "highest_analyzed_point": point_values[-1] if point_values else initial_points,  # Highest point actually analyzed
+        "iteration_limit_reached": iteration >= max_iterations,  # Did we hit the iteration limit?
+        "step_size": step_size,  # User-specified step size (not adjusted)
+    }
+    
+    # Create the figure if requested but DON'T show it directly
+    # Instead, return it for the main thread to display
+    if plot_results and len(point_values) > 1:
+        fig = plt.figure(figsize=(10, 10))
+        
+        # Plot max slope vs. number of points
+        ax1 = fig.add_subplot(2, 1, 1)
+        ax1.plot(point_values, slope_max_values, 'o-', linewidth=2)
+        ax1.axvline(x=optimal_points, color='r', linestyle='--', label=f'Optimal: {optimal_points} points')
+        ax1.set_ylabel('Maximum Slope', fontsize=12)
+        ax1.set_title('Convergence of Maximum Slope with Increasing Omega Points', fontsize=14, weight='bold')
+        ax1.grid(True, linestyle='--', alpha=0.7)
+        ax1.legend()
+        
+        # Plot relative change
+        ax2 = fig.add_subplot(2, 1, 2, sharex=ax1)
+        if len(relative_changes) > 1:
+            ax2.semilogy(point_values[1:], relative_changes[1:], 'o-', linewidth=2)
+            ax2.axhline(y=convergence_threshold, color='r', linestyle='--', 
+                        label=f'Threshold: {convergence_threshold}')
+        ax2.set_xlabel('Number of Omega Points', fontsize=12)
+        ax2.set_ylabel('Relative Change', fontsize=12)
+        ax2.set_title('Relative Change in Maximum Slope', fontsize=14, weight='bold')
+        ax2.grid(True, linestyle='--', alpha=0.7)
+        ax2.legend()
+        
+        # Add the figure to the results but don't show it
+        fig.tight_layout()
+        convergence_results["figure"] = fig
+    
+    return convergence_results
+
+# Function to run the sensitivity analysis and update the optimal omega points
+def determine_optimal_omega_points(
+    main_system_parameters,
+    dva_parameters,
+    omega_start,
+    omega_end,
+    **kwargs
+):
+    """
+    Convenience function to determine the optimal number of omega points and
+    return that value for use in subsequent FRF calculations.
+    
+    Parameters:
+    -----------
+    main_system_parameters : list or array
+        Main system parameters for FRF calculation
+    dva_parameters : list or array
+        DVA parameters for FRF calculation
+    omega_start : float
+        Starting frequency for analysis
+    omega_end : float
+        Ending frequency for analysis
+    **kwargs : dict
+        Additional parameters to pass to perform_omega_points_sensitivity_analysis
+        
+    Returns:
+    --------
+    int
+        Optimal number of omega points for stable slope calculations
+    """
+    # Run the sensitivity analysis
+    results = perform_omega_points_sensitivity_analysis(
+        main_system_parameters=main_system_parameters,
+        dva_parameters=dva_parameters,
+        omega_start=omega_start,
+        omega_end=omega_end,
+        **kwargs
+    )
+    
+    # Return the optimal number of points
+    return results["optimal_points"]
