@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QFileDialog, QMessageBox, QWidget, QVBoxLayout, QFormLayout, QTabWidget, QTextEdit, QHBoxLayout, QLineEdit, QSpinBox, QPushButton, QComboBox, QLabel
 from PyQt5.QtCore import QDateTime
 from matplotlib.figure import Figure
 import numpy as np
@@ -545,4 +545,153 @@ class SobolAnalysisMixin:
                 QMessageBox.information(self, "Success", f"Sobol results saved to {file_path}")
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Failed to save results: {e}")
+            
+    def update_sobol_plot(self):
+        """Update the Sobol analysis plot based on the selected plot type"""
+        if not hasattr(self, 'sobol_results') or not self.sobol_results:
+            return
+            
+        try:
+            plot_type = self.sobol_combo.currentText()
+            
+            # Clear the current figure
+            self.sobol_figure.clear()
+            
+            # Get parameter names
+            param_names = [
+                'beta_1','beta_2','beta_3','beta_4','beta_5','beta_6',
+                'beta_7','beta_8','beta_9','beta_10','beta_11','beta_12',
+                'beta_13','beta_14','beta_15',
+                'lambda_1','lambda_2','lambda_3','lambda_4','lambda_5',
+                'lambda_6','lambda_7','lambda_8','lambda_9','lambda_10',
+                'lambda_11','lambda_12','lambda_13','lambda_14','lambda_15',
+                'mu_1','mu_2','mu_3',
+                'nu_1','nu_2','nu_3','nu_4','nu_5','nu_6',
+                'nu_7','nu_8','nu_9','nu_10','nu_11','nu_12',
+                'nu_13','nu_14','nu_15'
+            ]
+            
+            # Call the appropriate visualization function based on plot type
+            if plot_type == "Basic Bar Chart":
+                self.visualize_last_run(self.sobol_results, param_names)
+            elif plot_type == "Grouped Bar Plot":
+                self.visualize_grouped_bar_plot_sorted_on_ST(self.sobol_results, param_names)
+            elif plot_type == "Convergence Plots":
+                self.visualize_convergence_plots(self.sobol_results, param_names)
+            elif plot_type == "Combined Heatmap":
+                self.visualize_combined_heatmap(self.sobol_results, param_names)
+            elif plot_type == "Comprehensive Radar":
+                self.visualize_comprehensive_radar_plots(self.sobol_results, param_names)
+            elif plot_type == "Separate Radar":
+                self.visualize_separate_radar_plots(self.sobol_results, param_names)
+            elif plot_type == "Box Plots":
+                self.visualize_box_plots(self.sobol_results)
+            elif plot_type == "Violin Plots":
+                self.visualize_violin_plots(self.sobol_results)
+            elif plot_type == "S1 vs ST Scatter":
+                self.visualize_scatter_S1_ST(self.sobol_results, param_names)
+            elif plot_type == "Parallel Coordinates":
+                self.visualize_parallel_coordinates(self.sobol_results, param_names)
+            elif plot_type == "Histograms":
+                self.visualize_histograms(self.sobol_results)
+            
+            # Update the canvas
+            self.sobol_canvas.draw()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", 
+                               f"Failed to update Sobol plot: {str(e)}")
+            
+    def create_sobol_analysis_tab(self):
+        """Create the Sobol sensitivity analysis tab"""
+        self.sobol_tab = QWidget()
+        layout = QVBoxLayout()  # Create layout without parent
+        
+        # Create sub-tabs for Sobol analysis
+        self.sobol_sub_tabs = QTabWidget()
+        
+        # -------------------- Sub-tab 1: Analysis Settings --------------------
+        sobol_settings_tab = QWidget()
+        settings_layout = QFormLayout(sobol_settings_tab)
+        
+        # Number of samples input
+        self.num_samples_line = QLineEdit("32, 64, 128")
+        self.num_samples_line.setToolTip("Comma-separated list of sample sizes")
+        settings_layout.addRow("Sample Sizes:", self.num_samples_line)
+        
+        # Number of parallel jobs
+        self.n_jobs_spin = QSpinBox()
+        self.n_jobs_spin.setRange(1, 32)
+        self.n_jobs_spin.setValue(4)
+        self.n_jobs_spin.setToolTip("Number of parallel processes to use")
+        settings_layout.addRow("Parallel Jobs:", self.n_jobs_spin)
+        
+        # Run button
+        self.hyper_run_sobol_button = QPushButton("Run Sobol Analysis")
+        self.hyper_run_sobol_button.clicked.connect(self.run_sobol)
+        settings_layout.addRow(self.hyper_run_sobol_button)
+        
+        # -------------------- Sub-tab 2: Results --------------------
+        results_tab = QWidget()
+        results_layout = QVBoxLayout(results_tab)
+        
+        # Results text area
+        self.sobol_results_text = QTextEdit()
+        self.sobol_results_text.setReadOnly(True)
+        self.sobol_results_text.setStyleSheet("font-family: monospace;")
+        results_layout.addWidget(self.sobol_results_text)
+        
+        # -------------------- Sub-tab 3: Visualization --------------------
+        viz_tab = QWidget()
+        viz_layout = QVBoxLayout(viz_tab)
+        
+        # Plot type selection
+        plot_controls = QWidget()
+        plot_controls_layout = QHBoxLayout(plot_controls)
+        
+        self.sobol_plot_type = QComboBox()
+        self.sobol_plot_type.addItems([
+            "Bar Chart (S1)",
+            "Bar Chart (ST)",
+            "Convergence Plot",
+            "Heatmap",
+            "Radar Plot (Combined)",
+            "Radar Plot (Separate)",
+            "Box Plot",
+            "Violin Plot",
+            "Scatter Plot",
+            "Parallel Coordinates",
+            "Histograms"
+        ])
+        self.sobol_plot_type.currentIndexChanged.connect(self.update_sobol_plot)
+        plot_controls_layout.addWidget(QLabel("Plot Type:"))
+        plot_controls_layout.addWidget(self.sobol_plot_type)
+        
+        save_button = QPushButton("Save Results")
+        save_button.clicked.connect(self.save_sobol_results)
+        plot_controls_layout.addWidget(save_button)
+        
+        viz_layout.addWidget(plot_controls)
+        
+        # Figure canvas
+        self.sobol_figure = Figure(figsize=(8, 6))
+        self.sobol_canvas = FigureCanvas(self.sobol_figure)
+        self.sobol_canvas.setMinimumHeight(400)
+        toolbar = NavigationToolbar(self.sobol_canvas, self)
+        
+        viz_layout.addWidget(toolbar)
+        viz_layout.addWidget(self.sobol_canvas)
+        
+        # Add sub-tabs
+        self.sobol_sub_tabs.addTab(sobol_settings_tab, "Settings")
+        self.sobol_sub_tabs.addTab(results_tab, "Results")
+        self.sobol_sub_tabs.addTab(viz_tab, "Visualization")
+        
+        # Add the sub-tabs widget to the main layout
+        layout.addWidget(self.sobol_sub_tabs)
+        
+        # Set the layout
+        self.sobol_tab.setLayout(layout)  # Set layout after all widgets are added
+        
+        return self.sobol_tab
             

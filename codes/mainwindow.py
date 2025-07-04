@@ -1,4 +1,3 @@
-
 import sys
 import numpy as np
 import os
@@ -113,7 +112,7 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
         self.setCentralWidget(central_widget)
         
         # Create sidebar
-        self.create_sidebar()
+        self.create_sidebar(BEAM_IMPORTS_SUCCESSFUL)
         
         # Create stacked widget for main content
         self.content_stack = QStackedWidget()
@@ -148,7 +147,90 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
     
     def set_default_values(self):
         """Reset all inputs to their default values"""
-        self.status_bar.showMessage("Reset to default values")
-        # Reset logic for all parameters would be implemented here
+        self.status_bar.showMessage("Resetting to default values...")
+        
+        try:
+            # Reset PSO parameters
+            self.pso_swarm_size_box.setValue(40)
+            self.pso_num_iterations_box.setValue(100)
+            self.pso_inertia_box.setValue(0.729)
+            self.pso_cognitive_box.setValue(1.49445)
+            self.pso_social_box.setValue(1.49445)
+            self.pso_tol_box.setValue(1e-6)
+            self.pso_alpha_box.setValue(0.01)
+            self.pso_benchmark_runs_box.setValue(1)
+            
+            # Reset advanced PSO parameters
+            self.pso_adaptive_params_checkbox.setChecked(True)
+            self.pso_topology_combo.setCurrentText("Global")
+            self.pso_w_damping_box.setValue(1.0)
+            self.pso_mutation_rate_box.setValue(0.1)
+            self.pso_max_velocity_factor_box.setValue(0.1)
+            self.pso_stagnation_limit_box.setValue(10)
+            self.pso_boundary_handling_combo.setCurrentText("absorbing")
+            self.pso_diversity_threshold_box.setValue(0.01)
+            self.pso_early_stopping_checkbox.setChecked(True)
+            self.pso_early_stopping_iters_box.setValue(15)
+            self.pso_early_stopping_tol_box.setValue(1e-5)
+            self.pso_quasi_random_init_checkbox.setChecked(True)
+            
+            # Reset DVA parameters in PSO table
+            for row in range(self.pso_param_table.rowCount()):
+                param_name = self.pso_param_table.item(row, 0).text()
+                # Uncheck fixed checkbox
+                fixed_checkbox = self.pso_param_table.cellWidget(row, 1)
+                fixed_checkbox.setChecked(False)
+                
+                # Reset fixed value
+                fixed_value_spin = self.pso_param_table.cellWidget(row, 2)
+                fixed_value_spin.setValue(0.0)
+                
+                # Reset bounds based on parameter type
+                lower_bound_spin = self.pso_param_table.cellWidget(row, 3)
+                upper_bound_spin = self.pso_param_table.cellWidget(row, 4)
+                
+                if param_name.startswith(("beta_", "lambda_", "nu_")):
+                    lower_bound_spin.setValue(0.0001)
+                    upper_bound_spin.setValue(10.0)
+                elif param_name.startswith("mu_"):
+                    lower_bound_spin.setValue(0.0)
+                    upper_bound_spin.setValue(1.0)
+            
+            # Reset FRF parameters
+            self.omega_start_box.setValue(0.1)
+            self.omega_end_box.setValue(10.0)
+            self.omega_points_box.setValue(1000)
+            
+            # Reset comparative visualization options
+            self.plot_title_edit.clear()
+            self.title_font_size.setValue(14)
+            self.fig_width_spin.setValue(10)
+            self.fig_height_spin.setValue(6)
+            self.x_norm_check.setChecked(False)
+            self.y_norm_check.setChecked(False)
+            self.x_norm_value.setValue(1.0)
+            self.y_norm_value.setValue(1.0)
+            self.show_grid_check.setChecked(True)
+            self.legend_position_combo.setCurrentText("best")
+            
+            # Clear plots and results
+            self.available_plots_list.clear()
+            self.legend_table.setRowCount(0)
+            self.legend_map.clear()
+            self.frf_plots.clear()
+            
+            # Reset optimization results
+            self.current_ga_best_params = None
+            self.current_ga_best_fitness = None
+            self.current_ga_full_results = None
+            self.current_ga_settings = None
+            self.current_pso_best_params = None
+            
+            self.status_bar.showMessage("All values reset to defaults", 3000)
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Reset Error", 
+                              f"Error resetting some values: {str(e)}\nSome values may not have been reset.")
+            self.status_bar.showMessage("Error during reset", 3000)
 
 

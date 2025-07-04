@@ -3,14 +3,53 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import numpy as np
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from workers.FRFWorker import FRFWorker
 
 class FRFMixin:
 
+    def __init__(self):
+        """Initialize FRF mixin"""
+        self.plot_window = None
+        self.comp_canvas = None
+        self.comp_toolbar = None
+        self.comp_fig = None
+
     def create_comparative_visualization_options(self, parent_layout):
         """Create options for comparative visualization of multiple FRF inputs"""
-        comp_group = QGroupBox("Comparative Visualization")
-        comp_layout = QVBoxLayout(comp_group)
+        # Initialize figures that will be used across the class
+        self.rel_change_fig = Figure(figsize=(10, 6))
+        self.rel_change_canvas = FigureCanvas(self.rel_change_fig)
+        
+        # Initialize no data label
+        self.rel_change_no_data_label = QLabel("No data available")
+        self.rel_change_no_data_label.setAlignment(Qt.AlignCenter)
+        self.rel_change_no_data_label.setStyleSheet("color: gray; font-size: 14px;")
+        self.rel_change_no_data_label.setVisible(False)
+        
+        # Create the comparative group box
+        self.comp_group = QGroupBox("Comparative Visualization")
+        self.comp_group.setObjectName("comparative-group")
+        comp_layout = QVBoxLayout(self.comp_group)
+        
+        # Create plot container with fixed canvas and toolbar
+        self.comp_plot_container = QWidget()
+        self.comp_plot_layout = QVBoxLayout(self.comp_plot_container)
+        
+        # Initialize the figure, canvas and toolbar once
+        self.comp_fig = Figure(figsize=(10, 6))
+        self.comp_canvas = FigureCanvas(self.comp_fig)
+        self.comp_toolbar = NavigationToolbar(self.comp_canvas, self.comp_plot_container)
+        
+        # Add them to the layout
+        self.comp_plot_layout.addWidget(self.comp_toolbar)
+        self.comp_plot_layout.addWidget(self.comp_canvas)
+        
+        # Hide the plot container by default
+        self.comp_plot_container.hide()
+        
+        comp_layout.addWidget(self.comp_plot_container)
         
         # Introduction text
         intro_label = QLabel("This section allows you to create custom comparative plots by selecting multiple FRF results and customizing legends and title.")
@@ -172,8 +211,9 @@ class FRFMixin:
         
         comp_layout.addWidget(actions_container)
         
-        parent_layout.addWidget(comp_group)
-        
+        # Add the comparative group to the parent layout
+        parent_layout.addWidget(self.comp_group)
+
     def _update_legend_table_from_selection(self):
         """Update the legend table based on the selected plots in the list widget"""
         # Clear current table contents
@@ -410,11 +450,11 @@ class FRFMixin:
         layout = QVBoxLayout(self.sobol_tab)
 
         # Create sub-tabs widget
-            # No relative change data available
-            ax = self.rel_change_fig.add_subplot(111)
-            ax.text(0.5, 0.5, "Insufficient data for relative change calculation", 
-                   horizontalalignment='center', verticalalignment='center',
-                   transform=ax.transAxes, fontsize=14, fontstyle='italic', color='#888')
+        # No relative change data available
+        ax = self.rel_change_fig.add_subplot(111)
+        ax.text(0.5, 0.5, "Insufficient data for relative change calculation", 
+                horizontalalignment='center', verticalalignment='center',
+                transform=ax.transAxes, fontsize=14, fontstyle='italic', color='#888')
         
         # Update the figure
         self.rel_change_fig.tight_layout()
@@ -963,3 +1003,127 @@ class FRFMixin:
             self.status_bar.showMessage("Plot save canceled")
         
     def save_sobol_results(self):
+        pass
+
+    def create_comparative_plot(self):
+        """Create a comparative plot of multiple FRF results with customizable legends and styling"""
+        selected_items = self.available_plots_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "No Plots Selected", 
+                              "Please select at least one plot from the available plots list.")
+            return
+
+        # Keep plot container hidden
+        self.comp_plot_container.hide()
+
+        # Clear the current figure
+        self.comp_fig.clear()
+        
+        # Create new axes with user-specified size
+        self.comp_fig.set_size_inches(self.fig_width_spin.value(), self.fig_height_spin.value())
+        ax = self.comp_fig.add_subplot(111)
+
+        # Plot each selected FRF curve
+        for row in range(self.legend_table.rowCount()):
+            plot_name = self.legend_table.item(row, 0).text()
+            if plot_name not in self.frf_plots:
+                continue
+
+            frf_data = self.frf_plots[plot_name]
+            if isinstance(frf_data, Figure):
+                # Extract data from the figure - handle all lines
+                ax_data = frf_data.axes[0]
+                lines = ax_data.get_lines()
+                
+                # Get custom legend name and style
+                base_legend_name = self.legend_table.item(row, 1).text() or plot_name
+                line_style = self.legend_table.cellWidget(row, 2).currentText()
+                marker = self.legend_table.cellWidget(row, 3).currentText()
+                color_btn = self.legend_table.cellWidget(row, 4)
+                color = color_btn.property('color') if color_btn else None
+                
+                # Plot each line from the figure
+                for i, line in enumerate(lines):
+                    x_data = line.get_xdata()
+                    y_data = line.get_ydata()
+                    
+                    # Apply normalization if enabled
+                    if self.x_norm_check.isChecked():
+                        x_data = x_data / self.x_norm_value.value()
+                    if self.y_norm_check.isChecked():
+                        y_data = y_data / self.y_norm_value.value()
+                    
+                    # For combined plots, use the original line's label
+                    if "Combined" in plot_name:
+                        legend_name = line.get_label()
+                        # Use the line's original color if not overridden
+                        line_color = color if color else line.get_color()
+                    else:
+                        legend_name = base_legend_name
+                        line_color = color
+                        
+                    # Skip small marker points used for interpolation visualization
+                    if line.get_markersize() == 1 and line.get_alpha() == 0.3:
+                        continue
+                        
+                    # Plot with custom styling
+                    ax.plot(x_data, y_data, 
+                           linestyle=line_style if line_style != 'None' else '',
+                           marker=marker if marker != 'None' else '',
+                           color=line_color,
+                           label=legend_name)
+            else:
+                # Handle dictionary data format
+                x_data = frf_data['frequency']
+                y_data = frf_data['magnitude']
+                
+                # Apply normalization if enabled
+                if self.x_norm_check.isChecked():
+                    x_data = x_data / self.x_norm_value.value()
+                if self.y_norm_check.isChecked():
+                    y_data = y_data / self.y_norm_value.value()
+
+                # Get custom legend name and style
+                legend_name = self.legend_table.item(row, 1).text() or plot_name
+                line_style = self.legend_table.cellWidget(row, 2).currentText()
+                marker = self.legend_table.cellWidget(row, 3).currentText()
+                color_btn = self.legend_table.cellWidget(row, 4)
+                color = color_btn.property('color') if color_btn else None
+
+                # Plot with custom styling
+                ax.plot(x_data, y_data, 
+                       linestyle=line_style if line_style != 'None' else '',
+                       marker=marker if marker != 'None' else '',
+                       color=color,
+                       label=legend_name)
+
+        # Set title with custom font size
+        title = self.plot_title_edit.text() or "Comparative FRF Plot"
+        ax.set_title(title, fontsize=self.title_font_size.value())
+
+        # Set labels
+        x_label = "Normalized Frequency" if self.x_norm_check.isChecked() else "Frequency (Hz)"
+        y_label = "Normalized Magnitude" if self.y_norm_check.isChecked() else "Magnitude"
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+
+        # Configure grid
+        ax.grid(self.show_grid_check.isChecked())
+
+        # Configure legend
+        if ax.get_legend_handles_labels()[0]:  # Only show legend if there are labeled plots
+            ax.legend(loc=self.legend_position_combo.currentText())
+
+        # Use linear scale for y-axis
+        ax.set_yscale('linear')
+
+        # Adjust layout and draw
+        self.comp_fig.tight_layout()
+        self.comp_canvas.draw()
+        
+        # Reset the view history in the toolbar
+        self.comp_toolbar.update()
+        
+        # Show success message
+        QMessageBox.information(self, "Plot Created", 
+                              "Comparative plot has been created successfully.\nUse the Save Plot button to save it.")

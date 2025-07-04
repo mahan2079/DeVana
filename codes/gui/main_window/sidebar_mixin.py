@@ -8,7 +8,7 @@ from gui.widgets import SidebarButton
 
 
 class SidebarMixin:
-    def create_sidebar(self):
+    def create_sidebar(self, BEAM_IMPORTS_SUCCESSFUL):
         """Create the sidebar with navigation buttons"""
         sidebar_container = QWidget()
         sidebar_container.setObjectName("sidebar")
@@ -91,4 +91,18 @@ class SidebarMixin:
         elif index == 2:
             self.beam_btn.setObjectName("active-nav-btn")
 
+        self.apply_current_theme()
+
+    def toggle_theme(self):
+        """Toggle between light and dark themes"""
+        if self.current_theme == 'Dark':
+            self.current_theme = 'Light'
+            self.apply_light_theme()
+            self.theme_toggle.setText("Switch to Dark Theme")
+        else:
+            self.current_theme = 'Dark'
+            self.apply_dark_theme()
+            self.theme_toggle.setText("Switch to Light Theme")
+        
+        # Update the sidebar button styles
         self.apply_current_theme()

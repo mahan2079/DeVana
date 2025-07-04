@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter, QFrame, QPushButton,
-    QTextEdit, QComboBox, QSizePolicy
+    QTextEdit, QComboBox, QSizePolicy, QMessageBox, QGroupBox, QFormLayout, QSpinBox,
+    QDoubleSpinBox
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
@@ -40,11 +41,11 @@ class StochasticDesignMixin:
         self.create_dva_parameters_tab()
         self.create_target_weights_tab()
         self.create_frequency_tab()
-        self.create_omega_sensitivity_tab()
         self.create_sobol_analysis_tab()
+        self.create_omega_sensitivity_tab()
         self.create_ga_tab()
         self.create_pso_tab()
-        self.create_de_tab()
+        self.de_tab = self.create_de_tab()
         self.create_sa_tab()
         self.create_cmaes_tab()
 
@@ -278,3 +279,146 @@ class StochasticDesignMixin:
         page_layout.addWidget(content_splitter)
 
         self.content_stack.addWidget(stochastic_page)
+
+    def apply_optimized_dva_parameters(self):
+        """Apply the best parameters from the last optimization run"""
+        selected_optimizer = self.dva_optimizer_combo.currentText()
+        
+        # Get the best parameters based on selected optimizer
+        best_params = None
+        if "Genetic Algorithm" in selected_optimizer:
+            if hasattr(self, 'current_ga_best_params'):
+                best_params = self.current_ga_best_params
+        elif "Particle Swarm" in selected_optimizer:
+            if hasattr(self, 'current_pso_best_params'):
+                best_params = self.current_pso_best_params
+        elif "Differential Evolution" in selected_optimizer:
+            if hasattr(self, 'current_de_best_params'):
+                best_params = self.current_de_best_params
+        elif "Simulated Annealing" in selected_optimizer:
+            if hasattr(self, 'current_sa_best_params'):
+                best_params = self.current_sa_best_params
+        elif "CMA-ES" in selected_optimizer:
+            if hasattr(self, 'current_cmaes_best_params'):
+                best_params = self.current_cmaes_best_params
+        elif "Reinforcement Learning" in selected_optimizer:
+            if hasattr(self, 'current_rl_best_params'):
+                best_params = self.current_rl_best_params
+        
+        if best_params is None:
+            QMessageBox.warning(self, "No Parameters Available", 
+                              f"No optimized parameters available from {selected_optimizer}.\n"
+                              "Please run the optimization first.")
+            return
+        
+        try:
+            # Apply parameters to the spinboxes
+            param_idx = 0
+            
+            # Apply beta parameters
+            for i in range(15):
+                if param_idx < len(best_params):
+                    self.beta_boxes[i].setValue(best_params[param_idx])
+                param_idx += 1
+            
+            # Apply lambda parameters
+            for i in range(15):
+                if param_idx < len(best_params):
+                    self.lambda_boxes[i].setValue(best_params[param_idx])
+                param_idx += 1
+            
+            # Apply mu parameters
+            for i in range(3):
+                if param_idx < len(best_params):
+                    self.mu_dva_boxes[i].setValue(best_params[param_idx])
+                param_idx += 1
+            
+            # Apply nu parameters
+            for i in range(15):
+                if param_idx < len(best_params):
+                    self.nu_dva_boxes[i].setValue(best_params[param_idx])
+                param_idx += 1
+            
+            QMessageBox.information(self, "Success", 
+                                  f"Successfully applied optimized parameters from {selected_optimizer}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", 
+                               f"Failed to apply parameters: {str(e)}\n"
+                               "Please ensure the optimization was run successfully.")
+
+    def create_de_tab(self):
+        """Create the Differential Evolution optimization tab"""
+        self.de_tab = QWidget()
+        layout = QVBoxLayout()
+        
+        # Create settings group
+        settings_group = QGroupBox("DE Settings")
+        settings_layout = QFormLayout(settings_group)
+        
+        # Population size
+        self.de_pop_size_box = QSpinBox()
+        self.de_pop_size_box.setRange(10, 1000)
+        self.de_pop_size_box.setValue(50)
+        self.de_pop_size_box.setToolTip("Number of individuals in the population")
+        settings_layout.addRow("Population Size:", self.de_pop_size_box)
+        
+        # Number of generations
+        self.de_generations_box = QSpinBox()
+        self.de_generations_box.setRange(10, 10000)
+        self.de_generations_box.setValue(100)
+        self.de_generations_box.setToolTip("Maximum number of generations")
+        settings_layout.addRow("Max Generations:", self.de_generations_box)
+        
+        # Mutation constant
+        self.de_mutation_box = QDoubleSpinBox()
+        self.de_mutation_box.setRange(0.1, 2.0)
+        self.de_mutation_box.setValue(0.8)
+        self.de_mutation_box.setSingleStep(0.1)
+        self.de_mutation_box.setToolTip("Mutation constant (F)")
+        settings_layout.addRow("Mutation Constant:", self.de_mutation_box)
+        
+        # Crossover probability
+        self.de_crossover_box = QDoubleSpinBox()
+        self.de_crossover_box.setRange(0.1, 1.0)
+        self.de_crossover_box.setValue(0.7)
+        self.de_crossover_box.setSingleStep(0.1)
+        self.de_crossover_box.setToolTip("Crossover probability (CR)")
+        settings_layout.addRow("Crossover Probability:", self.de_crossover_box)
+        
+        # Strategy
+        self.de_strategy_combo = QComboBox()
+        self.de_strategy_combo.addItems([
+            "best/1/bin",
+            "best/2/bin",
+            "rand/1/bin",
+            "rand/2/bin",
+            "rand-to-best/1/bin",
+            "current-to-best/1/bin"
+        ])
+        self.de_strategy_combo.setToolTip("DE strategy for mutation")
+        settings_layout.addRow("Strategy:", self.de_strategy_combo)
+        
+        # Add settings group to layout
+        layout.addWidget(settings_group)
+        
+        # Create visualization group
+        viz_group = QGroupBox("Visualization")
+        viz_layout = QVBoxLayout(viz_group)
+        
+        # Progress plot
+        self.de_fig = Figure(figsize=(6, 4))
+        self.de_canvas = FigureCanvas(self.de_fig)
+        self.de_canvas.setMinimumHeight(300)
+        self.de_toolbar = NavigationToolbar(self.de_canvas, self)
+        
+        viz_layout.addWidget(self.de_toolbar)
+        viz_layout.addWidget(self.de_canvas)
+        
+        # Add visualization group to layout
+        layout.addWidget(viz_group)
+        
+        # Set the layout
+        self.de_tab.setLayout(layout)
+        
+        return self.de_tab

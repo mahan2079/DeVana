@@ -1636,3 +1636,4 @@ class PSOMixin:
         self.pso_worker.start()
         
     def create_de_tab(self):
+        pass
