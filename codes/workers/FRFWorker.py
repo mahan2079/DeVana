@@ -34,7 +34,8 @@ class FRFWorker(QThread):
     error = pyqtSignal(str)
     
     def __init__(self, main_params, dva_params, omega_start, omega_end, omega_points,
-                 target_values_dict, weights_dict, plot_figure, show_peaks, show_slopes):
+                 target_values_dict, weights_dict, plot_figure, show_peaks, show_slopes,
+                 interpolation_method='cubic', interpolation_points=1000):
         super().__init__()
         self.main_params = main_params
         self.dva_params = dva_params
@@ -46,6 +47,8 @@ class FRFWorker(QThread):
         self.plot_figure = plot_figure
         self.show_peaks = show_peaks
         self.show_slopes = show_slopes
+        self.interpolation_method = interpolation_method
+        self.interpolation_points = interpolation_points
 
     def run(self):
         try:
@@ -68,7 +71,9 @@ class FRFWorker(QThread):
                 weights_mass5=self.weights_dict['mass_5'],
                 plot_figure=False,    # Avoid plotting in worker
                 show_peaks=self.show_peaks,
-                show_slopes=self.show_slopes
+                show_slopes=self.show_slopes,
+                interpolation_method=self.interpolation_method,
+                interpolation_points=self.interpolation_points
             )
             
             # Second FRF call: Without DVAs for Mass 1 and Mass 2
@@ -95,7 +100,9 @@ class FRFWorker(QThread):
                 weights_mass5=self.weights_dict['mass_5'],
                 plot_figure=False,    # Avoid plotting in worker
                 show_peaks=self.show_peaks,
-                show_slopes=self.show_slopes
+                show_slopes=self.show_slopes,
+                interpolation_method=self.interpolation_method,
+                interpolation_points=self.interpolation_points
             )
             
             self.finished.emit(results_with_dva, results_without_dva)
