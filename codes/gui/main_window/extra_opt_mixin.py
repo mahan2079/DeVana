@@ -12,917 +12,466 @@ import matplotlib.pyplot as plt
 class ExtraOptimizationMixin:
     def create_de_tab(self):
         """Create the differential evolution optimization tab"""
+        # Create the main widget
         self.de_tab = QWidget()
-        layout = QVBoxLayout(self.de_tab)
+        
+        # Create and set the main layout
+        layout = QVBoxLayout()
+        self.de_tab.setLayout(layout)
         
         # Create sub-tabs widget
         self.de_sub_tabs = QTabWidget()
 
-        # -------------------- Sub-tab 1: DE Hyperparameters --------------------
-        de_hyper_tab = QWidget()
-        de_hyper_layout = QFormLayout(de_hyper_tab)
+        # -------------------- Sub-tab 1: DE Parameters --------------------
+        params_tab = QWidget()
+        params_layout = QVBoxLayout(params_tab)
 
-        self.de_pop_size_box = QSpinBox()
-        self.de_pop_size_box.setRange(1, 10000)
-        self.de_pop_size_box.setValue(50)
+        # DE Algorithm Parameters Group
+        de_params_group = QGroupBox("DE Algorithm Parameters")
+        de_params_layout = QFormLayout(de_params_group)
 
-        self.de_num_generations_box = QSpinBox()
-        self.de_num_generations_box.setRange(1, 10000)
-        self.de_num_generations_box.setValue(100)
+        # Population Size
+        self.de_pop_size_spinbox = QSpinBox()
+        self.de_pop_size_spinbox.setRange(10, 1000)
+        self.de_pop_size_spinbox.setValue(50)
+        de_params_layout.addRow("Population Size:", self.de_pop_size_spinbox)
 
-        self.de_F_box = QDoubleSpinBox()
-        self.de_F_box.setRange(0, 2)
-        self.de_F_box.setValue(0.8)
-        self.de_F_box.setDecimals(3)
+        # Number of Generations
+        self.de_num_generations_spinbox = QSpinBox()
+        self.de_num_generations_spinbox.setRange(10, 10000)
+        self.de_num_generations_spinbox.setValue(100)
+        de_params_layout.addRow("Number of Generations:", self.de_num_generations_spinbox)
 
-        self.de_CR_box = QDoubleSpinBox()
-        self.de_CR_box.setRange(0, 1)
-        self.de_CR_box.setValue(0.7)
-        self.de_CR_box.setDecimals(3)
+        # Mutation Factor (F)
+        self.de_F_spinbox = QDoubleSpinBox()
+        self.de_F_spinbox.setRange(0.1, 2.0)
+        self.de_F_spinbox.setValue(0.5)
+        self.de_F_spinbox.setSingleStep(0.1)
+        de_params_layout.addRow("Mutation Factor (F):", self.de_F_spinbox)
 
-        self.de_tol_box = QDoubleSpinBox()
-        self.de_tol_box.setRange(0, 1e6)
-        self.de_tol_box.setValue(1e-3)
-        self.de_tol_box.setDecimals(6)
+        # Crossover Rate (CR)
+        self.de_CR_spinbox = QDoubleSpinBox()
+        self.de_CR_spinbox.setRange(0.0, 1.0)
+        self.de_CR_spinbox.setValue(0.7)
+        self.de_CR_spinbox.setSingleStep(0.1)
+        de_params_layout.addRow("Crossover Rate (CR):", self.de_CR_spinbox)
 
-        self.de_alpha_box = QDoubleSpinBox()
-        self.de_alpha_box.setRange(0.0, 10.0)
-        self.de_alpha_box.setDecimals(4)
-        self.de_alpha_box.setSingleStep(0.01)
-        self.de_alpha_box.setValue(0.01)
-        
-        # New smoothness penalty parameter
-        self.de_beta_box = QDoubleSpinBox()
-        self.de_beta_box.setRange(0.0, 10.0)
-        self.de_beta_box.setDecimals(4)
-        self.de_beta_box.setSingleStep(0.01)
-        self.de_beta_box.setValue(0.0)
-        self.de_beta_box.setToolTip("Parameter for smoothness penalty (0 = no smoothness penalty)")
+        # Tolerance
+        self.de_tol_spinbox = QDoubleSpinBox()
+        self.de_tol_spinbox.setRange(1e-10, 1.0)
+        self.de_tol_spinbox.setValue(1e-6)
+        self.de_tol_spinbox.setDecimals(10)
+        de_params_layout.addRow("Convergence Tolerance:", self.de_tol_spinbox)
 
-        de_hyper_layout.addRow("Population Size:", self.de_pop_size_box)
-        de_hyper_layout.addRow("Number of Generations:", self.de_num_generations_box)
-        de_hyper_layout.addRow("Mutation Factor (F):", self.de_F_box)
-        de_hyper_layout.addRow("Crossover Rate (CR):", self.de_CR_box)
-        de_hyper_layout.addRow("Tolerance (tol):", self.de_tol_box)
-        de_hyper_layout.addRow("Sparsity Penalty (alpha):", self.de_alpha_box)
-        de_hyper_layout.addRow("Smoothness Penalty (beta):", self.de_beta_box)
-
-        # Add a small Run DE button in the hyperparameters sub-tab
-        self.hyper_run_de_button = QPushButton("Run DE")
-        self.hyper_run_de_button.setFixedWidth(100)
-        self.hyper_run_de_button.clicked.connect(self.run_de)
-        de_hyper_layout.addRow("Run DE:", self.hyper_run_de_button)
-
-        # -------------------- Sub-tab 2: DVA Parameters --------------------
-        de_param_tab = QWidget()
-        de_param_layout = QVBoxLayout(de_param_tab)
-
-        self.de_param_table = QTableWidget()
-        dva_parameters = [
-            *[f"beta_{i}" for i in range(1,16)],
-            *[f"lambda_{i}" for i in range(1,16)],
-            *[f"mu_{i}" for i in range(1,4)],
-            *[f"nu_{i}" for i in range(1,16)]
-        ]
-        self.de_param_table.setRowCount(len(dva_parameters))
-        self.de_param_table.setColumnCount(5)
-        self.de_param_table.setHorizontalHeaderLabels(
-            ["Parameter", "Fixed", "Fixed Value", "Lower Bound", "Upper Bound"]
-        )
-        self.de_param_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.de_param_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-
-        for row, param in enumerate(dva_parameters):
-            param_item = QTableWidgetItem(param)
-            param_item.setFlags(Qt.ItemIsEnabled)
-            self.de_param_table.setItem(row, 0, param_item)
-
-            fixed_checkbox = QCheckBox()
-            fixed_checkbox.stateChanged.connect(lambda state, r=row: self.toggle_de_fixed(state, r))
-            self.de_param_table.setCellWidget(row, 1, fixed_checkbox)
-
-            fixed_value_spin = QDoubleSpinBox()
-            fixed_value_spin.setRange(-1e6, 1e6)
-            fixed_value_spin.setDecimals(6)
-            fixed_value_spin.setEnabled(False)
-            self.de_param_table.setCellWidget(row, 2, fixed_value_spin)
-
-            lower_bound_spin = QDoubleSpinBox()
-            lower_bound_spin.setRange(-1e6, 1e6)
-            lower_bound_spin.setDecimals(6)
-            lower_bound_spin.setEnabled(True)
-            self.de_param_table.setCellWidget(row, 3, lower_bound_spin)
-
-            upper_bound_spin = QDoubleSpinBox()
-            upper_bound_spin.setRange(-1e6, 1e6)
-            upper_bound_spin.setDecimals(6)
-            upper_bound_spin.setEnabled(True)
-            self.de_param_table.setCellWidget(row, 4, upper_bound_spin)
-
-            # Default ranges
-            if param.startswith("beta_") or param.startswith("lambda_") or param.startswith("nu_"):
-                lower_bound_spin.setValue(0.0001)
-                upper_bound_spin.setValue(2.5)
-            elif param.startswith("mu_"):
-                lower_bound_spin.setValue(0.0001)
-                upper_bound_spin.setValue(0.75)
-            else:
-                lower_bound_spin.setValue(0.0)
-                upper_bound_spin.setValue(1.0)
-
-        de_param_layout.addWidget(self.de_param_table)
-
-        # -------------------- Sub-tab 3: Results --------------------
-        de_results_tab = QWidget()
-        de_results_layout = QVBoxLayout(de_results_tab)
-        
-        self.de_results_text = QTextEdit()
-        self.de_results_text.setReadOnly(True)
-        de_results_layout.addWidget(QLabel("DE Optimization Results:"))
-        de_results_layout.addWidget(self.de_results_text)
-
-        # -------------------- Sub-tab 4: Advanced Settings --------------------
-        de_advanced_tab = QWidget()
-        de_advanced_layout = QVBoxLayout(de_advanced_tab)
-        
-        # Create scrollable area for advanced settings
-        advanced_scroll = QScrollArea()
-        advanced_scroll.setWidgetResizable(True)
-        advanced_scroll_content = QWidget()
-        advanced_scroll_layout = QVBoxLayout(advanced_scroll_content)
-        advanced_scroll.setWidget(advanced_scroll_content)
-        
-        # DE strategy selection
-        strategy_group = QGroupBox("DE Strategy")
-        strategy_layout = QVBoxLayout(strategy_group)
-        
+        # DE Strategy Selection
         self.de_strategy_combo = QComboBox()
         self.de_strategy_combo.addItems([
-            "rand/1 (Standard DE)", 
-            "rand/2", 
-            "best/1", 
-            "best/2",
-            "current-to-best/1", 
-            "current-to-rand/1"
+            "rand/1", "rand/2", "best/1", "best/2",
+            "current-to-best/1", "current-to-rand/1"
         ])
-        self.de_strategy_combo.setToolTip("Different mutation strategies for creating donor vectors")
-        strategy_layout.addWidget(self.de_strategy_combo)
-        
-        advanced_scroll_layout.addWidget(strategy_group)
-        
-        # Adaptive methods
-        adaptive_group = QGroupBox("Adaptive Parameter Control")
-        adaptive_layout = QFormLayout(adaptive_group)
-        
-        self.de_adaptive_method_combo = QComboBox()
-        self.de_adaptive_method_combo.addItems([
-            "none (Fixed Parameters)",
-            "jitter (Small Random Variation)",
-            "dither (Random F per Generation)",
-            "sade (Self-adaptive DE)",
-            "jade (Adaptive DE with Archive)",
-            "success-history (Success-based Adaptation)"
-        ])
-        self.de_adaptive_method_combo.setToolTip("Methods for automatically adapting control parameters during optimization")
-        adaptive_layout.addRow("Adaptation Method:", self.de_adaptive_method_combo)
-        
-        # JADE parameters
-        jade_frame = QGroupBox("JADE Parameters")
-        jade_layout = QFormLayout(jade_frame)
-        
-        self.de_jade_c_box = QDoubleSpinBox()
-        self.de_jade_c_box.setRange(0.01, 1.0)
-        self.de_jade_c_box.setValue(0.1)
-        self.de_jade_c_box.setDecimals(2)
-        jade_layout.addRow("Adaptation Rate (c):", self.de_jade_c_box)
-        
-        adaptive_layout.addRow("", jade_frame)
-        
-        # SaDE parameters
-        sade_frame = QGroupBox("SaDE Parameters")
-        sade_layout = QFormLayout(sade_frame)
-        
-        self.de_sade_lp_box = QSpinBox()
-        self.de_sade_lp_box.setRange(1, 1000)
-        self.de_sade_lp_box.setValue(50)
-        sade_layout.addRow("Learning Period:", self.de_sade_lp_box)
-        
-        self.de_sade_memory_box = QSpinBox()
-        self.de_sade_memory_box.setRange(1, 100)
-        self.de_sade_memory_box.setValue(20)
-        sade_layout.addRow("Memory Size:", self.de_sade_memory_box)
-        
-        adaptive_layout.addRow("", sade_frame)
-        
-        # Dither parameters
-        dither_frame = QGroupBox("Dither Parameters")
-        dither_layout = QFormLayout(dither_frame)
-        
-        self.de_dither_f_min_box = QDoubleSpinBox()
-        self.de_dither_f_min_box.setRange(0.1, 0.9)
-        self.de_dither_f_min_box.setValue(0.4)
-        self.de_dither_f_min_box.setDecimals(2)
-        dither_layout.addRow("F Minimum:", self.de_dither_f_min_box)
-        
-        self.de_dither_f_max_box = QDoubleSpinBox()
-        self.de_dither_f_max_box.setRange(0.1, 2.0)
-        self.de_dither_f_max_box.setValue(0.9)
-        self.de_dither_f_max_box.setDecimals(2)
-        dither_layout.addRow("F Maximum:", self.de_dither_f_max_box)
-        
-        adaptive_layout.addRow("", dither_frame)
-        
-        advanced_scroll_layout.addWidget(adaptive_group)
-        
-        # Constraint handling
-        constraint_group = QGroupBox("Constraint Handling")
-        constraint_layout = QVBoxLayout(constraint_group)
-        
-        self.de_constraint_handling_combo = QComboBox()
-        self.de_constraint_handling_combo.addItems([
-            "penalty (Apply Penalty)",
-            "reflection (Reflect at Bounds)",
-            "projection (Project to Bounds)"
-        ])
-        self.de_constraint_handling_combo.setToolTip("Method for handling parameter constraints")
-        constraint_layout.addWidget(self.de_constraint_handling_combo)
-        
-        advanced_scroll_layout.addWidget(constraint_group)
-        
-        # Termination criteria
-        termination_group = QGroupBox("Termination Criteria")
-        termination_layout = QFormLayout(termination_group)
-        
-        self.de_stagnation_box = QSpinBox()
-        self.de_stagnation_box.setRange(10, 10000)
-        self.de_stagnation_box.setValue(100)
-        termination_layout.addRow("Max Generations without Improvement:", self.de_stagnation_box)
-        
-        self.de_min_diversity_box = QDoubleSpinBox()
-        self.de_min_diversity_box.setRange(1e-10, 1.0)
-        self.de_min_diversity_box.setValue(1e-6)
-        self.de_min_diversity_box.setDecimals(10)
-        termination_layout.addRow("Minimum Population Diversity:", self.de_min_diversity_box)
-        
-        advanced_scroll_layout.addWidget(termination_group)
-        
-        # Diversity preservation
-        diversity_group = QGroupBox("Diversity Preservation")
-        diversity_layout = QFormLayout(diversity_group)
-        
-        self.de_diversity_checkbox = QCheckBox()
-        self.de_diversity_checkbox.setChecked(False)
-        diversity_layout.addRow("Enable Diversity Preservation:", self.de_diversity_checkbox)
-        
-        self.de_diversity_threshold_box = QDoubleSpinBox()
-        self.de_diversity_threshold_box.setRange(1e-6, 1.0)
-        self.de_diversity_threshold_box.setValue(0.01)
-        self.de_diversity_threshold_box.setDecimals(4)
-        diversity_layout.addRow("Diversity Threshold:", self.de_diversity_threshold_box)
-        
-        advanced_scroll_layout.addWidget(diversity_group)
-        
-        # Add multiple run settings
-        multi_run_group = QGroupBox("Multiple Runs")
-        multi_run_layout = QFormLayout(multi_run_group)
-        
-        self.de_num_runs_box = QSpinBox()
-        self.de_num_runs_box.setRange(1, 100)
-        self.de_num_runs_box.setValue(1)
-        self.de_num_runs_box.setToolTip("Number of independent optimization runs to perform")
-        multi_run_layout.addRow("Number of Runs:", self.de_num_runs_box)
-        
-        advanced_scroll_layout.addWidget(multi_run_group)
-        
-        # Add multi-run progress bar
-        self.de_multi_run_progress_bar = QProgressBar()
-        self.de_multi_run_progress_bar.setFormat("Run %v/%m")
-        self.de_multi_run_progress_bar.hide()
-        advanced_scroll_layout.addWidget(self.de_multi_run_progress_bar)
-        
-        # Parallel processing
-        parallel_group = QGroupBox("Parallel Processing")
-        parallel_layout = QFormLayout(parallel_group)
-        
-        self.de_parallel_checkbox = QCheckBox()
-        self.de_parallel_checkbox.setChecked(False)
-        parallel_layout.addRow("Use Parallel Processing:", self.de_parallel_checkbox)
-        
-        self.de_processes_box = QSpinBox()
-        self.de_processes_box.setRange(1, 64)
-        # Use multiprocessing properly
-        import multiprocessing
-        self.de_processes_box.setValue(max(1, multiprocessing.cpu_count() - 1))
-        self.de_processes_box.setEnabled(False)
-        parallel_layout.addRow("Number of Processes:", self.de_processes_box)
-        
-        # Connect parallel checkbox to enable/disable processes box
-        self.de_parallel_checkbox.stateChanged.connect(
-            lambda state: self.de_processes_box.setEnabled(state == Qt.Checked)
-        )
-        
-        advanced_scroll_layout.addWidget(parallel_group)
-        
-        # Random seed
-        seed_group = QGroupBox("Random Seed")
-        seed_layout = QFormLayout(seed_group)
-        
-        self.de_seed_checkbox = QCheckBox()
-        self.de_seed_checkbox.setChecked(False)
-        seed_layout.addRow("Use Fixed Seed:", self.de_seed_checkbox)
-        
-        self.de_seed_box = QSpinBox()
-        self.de_seed_box.setRange(0, 1000000)
-        self.de_seed_box.setValue(42)
-        self.de_seed_box.setEnabled(False)
-        seed_layout.addRow("Random Seed:", self.de_seed_box)
-        
-        # Connect seed checkbox to enable/disable seed box
-        self.de_seed_checkbox.stateChanged.connect(
-            lambda state: self.de_seed_box.setEnabled(state == Qt.Checked)
-        )
-        
-        advanced_scroll_layout.addWidget(seed_group)
-        
-        # Hyperparameter tuning
-        tuning_group = QGroupBox("Hyperparameter Tuning")
-        tuning_layout = QVBoxLayout(tuning_group)
-        
-        self.de_tune_button = QPushButton("Tune DE Hyperparameters")
-        self.de_tune_button.setToolTip("Run automatic hyperparameter tuning to find optimal settings")
-        self.de_tune_button.clicked.connect(self.tune_de_hyperparameters)
-        tuning_layout.addWidget(self.de_tune_button)
-        
-        advanced_scroll_layout.addWidget(tuning_group)
-        
-        # Add stretch to push widgets to the top
-        advanced_scroll_layout.addStretch()
-        
-        # Add scroll area to advanced tab
-        de_advanced_layout.addWidget(advanced_scroll)
-        
-        # -------------------- Sub-tab 5: Visualization --------------------
-        de_viz_tab = QWidget()
-        de_viz_layout = QVBoxLayout(de_viz_tab)
-        
-        # Add save button
-        save_container = QWidget()
-        save_layout = QHBoxLayout(save_container)
-        save_layout.setContentsMargins(0, 0, 0, 0)
-        
-        self.de_viz_save_button = QPushButton("Save Plot")
-        self.de_viz_save_button.clicked.connect(self.save_de_visualization)
-        save_layout.addWidget(self.de_viz_save_button)
-        save_layout.addStretch()
-        
-        de_viz_layout.addWidget(save_container)
-        
-        # Create tabs for different visualizations
-        self.de_viz_tabs = QTabWidget()
-        
-        # Create tabs for different visualizations
-        de_violin_tab = QWidget()
-        de_violin_layout = QVBoxLayout(de_violin_tab)
-        self.de_violin_plot_widget = QWidget()
-        de_violin_layout.addWidget(self.de_violin_plot_widget)
-        
-        de_convergence_tab = QWidget()
-        de_convergence_layout = QVBoxLayout(de_convergence_tab)
-        self.de_convergence_plot_widget = QWidget()
-        de_convergence_layout.addWidget(self.de_convergence_plot_widget)
-        
-        de_diversity_tab = QWidget()
-        de_diversity_layout = QVBoxLayout(de_diversity_tab)
-        self.de_diversity_plot_widget = QWidget()
-        de_diversity_layout.addWidget(self.de_diversity_plot_widget)
-        
-        de_adaptation_tab = QWidget()
-        de_adaptation_layout = QVBoxLayout(de_adaptation_tab)
-        self.de_adaptation_plot_widget = QWidget()
-        de_adaptation_layout.addWidget(self.de_adaptation_plot_widget)
-        
-        de_param_evolution_tab = QWidget()
-        de_param_evolution_layout = QVBoxLayout(de_param_evolution_tab)
-        self.de_param_evolution_plot_widget = QWidget()
-        de_param_evolution_layout.addWidget(self.de_param_evolution_plot_widget)
-        
-        de_correlation_tab = QWidget()
-        de_correlation_layout = QVBoxLayout(de_correlation_tab)
-        self.de_correlation_plot_widget = QWidget()
-        de_correlation_layout.addWidget(self.de_correlation_plot_widget)
-        
-        # Add all visualization tabs
-        self.de_viz_tabs.addTab(de_violin_tab, "Multi-Run Statistics")
-        self.de_viz_tabs.addTab(de_convergence_tab, "Convergence History")
-        self.de_viz_tabs.addTab(de_diversity_tab, "Population Diversity")
-        self.de_viz_tabs.addTab(de_adaptation_tab, "Control Parameter Adaptation")
-        self.de_viz_tabs.addTab(de_param_evolution_tab, "Parameter Evolution")
-        self.de_viz_tabs.addTab(de_correlation_tab, "Parameter Correlation")
-        
-        # Add the visualization tabs to the layout
-        de_viz_layout.addWidget(self.de_viz_tabs)
-        
-        # Connect tab change to update function
-        self.de_viz_tabs.currentChanged.connect(self.update_de_visualization)
-        
-        # Add all sub-tabs to the DE tab widget
-        self.de_sub_tabs.addTab(de_hyper_tab, "DE Settings")
-        self.de_sub_tabs.addTab(de_param_tab, "DVA Parameters")
-        self.de_sub_tabs.addTab(de_results_tab, "Results")
-        self.de_sub_tabs.addTab(de_advanced_tab, "Advanced Settings")
-        self.de_sub_tabs.addTab(de_viz_tab, "Visualization")
+        de_params_layout.addRow("DE Strategy:", self.de_strategy_combo)
 
-        # Add the DE sub-tabs widget to the main DE tab layout
-        layout.addWidget(self.de_sub_tabs)
-        self.de_tab.setLayout(layout)
+        # Adaptive Method Selection
+        self.de_adaptive_combo = QComboBox()
+        self.de_adaptive_combo.addItems([
+            "none", "jitter", "dither", "sade", "jade", "success-history"
+        ])
+        de_params_layout.addRow("Adaptive Method:", self.de_adaptive_combo)
+
+        # Add the parameters group to the layout
+        params_layout.addWidget(de_params_group)
+
+        # Parameter Bounds Table
+        bounds_group = QGroupBox("Parameter Bounds")
+        bounds_layout = QVBoxLayout(bounds_group)
         
+        self.de_params_table = QTableWidget()
+        self.de_params_table.setColumnCount(4)
+        self.de_params_table.setHorizontalHeaderLabels(["Parameter", "Lower Bound", "Upper Bound", "Fixed"])
+        bounds_layout.addWidget(self.de_params_table)
+        
+        params_layout.addWidget(bounds_group)
+
+        # Control Buttons
+        button_layout = QHBoxLayout()
+        
+        self.run_de_button = QPushButton("Run DE Optimization")
+        self.run_de_button.clicked.connect(self.run_de)
+        button_layout.addWidget(self.run_de_button)
+        
+        self.tune_de_button = QPushButton("Tune DE Parameters")
+        self.tune_de_button.clicked.connect(self.tune_de_hyperparameters)
+        button_layout.addWidget(self.tune_de_button)
+        
+        params_layout.addLayout(button_layout)
+
+        # -------------------- Sub-tab 2: Visualization --------------------
+        viz_tab = QWidget()
+        viz_layout = QVBoxLayout(viz_tab)
+
+        # Create plot canvas for real-time visualization
+        self.de_fig = Figure(figsize=(8, 6))
+        self.de_canvas = FigureCanvasQTAgg(self.de_fig)
+        viz_layout.addWidget(self.de_canvas)
+
+        # Add toolbar for plot interaction
+        toolbar = NavigationToolbar2QT(self.de_canvas, viz_tab)
+        viz_layout.addWidget(toolbar)
+
+        # Save visualization button
+        save_button = QPushButton("Save Visualization")
+        save_button.clicked.connect(self.save_de_visualization)
+        viz_layout.addWidget(save_button)
+
+        # Add tabs to sub-tabs widget
+        self.de_sub_tabs.addTab(params_tab, "Parameters")
+        self.de_sub_tabs.addTab(viz_tab, "Visualization")
+
+        # Add sub-tabs to main layout
+        layout.addWidget(self.de_sub_tabs)
+
+        # Initialize the parameter table
+        self.initialize_de_parameter_table()
+        
+        # Make sure the tab is properly set up before returning
+        self.de_tab.setLayout(layout)
+
+    def initialize_de_parameter_table(self):
+        """Initialize the DE parameter table with default values"""
+        # Get the parameter data from the main window
+        parameter_data = self.get_parameter_data()
+        
+        # Set the number of rows based on parameters
+        self.de_params_table.setRowCount(len(parameter_data))
+        
+        # Fill the table with parameter data
+        for row, (name, lower, upper, fixed) in enumerate(parameter_data):
+            # Parameter name
+            name_item = QTableWidgetItem(name)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+            self.de_params_table.setItem(row, 0, name_item)
+            
+            # Lower bound
+            lower_item = QTableWidgetItem(str(lower))
+            self.de_params_table.setItem(row, 1, lower_item)
+            
+            # Upper bound
+            upper_item = QTableWidgetItem(str(upper))
+            self.de_params_table.setItem(row, 2, upper_item)
+            
+            # Fixed checkbox
+            checkbox = QCheckBox()
+            checkbox.setChecked(fixed)
+            checkbox.stateChanged.connect(lambda state, r=row: self.toggle_de_fixed(state, r))
+            self.de_params_table.setCellWidget(row, 3, checkbox)
+        
+        # Adjust column widths
+        self.de_params_table.resizeColumnsToContents()
+
+    def get_parameter_data(self):
+        """Get parameter data for optimization algorithms
+        
+        Returns:
+            List of tuples: (name, lower_bound, upper_bound, fixed_flag)
+        """
+        # Create a list of parameter names
+        parameter_data = []
+        
+        # Beta parameters (15)
+        for i in range(1, 16):
+            parameter_data.append((f"beta_{i}", 0.0001, 2.5, False))
+            
+        # Lambda parameters (15)
+        for i in range(1, 16):
+            parameter_data.append((f"lambda_{i}", 0.0001, 2.5, False))
+            
+        # Mu parameters (3)
+        for i in range(1, 4):
+            parameter_data.append((f"mu_{i}", 0.0001, 0.75, False))
+            
+        # Nu parameters (15)
+        for i in range(1, 16):
+            parameter_data.append((f"nu_{i}", 0.0001, 2.5, False))
+            
+        return parameter_data
+
     def toggle_de_fixed(self, state, row, table=None):
         """Toggle the fixed state of a DE parameter row"""
         if table is None:
-            table = self.de_param_table
+            table = self.de_params_table
             
         fixed = (state == Qt.Checked)
-        fixed_value_spin = table.cellWidget(row, 2)
-        lower_bound_spin = table.cellWidget(row, 3)
-        upper_bound_spin = table.cellWidget(row, 4)
-
-        fixed_value_spin.setEnabled(fixed)
-        lower_bound_spin.setEnabled(not fixed)
-        upper_bound_spin.setEnabled(not fixed)
         
+        # Get the widgets from the correct columns
+        # Column 0: Parameter name
+        # Column 1: Lower bound
+        # Column 2: Upper bound
+        # Column 3: Fixed checkbox
+        
+        # For fixed parameters, we'll use the lower bound value as the fixed value
+        lower_bound_item = table.item(row, 1)
+        upper_bound_item = table.item(row, 2)
+        
+        if fixed:
+            # When fixed, make both bounds the same
+            upper_bound_item.setText(lower_bound_item.text())
+        else:
+            # When not fixed, set a reasonable range
+            param_name = table.item(row, 0).text()
+            if param_name.startswith(("beta_", "lambda_", "nu_")):
+                lower_bound_item.setText("0.0001")
+                upper_bound_item.setText("2.5")
+            elif param_name.startswith("mu_"):
+                lower_bound_item.setText("0.0001")
+                upper_bound_item.setText("0.75")
+            else:
+                lower_bound_item.setText("0.0")
+                upper_bound_item.setText("1.0")
+
     def run_de(self):
         """Run the differential evolution optimization"""
-        self.status_bar.showMessage("Running DE optimization...")
-        self.results_text.append("DE optimization started...")
-        
         try:
-            # Retrieve DE parameters from the GUI
-            pop_size = self.de_pop_size_box.value()
-            num_generations = self.de_num_generations_box.value()
-            mutation_factor = self.de_F_box.value()
-            crossover_rate = self.de_CR_box.value()
-            tol = self.de_tol_box.value()
-            alpha = self.de_alpha_box.value()
-            beta = self.de_beta_box.value()
-            
-            # Get advanced DE options
-            strategy_idx = self.de_strategy_combo.currentIndex()
-            strategy_names = ["rand/1", "rand/2", "best/1", "best/2", "current-to-best/1", "current-to-rand/1"]
-            strategy = strategy_names[strategy_idx]
-            
-            adaptive_idx = self.de_adaptive_method_combo.currentIndex()
-            adaptive_names = ["none", "jitter", "dither", "sade", "jade", "success-history"]
-            adaptive_method = adaptive_names[adaptive_idx]
-            
-            constraint_idx = self.de_constraint_handling_combo.currentIndex()
-            constraint_names = ["penalty", "reflection", "projection"]
-            constraint_handling = constraint_names[constraint_idx]
-            
-            use_parallel = self.de_parallel_checkbox.isChecked()
-            n_processes = self.de_processes_box.value() if use_parallel else None
-            
-            use_seed = self.de_seed_checkbox.isChecked()
-            seed = self.de_seed_box.value() if use_seed else None
-            
-            diversity_preservation = self.de_diversity_checkbox.isChecked()
-            
-            # Get number of runs
-            num_runs = self.de_num_runs_box.value()
-            
-            # Show multi-run progress bar if doing multiple runs
-            if num_runs > 1:
-                self.de_multi_run_progress_bar.setRange(0, num_runs)
-                self.de_multi_run_progress_bar.setValue(0)
-                self.de_multi_run_progress_bar.show()
-            else:
-                self.de_multi_run_progress_bar.hide()
-            
-            # Prepare adaptive parameters based on selected method
-            adaptive_params = {}
-            if adaptive_method == "jade":
-                adaptive_params["c"] = self.de_jade_c_box.value()
-            elif adaptive_method == "sade":
-                adaptive_params["LP"] = self.de_sade_lp_box.value()
-                adaptive_params["memory_size"] = self.de_sade_memory_box.value()
-            elif adaptive_method == "dither":
-                adaptive_params["F_min"] = self.de_dither_f_min_box.value()
-                adaptive_params["F_max"] = self.de_dither_f_max_box.value()
-            
-            # Diversity preservation parameters
-            if diversity_preservation:
-                adaptive_params["diversity_threshold"] = self.de_diversity_threshold_box.value()
-            
-            # Prepare termination criteria
-            termination_criteria = {
-                "max_generations": num_generations,
-                "tol": tol,
-                "stagnation_limit": self.de_stagnation_box.value(),
-                "min_diversity": self.de_min_diversity_box.value()
+            # Get parameter data from the table
+            parameter_data = []
+            for row in range(self.de_params_table.rowCount()):
+                name = self.de_params_table.item(row, 0).text()
+                lower = float(self.de_params_table.item(row, 1).text())
+                upper = float(self.de_params_table.item(row, 2).text())
+                fixed = self.de_params_table.cellWidget(row, 3).isChecked()
+                parameter_data.append((name, lower, upper, fixed))
+
+            # Get DE parameters from the GUI
+            de_params = {
+                'de_pop_size': self.de_pop_size_spinbox.value(),
+                'de_num_generations': self.de_num_generations_spinbox.value(),
+                'de_F': self.de_F_spinbox.value(),
+                'de_CR': self.de_CR_spinbox.value(),
+                'de_tol': self.de_tol_spinbox.value(),
+                'strategy': self.de_strategy_combo.currentText(),
+                'adaptive_method': self.de_adaptive_combo.currentText()
             }
 
-            de_dva_parameters = []
-            row_count = self.de_param_table.rowCount()
-            for row in range(row_count):
-                param_name = self.de_param_table.item(row, 0).text()
-                fixed_widget = self.de_param_table.cellWidget(row, 1)
-                fixed = fixed_widget.isChecked()
-                if fixed:
-                    fixed_value_widget = self.de_param_table.cellWidget(row, 2)
-                    fv = fixed_value_widget.value()
-                    de_dva_parameters.append((param_name, fv, fv, True))
-                else:
-                    lower_bound_widget = self.de_param_table.cellWidget(row, 3)
-                    upper_bound_widget = self.de_param_table.cellWidget(row, 4)
-                    lb = lower_bound_widget.value()
-                    ub = upper_bound_widget.value()
-                    if lb > ub:
-                        QMessageBox.warning(self, "Input Error",
-                                            f"For parameter {param_name}, lower bound is greater than upper bound.")
-                        return
-                    de_dva_parameters.append((param_name, lb, ub, False))
-
-            # Get main system parameters
-            main_params = self.get_main_system_params()
-
-            # Get target values and weights
-            target_values, weights = self.get_target_values_weights()
-
-            # Get frequency range values
-            omega_start_val = self.omega_start_box.value()
-            omega_end_val = self.omega_end_box.value()
-            omega_points_val = self.omega_points_box.value()
-
-            # Create and start DEWorker with enhanced parameters
+            # Create and configure the DE worker
             self.de_worker = DEWorker(
-                main_params=main_params,
-                target_values_dict=target_values,
-                weights_dict=weights,
-                omega_start=omega_start_val,
-                omega_end=omega_end_val,
-                omega_points=omega_points_val,
-                de_pop_size=pop_size,
-                de_num_generations=num_generations,
-                de_F=mutation_factor,
-                de_CR=crossover_rate,
-                de_tol=tol,
-                de_parameter_data=de_dva_parameters,
-                alpha=alpha,
-                beta=beta,
-                strategy=strategy,
-                adaptive_method=adaptive_method,
-                adaptive_params=adaptive_params,
-                termination_criteria=termination_criteria,
-                use_parallel=use_parallel,
-                n_processes=n_processes,
-                seed=seed,
-                record_statistics=True,
-                constraint_handling=constraint_handling,
-                diversity_preservation=diversity_preservation,
-                num_runs=num_runs  # Add number of runs parameter
+                main_params=self.main_params,
+                target_values_dict=self.target_values,
+                weights_dict=self.weights,
+                omega_start=self.omega_start,
+                omega_end=self.omega_end,
+                omega_points=self.omega_points,
+                de_pop_size=de_params['de_pop_size'],
+                de_num_generations=de_params['de_num_generations'],
+                de_F=de_params['de_F'],
+                de_CR=de_params['de_CR'],
+                de_tol=de_params['de_tol'],
+                de_parameter_data=parameter_data,
+                strategy=de_params['strategy'],
+                adaptive_method=de_params['adaptive_method'],
+                record_statistics=True
             )
-            
+
+            # Connect signals
             self.de_worker.finished.connect(self.handle_de_finished)
             self.de_worker.error.connect(self.handle_de_error)
             self.de_worker.update.connect(self.handle_de_update)
             self.de_worker.progress.connect(self.handle_de_progress)
-            self.de_worker.multi_run_progress.connect(self.handle_de_multi_run_progress)  # Connect multi-run progress signal
-            
-            # Disable both run DE buttons to prevent multiple runs
-            self.hyper_run_de_button.setEnabled(False)
+
+            # Disable the run button and update status
             self.run_de_button.setEnabled(False)
-            
-            self.de_results_text.clear()
-            self.de_results_text.append("Running DE optimization...")
-            
-            # Initialize progress bar if not exists
-            if not hasattr(self, 'de_progress_bar'):
-                self.de_progress_bar = QProgressBar()
-                self.de_progress_bar.setRange(0, num_generations)
-                self.de_progress_bar.setFormat("%v/%m gen - Best fitness: %p%")
-                self.de_sub_tabs.widget(3).layout().addWidget(self.de_progress_bar)
-            else:
-                self.de_progress_bar.setRange(0, num_generations)
-                self.de_progress_bar.setValue(0)
-            
+            self.statusBar().showMessage("Running DE optimization...")
+
+            # Start the worker
             self.de_worker.start()
-            
+
         except Exception as e:
-            self.handle_de_error(str(e))
-        
-    
-    def handle_de_finished(self, results, best_individual, parameter_names, best_fitness, statistics):
-        """Handle the completion of DE optimization"""
-        # Re-enable both run DE buttons
-        self.hyper_run_de_button.setEnabled(True)
-        self.run_de_button.setEnabled(True)
-        
-        self.de_results_text.append("\nDE Completed.\n")
-        self.de_results_text.append("Best individual parameters:")
+            QMessageBox.critical(self, "Error", f"Failed to start DE optimization: {str(e)}")
+            self.run_de_button.setEnabled(True)
 
-        for name, val in zip(parameter_names, best_individual):
-            self.de_results_text.append(f"{name}: {val}")
-        self.de_results_text.append(f"\nBest fitness: {best_fitness:.6f}")
-
-        singular_response = results.get('singular_response', None)
-        if singular_response is not None:
-            self.de_results_text.append(f"\nSingular response of best individual: {singular_response}")
-
-        self.de_results_text.append("\nFull Results:")
-        for section, data in results.items():
-            self.de_results_text.append(f"{section}: {data}")
-            
-        # Store optimization statistics for visualization
-        self.de_statistics = statistics
-        
-        # Update visualization tab
-        self.update_de_visualization()
-            
-        self.status_bar.showMessage("DE optimization completed")
-        
-        # Store results for later use in comparative visualization
-        if "singular_response" in results and results["singular_response"] is not None:
-            # Instead of using the missing method, just store the results for potential comparison
-            if not hasattr(self, 'frf_comparison_results'):
-                self.frf_comparison_results = {}
-            self.frf_comparison_results["DE"] = results
-            
-        # Store best parameters for potential application
-        self.current_de_best_params = best_individual
-        self.current_de_parameter_names = parameter_names
-
-    def handle_de_error(self, err):
-        """Handle errors during DE optimization"""
-        # Re-enable both run DE buttons
-        self.hyper_run_de_button.setEnabled(True)
-        self.run_de_button.setEnabled(True)
-        
-        QMessageBox.warning(self, "DE Error", f"Error during DE optimization: {err}")
-        self.de_results_text.append(f"\nError running DE: {err}")
-        self.status_bar.showMessage("DE optimization failed")
-
-    def handle_de_update(self, msg):
-        """Handle progress updates from DE worker"""
-        self.de_results_text.append(msg)
-        
     def handle_de_progress(self, generation, best_fitness, diversity):
-        """Handle progress updates from DE worker"""
-        if hasattr(self, 'de_progress_bar'):
-            self.de_progress_bar.setValue(generation)
-            self.de_progress_bar.setFormat(f"{generation}/{self.de_progress_bar.maximum()} gen - Best: {best_fitness:.6f}")
-            
-    def handle_de_multi_run_progress(self, current_run, total_runs):
-        """Handle progress updates for multiple runs"""
-        self.de_multi_run_progress_bar.setValue(current_run)
-        self.status_bar.showMessage(f"Running DE optimization - Run {current_run}/{total_runs}")
-            
+        """Handle progress updates from the DE worker"""
+        # Update progress bar (assuming 100 generations)
+        progress = int((generation / self.de_num_generations_spinbox.value()) * 100)
+        self.statusBar().showMessage(f"Generation {generation}: Best Fitness = {best_fitness:.6f}, Diversity = {diversity:.6f}")
+        
+        # Update visualization
+        self.update_de_visualization()
+
     def update_de_visualization(self):
-        """Update the DE visualization based on selected tab"""
-        if not hasattr(self, 'de_statistics'):
-            return
+        """Update the DE visualization during optimization"""
+        try:
+            # Check if we have a worker with statistics
+            if not hasattr(self, 'de_worker') or not hasattr(self.de_worker, 'statistics'):
+                return
+                
+            # Get statistics from the worker
+            stats = self.de_worker.statistics
             
-        # Get current tab
-        current_tab = self.de_viz_tabs.currentWidget()
-        
-        # Clear the current widget's layout
-        if current_tab.layout():
-            for i in reversed(range(current_tab.layout().count())): 
-                widget = current_tab.layout().itemAt(i).widget()
-                if widget:
-                    widget.setParent(None)
-        
-        # Create figure and canvas for the current visualization
-        fig = Figure(figsize=(8, 6))
-        canvas = FigureCanvasQTAgg(fig)
-        toolbar = NavigationToolbar2QT(canvas, current_tab)
-        
-        # Add toolbar and canvas to layout
-        current_tab.layout().addWidget(toolbar)
-        current_tab.layout().addWidget(canvas)
-        
-        # Get tab name
-        tab_name = self.de_viz_tabs.tabText(self.de_viz_tabs.currentIndex())
-        
-        if tab_name == "Multi-Run Statistics" and hasattr(self.de_statistics, 'run_best_fitnesses'):
-            # Create violin plots for multi-run statistics
-            n_params = len(self.current_de_parameter_names)
-            n_rows = (n_params + 2 + 1) // 2  # Parameters + fitness + convergence, 2 columns
+            # Clear the figure
+            self.de_fig.clear()
             
             # Create subplots
-            for i, param_name in enumerate(self.current_de_parameter_names):
-                ax = fig.add_subplot(n_rows, 2, i + 1)
-                param_values = self.de_statistics.parameter_distributions[param_name]
-                sns.violinplot(data=param_values, ax=ax)
-                ax.set_title(f'Distribution of {param_name}')
-                ax.set_ylabel('Parameter Value')
+            gs = self.de_fig.add_gridspec(2, 2)
             
-            # Add fitness distribution plot
-            ax = fig.add_subplot(n_rows, 2, n_params + 1)
-            sns.violinplot(data=self.de_statistics.run_best_fitnesses, ax=ax)
-            ax.set_title('Distribution of Best Fitness Values')
-            ax.set_ylabel('Fitness Value')
-            
-            # Add convergence generation distribution plot
-            ax = fig.add_subplot(n_rows, 2, n_params + 2)
-            sns.violinplot(data=self.de_statistics.run_convergence_gens, ax=ax)
-            ax.set_title('Distribution of Convergence Generations')
-            ax.set_ylabel('Generation')
-            
-        elif tab_name == "Convergence History":
-            ax = fig.add_subplot(111)
-            generations = self.de_statistics.generations
-            best_fitness = self.de_statistics.best_fitness_history
-            mean_fitness = self.de_statistics.mean_fitness_history
-            
-            ax.plot(generations, best_fitness, 'b-', label='Best Fitness')
-            ax.plot(generations, mean_fitness, 'r--', label='Mean Fitness')
-            ax.set_xlabel('Generation')
-            ax.set_ylabel('Fitness Value')
-            ax.set_title('Convergence History')
-            ax.legend()
-            ax.grid(True)
-            
-        elif tab_name == "Population Diversity":
-            ax = fig.add_subplot(111)
-            generations = self.de_statistics.generations
-            diversity = self.de_statistics.diversity_history
-            
-            ax.plot(generations, diversity, 'g-')
-            ax.set_xlabel('Generation')
-            ax.set_ylabel('Population Diversity')
-            ax.set_title('Population Diversity Over Time')
-            ax.grid(True)
-            
-        elif tab_name == "Control Parameter Adaptation":
-            if hasattr(self.de_statistics, 'f_values') and hasattr(self.de_statistics, 'cr_values'):
-                ax1 = fig.add_subplot(211)
-                ax2 = fig.add_subplot(212)
-                
-                generations = self.de_statistics.generations
-                f_values = self.de_statistics.f_values
-                cr_values = self.de_statistics.cr_values
-                
-                ax1.plot(generations, f_values, 'b-')
+            # 1. Fitness Evolution
+            ax1 = self.de_fig.add_subplot(gs[0, 0])
+            if stats.generations and stats.best_fitness_history:
+                ax1.plot(stats.generations, stats.best_fitness_history, label='Best Fitness')
+                if stats.mean_fitness_history:
+                    ax1.plot(stats.generations, stats.mean_fitness_history, label='Mean Fitness')
                 ax1.set_xlabel('Generation')
-                ax1.set_ylabel('F Value')
-                ax1.set_title('Mutation Factor (F) Adaptation')
+                ax1.set_ylabel('Fitness')
+                ax1.set_title('Fitness Evolution')
+                ax1.legend()
                 ax1.grid(True)
-                
-                ax2.plot(generations, cr_values, 'r-')
+            
+            # 2. Population Diversity
+            ax2 = self.de_fig.add_subplot(gs[0, 1])
+            if stats.generations and stats.diversity_history:
+                ax2.plot(stats.generations, stats.diversity_history)
                 ax2.set_xlabel('Generation')
-                ax2.set_ylabel('CR Value')
-                ax2.set_title('Crossover Rate (CR) Adaptation')
+                ax2.set_ylabel('Diversity')
+                ax2.set_title('Population Diversity')
                 ax2.grid(True)
             
-        elif tab_name == "Parameter Evolution":
-            ax = fig.add_subplot(111)
-            generations = self.de_statistics.generations
-            param_means = np.array(self.de_statistics.parameter_mean_history)
-            param_stds = np.array(self.de_statistics.parameter_std_history)
+            # 3. Control Parameters (F and CR values if adaptive)
+            ax3 = self.de_fig.add_subplot(gs[1, 0])
+            if stats.generations and (stats.f_values or stats.cr_values):
+                if stats.f_values:
+                    ax3.plot(stats.generations, stats.f_values, label='F')
+                if stats.cr_values:
+                    ax3.plot(stats.generations, stats.cr_values, label='CR')
+                ax3.set_xlabel('Generation')
+                ax3.set_ylabel('Value')
+                ax3.set_title('Control Parameters')
+                ax3.legend()
+                ax3.grid(True)
             
-            for i, param_name in enumerate(self.current_de_parameter_names):
-                mean = param_means[:, i]
-                std = param_stds[:, i]
-                ax.plot(generations, mean, label=param_name)
-                ax.fill_between(generations, mean - std, mean + std, alpha=0.2)
+            # 4. Success Rates
+            ax4 = self.de_fig.add_subplot(gs[1, 1])
+            if stats.generations and stats.success_rates:
+                ax4.plot(stats.generations, stats.success_rates)
+                ax4.set_xlabel('Generation')
+                ax4.set_ylabel('Success Rate')
+                ax4.set_title('Success Rate')
+                ax4.grid(True)
             
-            ax.set_xlabel('Generation')
-            ax.set_ylabel('Parameter Value')
-            ax.set_title('Parameter Evolution Over Time')
-            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            ax.grid(True)
+            # Adjust layout and display
+            self.de_fig.tight_layout()
+            self.de_canvas.draw()
             
-        elif tab_name == "Parameter Correlation":
-            if len(self.current_de_parameter_names) > 1:
-                param_data = {}
-                for i, param_name in enumerate(self.current_de_parameter_names):
-                    param_data[param_name] = np.array(self.de_statistics.parameter_mean_history)[:, i]
-                
-                df = pd.DataFrame(param_data)
-                sns.heatmap(df.corr(), annot=True, cmap='coolwarm', ax=fig.add_subplot(111))
-                plt.title('Parameter Correlation Matrix')
-        
-        # Adjust layout and draw
-        fig.tight_layout()
-        canvas.draw()
-        if not hasattr(self, 'de_statistics') or self.de_statistics is None:
-            return
+        except Exception as e:
+            # Silently fail - we don't want to interrupt the optimization
+            print(f"Error updating DE visualization: {str(e)}")
+            pass
+
+    def handle_de_finished(self, results, best_individual, parameter_names, best_fitness, statistics):
+        """Handle completion of the DE optimization"""
+        try:
+            # Re-enable the run button
+            self.run_de_button.setEnabled(True)
             
-        viz_type = self.de_viz_combo.currentText()
-        
-        # Clear the figure
-        self.de_viz_fig.clear()
-        
-        if viz_type == "Convergence History":
-            ax = self.de_viz_fig.add_subplot(111)
-            ax.plot(self.de_statistics.generations, self.de_statistics.best_fitness_history, 'b-', label='Best Fitness')
-            ax.plot(self.de_statistics.generations, self.de_statistics.mean_fitness_history, 'r--', label='Mean Fitness')
-            ax.set_xlabel('Generation')
-            ax.set_ylabel('Fitness Value')
-            ax.set_title('Convergence History')
-            ax.legend()
-            ax.grid(True)
+            # Update status
+            self.statusBar().showMessage(f"DE optimization completed. Best fitness: {best_fitness:.6f}")
             
-        elif viz_type == "Population Diversity":
-            ax = self.de_viz_fig.add_subplot(111)
-            ax.plot(self.de_statistics.generations, self.de_statistics.diversity_history, 'g-')
-            ax.set_xlabel('Generation')
-            ax.set_ylabel('Population Diversity')
-            ax.set_title('Population Diversity History')
-            ax.grid(True)
+            # Store results
+            self.de_results = results
+            self.de_best_individual = best_individual
+            self.de_statistics = statistics
             
-        elif viz_type == "Control Parameter Adaptation":
-            ax = self.de_viz_fig.add_subplot(111)
-            ax.plot(self.de_statistics.generations, self.de_statistics.f_values, 'b-', label='F')
-            ax.plot(self.de_statistics.generations, self.de_statistics.cr_values, 'r-', label='CR')
-            ax.set_xlabel('Generation')
-            ax.set_ylabel('Parameter Value')
-            ax.set_title('Control Parameter Adaptation')
-            ax.legend()
-            ax.grid(True)
+            # Create final visualization
+            self.create_de_final_visualization(statistics, parameter_names)
             
-        elif viz_type == "Parameter Evolution":
-            if len(self.de_statistics.parameter_mean_history) > 0:
-                param_means = np.array(self.de_statistics.parameter_mean_history)
-                param_stds = np.array(self.de_statistics.parameter_std_history)
-                
-                n_params = param_means.shape[1]
-                if n_params > 10:  # Too many parameters to show all at once
-                    # Show just a sample of parameters
-                    param_indices = np.linspace(0, n_params-1, 6, dtype=int)
-                    
-                    fig = self.de_viz_fig
-                    fig.subplots_adjust(hspace=0.4, wspace=0.4)
-                    
-                    for i, idx in enumerate(param_indices):
-                        ax = fig.add_subplot(2, 3, i+1)
-                        ax.plot(self.de_statistics.generations, param_means[:, idx], 'b-')
-                        ax.fill_between(
-                            self.de_statistics.generations,
-                            param_means[:, idx] - param_stds[:, idx],
-                            param_means[:, idx] + param_stds[:, idx],
-                            alpha=0.2
-                        )
-                        param_name = self.current_de_parameter_names[idx] if hasattr(self, 'current_de_parameter_names') else f"Param {idx}"
-                        ax.set_title(f"{param_name}")
-                        ax.grid(True)
-                    
-                    fig.suptitle("Parameter Evolution (Sample)", fontsize=12)
-                else:
-                    # Show all parameters
-                    ax = self.de_viz_fig.add_subplot(111)
-                    for i in range(n_params):
-                        ax.plot(self.de_statistics.generations, param_means[:, i], label=f"Param {i}")
-                    ax.set_xlabel('Generation')
-                    ax.set_ylabel('Parameter Value')
-                    ax.set_title('Parameter Evolution')
-                    if n_params <= 5:  # Only show legend if not too many parameters
-                        ax.legend()
-                    ax.grid(True)
+            # Show results in a message box
+            result_text = "Optimization completed successfully!\n\n"
+            result_text += f"Best Fitness: {best_fitness:.6f}\n\n"
+            result_text += "Best Parameters:\n"
+            for name, value in zip(parameter_names, best_individual):
+                result_text += f"{name}: {value:.6f}\n"
             
-        elif viz_type == "Parameter Correlation":
-            if len(self.de_statistics.parameter_mean_history) > 0:
-                param_means = np.array(self.de_statistics.parameter_mean_history)
-                
-                # Create correlation matrix
-                corr_matrix = np.corrcoef(param_means.T)
-                
-                # Create heatmap
-                ax = self.de_viz_fig.add_subplot(111)
-                cax = ax.matshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1)
-                self.de_viz_fig.colorbar(cax)
-                
-                # Set axis labels with parameter names if available
-                if hasattr(self, 'current_de_parameter_names'):
-                    # Use shorter parameter names for readability
-                    short_names = [name.split('_')[-1] for name in self.current_de_parameter_names]
-                    if len(short_names) > 15:
-                        # Too many parameters, show indices instead
-                        ax.set_title("Parameter Correlation Matrix")
-                    else:
-                        ax.set_xticks(np.arange(len(short_names)))
-                        ax.set_yticks(np.arange(len(short_names)))
-                        ax.set_xticklabels(short_names, rotation=90)
-                        ax.set_yticklabels(short_names)
-                        ax.set_title("Parameter Correlation Matrix")
-        
-        # Refresh the canvas
-        self.de_viz_canvas.draw()
-        
+            QMessageBox.information(self, "DE Optimization Complete", result_text)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error handling DE results: {str(e)}")
+
+    def create_de_final_visualization(self, statistics, parameter_names):
+        """Create the final visualization for DE results"""
+        try:
+            # Clear the figure
+            self.de_fig.clear()
+            
+            # Create subplots
+            gs = self.de_fig.add_gridspec(2, 2)
+            
+            # 1. Fitness Evolution
+            ax1 = self.de_fig.add_subplot(gs[0, 0])
+            ax1.plot(statistics.generations, statistics.best_fitness_history, label='Best Fitness')
+            ax1.plot(statistics.generations, statistics.mean_fitness_history, label='Mean Fitness')
+            ax1.set_xlabel('Generation')
+            ax1.set_ylabel('Fitness')
+            ax1.set_title('Fitness Evolution')
+            ax1.legend()
+            ax1.grid(True)
+            
+            # 2. Population Diversity
+            ax2 = self.de_fig.add_subplot(gs[0, 1])
+            ax2.plot(statistics.generations, statistics.diversity_history)
+            ax2.set_xlabel('Generation')
+            ax2.set_ylabel('Diversity')
+            ax2.set_title('Population Diversity')
+            ax2.grid(True)
+            
+            # 3. Parameter Convergence
+            ax3 = self.de_fig.add_subplot(gs[1, 0])
+            for i, param in enumerate(parameter_names):
+                ax3.plot(statistics.generations, 
+                        [means[i] for means in statistics.parameter_mean_history],
+                        label=param)
+            ax3.set_xlabel('Generation')
+            ax3.set_ylabel('Parameter Value')
+            ax3.set_title('Parameter Convergence')
+            ax3.legend()
+            ax3.grid(True)
+            
+            # 4. Control Parameters (F and CR values if adaptive)
+            ax4 = self.de_fig.add_subplot(gs[1, 1])
+            if statistics.f_values and statistics.cr_values:
+                ax4.plot(statistics.generations, statistics.f_values, label='F')
+                ax4.plot(statistics.generations, statistics.cr_values, label='CR')
+                ax4.set_xlabel('Generation')
+                ax4.set_ylabel('Value')
+                ax4.set_title('Control Parameters')
+                ax4.legend()
+                ax4.grid(True)
+            
+            # Adjust layout and display
+            self.de_fig.tight_layout()
+            self.de_canvas.draw()
+            
+        except Exception as e:
+            QMessageBox.warning(self, "Visualization Error", f"Error creating visualization: {str(e)}")
+
     def save_de_visualization(self):
-        """Save the current DE visualization plot"""
-        if not hasattr(self, 'de_statistics') or self.de_statistics is None:
-            QMessageBox.warning(self, "No Data", "No visualization data available to save.")
-            return
-            
-        viz_type = self.de_viz_combo.currentText()
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Visualization", "", "PNG Files (*.png);;PDF Files (*.pdf);;All Files (*)"
-        )
-        
-        if file_path:
-            self.de_viz_fig.savefig(file_path, dpi=300, bbox_inches='tight')
-            self.status_bar.showMessage(f"Visualization saved to {file_path}")
-            
+        """Save the current DE visualization"""
+        try:
+            filename, _ = QFileDialog.getSaveFileName(
+                self, "Save Visualization", "", "PNG Files (*.png);;All Files (*)"
+            )
+            if filename:
+                self.de_fig.savefig(filename, dpi=300, bbox_inches='tight')
+                QMessageBox.information(self, "Success", "Visualization saved successfully!")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save visualization: {str(e)}")
+
+    def handle_de_error(self, error_msg):
+        """Handle errors from the DE worker"""
+        self.run_de_button.setEnabled(True)
+        QMessageBox.critical(self, "DE Optimization Error", str(error_msg))
+        self.statusBar().showMessage("DE optimization failed!")
+
+    def handle_de_update(self, msg):
+        """Handle status updates from the DE worker"""
+        self.statusBar().showMessage(msg)
+
     def tune_de_hyperparameters(self):
         """Run hyperparameter tuning for DE"""
         reply = QMessageBox.question(
@@ -945,18 +494,18 @@ class ExtraOptimizationMixin:
             
             # Get DVA parameters
             de_dva_parameters = []
-            row_count = self.de_param_table.rowCount()
+            row_count = self.de_params_table.rowCount()
             for row in range(row_count):
-                param_name = self.de_param_table.item(row, 0).text()
-                fixed_widget = self.de_param_table.cellWidget(row, 1)
+                param_name = self.de_params_table.item(row, 0).text()
+                fixed_widget = self.de_params_table.cellWidget(row, 3)
                 fixed = fixed_widget.isChecked()
                 if fixed:
-                    fixed_value_widget = self.de_param_table.cellWidget(row, 2)
+                    fixed_value_widget = self.de_params_table.cellWidget(row, 2)
                     fv = fixed_value_widget.value()
                     de_dva_parameters.append((param_name, fv, fv, True))
                 else:
-                    lower_bound_widget = self.de_param_table.cellWidget(row, 3)
-                    upper_bound_widget = self.de_param_table.cellWidget(row, 4)
+                    lower_bound_widget = self.de_params_table.cellWidget(row, 1)
+                    upper_bound_widget = self.de_params_table.cellWidget(row, 2)
                     lb = lower_bound_widget.value()
                     ub = upper_bound_widget.value()
                     de_dva_parameters.append((param_name, lb, ub, False))
@@ -1060,9 +609,9 @@ class ExtraOptimizationMixin:
             return
             
         # Update UI controls with best parameters
-        self.de_pop_size_box.setValue(best_params.get("pop_size", 50))
-        self.de_F_box.setValue(best_params.get("F", 0.5))
-        self.de_CR_box.setValue(best_params.get("CR", 0.7))
+        self.de_pop_size_spinbox.setValue(best_params.get("pop_size", 50))
+        self.de_F_spinbox.setValue(best_params.get("F", 0.5))
+        self.de_CR_spinbox.setValue(best_params.get("CR", 0.7))
         
         # Update strategy combo box
         if "strategy" in best_params:
