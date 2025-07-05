@@ -213,7 +213,7 @@ class FRFMixin:
         
         # Add the comparative group to the parent layout
         parent_layout.addWidget(self.comp_group)
-
+        
     def _update_legend_table_from_selection(self):
         """Update the legend table based on the selected plots in the list widget"""
         # Clear current table contents

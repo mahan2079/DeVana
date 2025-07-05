@@ -13,7 +13,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import seaborn as sns
-from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QTabWidget, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QTabWidget, QWidget, QPushButton
 from PyQt5.QtCore import Qt
 
 def setup_widget_layout(widget):
@@ -56,100 +56,263 @@ def ensure_all_visualizations_visible(widget):
         widget.layout().update()
         widget.update()
 
-def visualize_ga_operations(widget, df):
-    """
-    Visualize GA operations statistics
+def visualize_ga_operations(widget, data):
+    """Visualize GA operations metrics with enhanced styling"""
+    import pandas as pd
+    import numpy as np
+    from PyQt5.QtWidgets import QVBoxLayout
     
-    Args:
-        widget: QWidget to place visualization in
-        df: DataFrame with benchmark data
-    """
-    # Create tabs for different visualizations
-    tabs = QTabWidget()
-    
-    # Create tab for fitness evolution
-    fitness_tab = QWidget()
-    fitness_tab.setLayout(QVBoxLayout())
-    
-    # Create tab for parameter convergence
-    param_tab = QWidget()
-    param_tab.setLayout(QVBoxLayout())
-    
-    # Create tab for adaptive rates
-    rates_tab = QWidget()
-    rates_tab.setLayout(QVBoxLayout())
-    
-    # Add tabs to widget
-    tabs.addTab(fitness_tab, "Fitness Evolution")
-    tabs.addTab(param_tab, "Parameter Convergence")
-    tabs.addTab(rates_tab, "Adaptive Rates")
-    
-    # Visualize fitness evolution
-    visualize_fitness_evolution(fitness_tab, df)
-    
-    # Visualize parameter convergence
-    visualize_parameter_convergence(param_tab, df)
-    
-    # Visualize adaptive rates
-    visualize_adaptive_rates(rates_tab, df)
-    
-    # Clear existing layout or create a new one
-    if widget.layout():
-        for i in reversed(range(widget.layout().count())): 
-            widget.layout().itemAt(i).widget().setParent(None)
+    # Convert to DataFrame if needed
+    if isinstance(data, list):
+        df = pd.DataFrame(data)
     else:
+        df = data
+    
+    # Ensure widget has a layout
+    if widget.layout() is None:
         widget.setLayout(QVBoxLayout())
     
-    # Add tabs to widget
+    # Create tab widget for different visualizations
+    tabs = QTabWidget()
     widget.layout().addWidget(tabs)
     
-def visualize_fitness_evolution(widget, df):
-    """
-    Visualize fitness evolution for GA runs
+    # Create tabs for different plots
+    fitness_tab = QWidget()
+    fitness_tab.setLayout(QVBoxLayout())
+    tabs.addTab(fitness_tab, "Fitness Evolution")
     
-    Args:
-        widget: QWidget to place visualization in
-        df: DataFrame with benchmark data
-    """
-    # Create figure for fitness evolution visualization
-    fig = Figure(figsize=(7, 4), tight_layout=True)
+    violin_tab = QWidget()
+    violin_tab.setLayout(QVBoxLayout())
+    tabs.addTab(violin_tab, "Fitness Distribution")
+    
+    operations_tab = QWidget()
+    operations_tab.setLayout(QVBoxLayout())
+    tabs.addTab(operations_tab, "Operation Times")
+    
+    # Create visualizations
+    visualize_fitness_evolution(fitness_tab, df)
+    visualize_violin_plot(violin_tab, df)
+    
+    # Operations timing visualization
+    fig = Figure(figsize=(10, 6), tight_layout=True)
     ax = fig.add_subplot(111)
     
-    # Check if we have fitness evolution data
-    has_data = False
+    # Collect operation times
+    operation_times = {'Evaluation': [], 'Crossover': [], 'Mutation': [], 'Selection': []}
     
-    for index, run in df.iterrows():
+    for _, run in df.iterrows():
         if 'benchmark_metrics' in run and isinstance(run['benchmark_metrics'], dict):
             metrics = run['benchmark_metrics']
-            if 'best_fitness_per_gen' in metrics and metrics['best_fitness_per_gen']:
-                best_fitness = metrics['best_fitness_per_gen']
-                generations = range(1, len(best_fitness) + 1)
-                ax.plot(generations, best_fitness, 'b-', marker='o', markersize=4, 
-                       linewidth=2, label=f"Best Fitness Run #{run.get('run_number', index+1)}")
-                has_data = True
-                
-            if 'mean_fitness_history' in metrics and metrics['mean_fitness_history']:
-                mean_fitness = metrics['mean_fitness_history']
-                generations = range(1, len(mean_fitness) + 1)
-                ax.plot(generations, mean_fitness, 'g-', linewidth=1, 
-                       label=f"Mean Fitness Run #{run.get('run_number', index+1)}")
+            for op in operation_times:
+                op_key = f"{op.lower()}_times"
+                if metrics.get(op_key):
+                    operation_times[op].append(np.mean(metrics[op_key]))
     
-    if has_data:
-        ax.set_xlabel('Generation')
-        ax.set_ylabel('Fitness')
-        ax.set_title('Fitness Evolution')
-        ax.grid(True, linestyle='--', alpha=0.7)
-        ax.legend()
+    # Create enhanced operations timing plot
+    visualize_operations_timing(ax, operation_times, 'GA Operation Times Distribution')
+    
+    # Add figure to operations tab
+    canvas = FigureCanvasQTAgg(fig)
+    toolbar = NavigationToolbar(canvas, operations_tab)
+    operations_tab.layout().addWidget(toolbar)
+    operations_tab.layout().addWidget(canvas)
+
+def visualize_fitness_evolution(widget, data):
+    """Visualize fitness evolution with auto-adjusted scaling"""
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from PyQt5.QtWidgets import QVBoxLayout
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+    
+    # Ensure widget has a layout
+    if widget.layout() is None:
+        widget.setLayout(QVBoxLayout())
+    
+    # Convert to DataFrame if needed
+    if isinstance(data, list):
+        df = pd.DataFrame(data)
     else:
-        ax.text(0.5, 0.5, "No fitness evolution data available", 
-               ha='center', va='center', transform=ax.transAxes)
+        df = data
+    
+    # Create figure with auto-adjusted size
+    n_runs = len(df)
+    fig_width = max(8, n_runs * 0.8)  # Adjust width based on number of runs
+    fig = Figure(figsize=(fig_width, 6), tight_layout=True)
+    ax = fig.add_subplot(111)
+    
+    # Use viridis colormap for better color distinction
+    colors = plt.cm.viridis(np.linspace(0, 0.9, len(df)))
+    
+    # Plot fitness evolution for each run
+    for idx, (_, run) in enumerate(df.iterrows()):
+        if 'benchmark_metrics' in run and isinstance(run['benchmark_metrics'], dict):
+            metrics = run['benchmark_metrics']
+            if metrics.get('fitness_history'):
+                fitness_history = metrics['fitness_history']
+                generations = range(1, len(fitness_history) + 1)
+                ax.plot(generations, fitness_history, color=colors[idx], 
+                       label=f'Run {idx + 1}', alpha=0.8, linewidth=1.5)
+    
+    # Enhance plot styling
+    ax.set_xlabel('Generation', fontsize=10)
+    ax.set_ylabel('Fitness Value', fontsize=10)
+    ax.set_title('Fitness Evolution Over Generations', fontsize=12, pad=10)
+    ax.grid(True, linestyle='--', alpha=0.7)
+    
+    # Add legend with scrollable box if many runs
+    if len(df) > 10:
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', 
+                 ncol=max(1, len(df) // 20), fontsize=8)
+    else:
+        ax.legend(fontsize=8)
     
     # Add figure to widget
     canvas = FigureCanvasQTAgg(fig)
     toolbar = NavigationToolbar(canvas, widget)
     widget.layout().addWidget(toolbar)
     widget.layout().addWidget(canvas)
+
+def visualize_violin_plot(widget, data):
+    """Create violin plot for fitness distribution with auto-adjusted scaling"""
+    import pandas as pd
+    import seaborn as sns
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from PyQt5.QtWidgets import QVBoxLayout
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
     
+    # Ensure widget has a layout
+    if widget.layout() is None:
+        widget.setLayout(QVBoxLayout())
+    
+    # Get widget dimensions for auto-scaling
+    widget_width = widget.width() if widget.width() > 0 else 800
+    widget_height = widget.height() if widget.height() > 0 else 600
+    
+    # Calculate DPI-aware figure size (assuming 100 DPI)
+    dpi = 100
+    fig_width = widget_width / dpi
+    fig_height = widget_height / dpi
+    
+    # Convert to DataFrame if needed
+    if isinstance(data, list):
+        df = pd.DataFrame(data)
+    else:
+        df = data
+    
+    # Create figure with auto-adjusted size
+    fig = Figure(figsize=(fig_width, fig_height), dpi=dpi, constrained_layout=True)
+    ax = fig.add_subplot(111)
+    
+    # Prepare data for violin plot
+    final_fitness_values = []
+    
+    for _, run in df.iterrows():
+        if 'benchmark_metrics' in run and isinstance(run['benchmark_metrics'], dict):
+            metrics = run['benchmark_metrics']
+            if metrics.get('fitness_history'):
+                # Ensure we're getting a single final fitness value
+                fitness_history = metrics['fitness_history']
+                if isinstance(fitness_history, (list, np.ndarray)):
+                    final_fitness = fitness_history[-1]
+                    if isinstance(final_fitness, (int, float, np.number)):
+                        final_fitness_values.append(float(final_fitness))
+    
+    if final_fitness_values:
+        # Convert to numpy array and ensure 1D
+        final_fitness_values = np.array(final_fitness_values).ravel()
+        
+        # Create DataFrame for seaborn
+        plot_df = pd.DataFrame({'Fitness': final_fitness_values})
+        
+        # Calculate appropriate figure margins based on data
+        y_min, y_max = np.min(final_fitness_values), np.max(final_fitness_values)
+        y_range = y_max - y_min
+        y_margin = y_range * 0.1  # 10% margin
+        
+        # Create violin plot with custom styling
+        sns.violinplot(data=plot_df, y='Fitness', ax=ax, color='lightblue', 
+                      inner='box', orient='vertical')
+        
+        # Create jittered x-coordinates for scatter plot
+        x_jitter = np.zeros(len(final_fitness_values))  # Start with zeros
+        x_jitter = x_jitter + np.random.normal(0, 0.05, size=len(final_fitness_values))  # Add jitter
+        
+        # Add individual points with jitter
+        ax.scatter(x_jitter, final_fitness_values, color='darkblue', 
+                  alpha=0.4, s=30, zorder=2)
+        
+        # Set y-axis limits with margin
+        ax.set_ylim(y_min - y_margin, y_max + y_margin)
+        
+        # Enhance plot styling
+        ax.set_title(f'Final Fitness Distribution Across {len(final_fitness_values)} Runs', 
+                    fontsize=12, pad=10)
+        ax.set_ylabel('Fitness Value', fontsize=10)
+        ax.grid(True, linestyle='--', alpha=0.3)
+        
+        # Remove x-axis label since we only have one category
+        ax.set_xlabel('')
+        
+        # Add summary statistics
+        mean_val = np.mean(final_fitness_values)
+        median_val = np.median(final_fitness_values)
+        std_val = np.std(final_fitness_values)
+        min_val = np.min(final_fitness_values)
+        max_val = np.max(final_fitness_values)
+        
+        # Add text box with statistics
+        stats_text = (f'Mean: {mean_val:.2e}\n'
+                     f'Median: {median_val:.2e}\n'
+                     f'Std Dev: {std_val:.2e}\n'
+                     f'Min: {min_val:.2e}\n'
+                     f'Max: {max_val:.2e}')
+        
+        # Position stats box based on figure size
+        if widget_width >= 1000:  # If we have enough space
+            ax.text(1.05, 0.95, stats_text, transform=ax.transAxes, 
+                   bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'),
+                   verticalalignment='top', fontsize=9)
+        else:  # If space is limited, place stats box inside the plot
+            ax.text(0.95, 0.95, stats_text, transform=ax.transAxes,
+                   bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'),
+                   verticalalignment='top', horizontalalignment='right',
+                   fontsize=9)
+    else:
+        ax.text(0.5, 0.5, 'No fitness data available', 
+                ha='center', va='center', transform=ax.transAxes)
+    
+    # Create canvas with the figure
+    canvas = FigureCanvasQTAgg(fig)
+    
+    # Create toolbar
+    toolbar = NavigationToolbar(canvas, widget)
+    
+    # Add widgets to layout
+    widget.layout().addWidget(toolbar)
+    widget.layout().addWidget(canvas)
+    
+    # Connect resize event to update figure size
+    def on_resize(event):
+        # Get new widget size
+        new_width = widget.width()
+        new_height = widget.height()
+        
+        if new_width > 0 and new_height > 0:
+            # Update figure size
+            fig.set_size_inches(new_width/dpi, new_height/dpi)
+            # Adjust layout
+            fig.tight_layout()
+            # Redraw canvas
+            canvas.draw_idle()
+    
+    # Connect the resize event
+    canvas.mpl_connect('resize_event', on_resize)
+
 def visualize_parameter_convergence(widget, df):
     """
     Visualize parameter convergence for GA runs
@@ -206,9 +369,15 @@ def visualize_parameter_convergence(widget, df):
     # Add figure to widget
     canvas = FigureCanvasQTAgg(fig)
     toolbar = NavigationToolbar(canvas, widget)
+    
+    # Add save button to toolbar
+    save_button = QPushButton("Save Plot")
+    save_button.clicked.connect(lambda: save_plot(fig, "parameter_convergence"))
+    toolbar.addWidget(save_button)
+    
     widget.layout().addWidget(toolbar)
     widget.layout().addWidget(canvas)
-    
+
 def visualize_adaptive_rates(widget, df):
     """
     Visualize adaptive rates for GA runs
@@ -255,6 +424,12 @@ def visualize_adaptive_rates(widget, df):
     # Add figure to widget
     canvas = FigureCanvasQTAgg(fig)
     toolbar = NavigationToolbar(canvas, widget)
+    
+    # Add save button to toolbar
+    save_button = QPushButton("Save Plot")
+    save_button.clicked.connect(lambda: save_plot(fig, "adaptive_rates"))
+    toolbar.addWidget(save_button)
+    
     widget.layout().addWidget(toolbar)
     widget.layout().addWidget(canvas)
     
@@ -538,73 +713,133 @@ def create_test_metrics_data():
     
     return metrics
 
-def visualize_all_metrics(widgets_dict, df):
+def visualize_all_metrics(widgets_dict, data):
     """
-    Visualize all metrics for GA benchmark data in the provided widgets
+    Visualize all computational metrics
     
     Args:
-        widgets_dict: Dictionary containing widgets for different visualizations
-        df: DataFrame with benchmark data
+        widgets_dict: Dictionary mapping plot names to widgets
+        data: DataFrame or list of benchmark data
     """
-    # Debug print benchmark data summary
-    print(f"Benchmark data summary:")
-    print(f"DataFrame shape: {df.shape}")
-    
-    if df is not None and len(df) > 0:
-        print(f"Columns: {df.columns.tolist()}")
-        first_row = df.iloc[0]
-        print(f"First row keys: {list(first_row.keys())}")
-        
-        # Check if benchmark metrics are missing or if they're a string (from CSV import)
-        if 'benchmark_metrics' not in first_row or first_row['benchmark_metrics'] is None:
-            print("No benchmark metrics found - creating test data")
-            # Create test data
-            test_metrics = create_test_metrics_data()
-            # Add test metrics to the dataframe
-            df = df.copy()
-            # First make sure the column exists before trying to set a value
-            if 'benchmark_metrics' not in df.columns:
-                df['benchmark_metrics'] = None
-            df.at[0, 'benchmark_metrics'] = test_metrics
+    try:
+        # Convert DataFrame to list if needed
+        if hasattr(data, 'to_dict'):
+            data_list = data.to_dict('records')
         else:
-            # If benchmark_metrics is a string (imported from CSV), convert it to a dictionary
-            if isinstance(first_row['benchmark_metrics'], str):
-                print("Benchmark metrics is a string - attempting to parse as JSON")
-                try:
-                    import json
-                    # Make a copy of the dataframe to avoid modifying the original
-                    df = df.copy()
-                    for idx, row in df.iterrows():
-                        if isinstance(row['benchmark_metrics'], str) and row['benchmark_metrics'].strip():
-                            df.at[idx, 'benchmark_metrics'] = json.loads(row['benchmark_metrics'])
-                        else:
-                            df.at[idx, 'benchmark_metrics'] = {}
-                    
-                    # Check if parsing was successful
-                    if isinstance(df.iloc[0]['benchmark_metrics'], dict):
-                        print("Successfully parsed benchmark_metrics from JSON string")
-                    else:
-                        print("Failed to parse benchmark_metrics as JSON - creating test data")
-                        test_metrics = create_test_metrics_data()
-                        df.at[0, 'benchmark_metrics'] = test_metrics
-                except Exception as e:
-                    print(f"Error parsing benchmark_metrics: {str(e)}")
-                    print("Creating test data instead")
-                    test_metrics = create_test_metrics_data()
-                    df.at[0, 'benchmark_metrics'] = test_metrics
+            data_list = data
             
-            # Now metrics should be a dictionary
-            metrics = df.iloc[0]['benchmark_metrics']
-            if isinstance(metrics, dict):
-                print(f"Benchmark metrics keys: {list(metrics.keys())}")
-            else:
-                print(f"Unexpected type for benchmark_metrics: {type(metrics)}")
+        # Get first row with benchmark metrics
+        first_row = None
+        for row in data_list:
+            if 'benchmark_metrics' in row and row['benchmark_metrics']:
+                first_row = row
+                break
+                
+        if not first_row:
+            print("No benchmark metrics found in data")
+            return
+            
+        # Ensure benchmark_metrics is a dictionary
+        if isinstance(first_row['benchmark_metrics'], str):
+            print("Benchmark metrics is a string - attempting to parse as JSON")
+            try:
+                import json
+                # Convert string metrics to dictionaries for all rows
+                for row in data_list:
+                    if isinstance(row.get('benchmark_metrics'), str) and row['benchmark_metrics'].strip():
+                        row['benchmark_metrics'] = json.loads(row['benchmark_metrics'])
+                    else:
+                        row['benchmark_metrics'] = {}
+                
+                print("Successfully parsed benchmark_metrics from JSON string")
+            except Exception as e:
+                print(f"Error parsing benchmark_metrics: {str(e)}")
                 print("Creating test data instead")
                 test_metrics = create_test_metrics_data()
-                df = df.copy()
-                df.at[0, 'benchmark_metrics'] = test_metrics
+                first_row['benchmark_metrics'] = test_metrics
+        
+        # Now metrics should be a dictionary
+        metrics = first_row['benchmark_metrics']
+        
+        # Ensure all widgets have layouts before visualization
+        for widget_key in ['fitness_plot_widget', 'ga_ops_plot_widget', 'pso_ops_plot_widget']:
+            if widget_key in widgets_dict and widgets_dict[widget_key] is not None:
+                if widgets_dict[widget_key].layout() is None:
+                    widgets_dict[widget_key].setLayout(QVBoxLayout())
+        
+        # Visualize fitness evolution if widget exists
+        if 'fitness_plot_widget' in widgets_dict and widgets_dict['fitness_plot_widget']:
+            visualize_fitness_evolution(widgets_dict['fitness_plot_widget'], data_list)
+        
+        # Visualize GA operations if widget exists
+        if 'ga_ops_plot_widget' in widgets_dict and widgets_dict['ga_ops_plot_widget']:
+            visualize_ga_operations(widgets_dict['ga_ops_plot_widget'], data_list)
+        
+        # Visualize PSO operations if widget exists
+        if 'pso_ops_plot_widget' in widgets_dict and widgets_dict['pso_ops_plot_widget']:
+            visualize_pso_operations(widgets_dict['pso_ops_plot_widget'], data_list)
+            
+    except Exception as e:
+        import traceback
+        print(f"Error in visualize_all_metrics: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+
+def visualize_operations_timing(ax, operation_times, title):
+    """Create enhanced box plot for operation timing with auto-adjusted scaling"""
+    import seaborn as sns
+    import numpy as np
     
-    # GA operations visualization
-    if 'ga_ops_plot_widget' in widgets_dict and widgets_dict['ga_ops_plot_widget']:
-        visualize_ga_operations(widgets_dict['ga_ops_plot_widget'], df)
-        ensure_all_visualizations_visible(widgets_dict['ga_ops_plot_widget'])
+    # Prepare data for plotting
+    data_to_plot = []
+    labels = []
+    for op_name, times in operation_times.items():
+        if times:  # Only include operations with timing data
+            data_to_plot.append(times)
+            labels.append(op_name)
+    
+    if data_to_plot:
+        # Calculate appropriate margins
+        all_times = np.concatenate(data_to_plot)
+        y_min, y_max = np.min(all_times), np.max(all_times)
+        y_range = y_max - y_min
+        y_margin = y_range * 0.1  # 10% margin
+        
+        # Create violin plot with custom styling
+        parts = ax.violinplot(data_to_plot, showmeans=True, showextrema=True)
+        
+        # Customize violin plot appearance
+        for pc in parts['bodies']:
+            pc.set_facecolor('lightblue')
+            pc.set_edgecolor('darkblue')
+            pc.set_alpha(0.7)
+        
+        # Add individual points with jitter
+        for idx, d in enumerate(data_to_plot):
+            x = np.random.normal(idx + 1, 0.04, size=len(d))
+            ax.scatter(x, d, alpha=0.4, s=20, c='darkblue', zorder=2)
+        
+        # Set y-axis limits with margin
+        ax.set_ylim(y_min - y_margin, y_max + y_margin)
+        
+        # Enhance plot styling
+        ax.set_title(title, fontsize=12, pad=10)
+        ax.set_ylabel('Time (seconds)', fontsize=10)
+        ax.set_xticks(range(1, len(labels) + 1))
+        ax.set_xticklabels(labels, rotation=45, ha='right')
+        ax.grid(True, linestyle='--', alpha=0.3)
+        
+        # Add mean and median lines
+        for i, d in enumerate(data_to_plot, 1):
+            mean = np.mean(d)
+            median = np.median(d)
+            ax.hlines(mean, i-0.2, i+0.2, color='red', linestyle='-', lw=2, label='Mean' if i==1 else '')
+            ax.hlines(median, i-0.2, i+0.2, color='green', linestyle='-', lw=2, label='Median' if i==1 else '')
+        
+        # Add legend with auto-positioning
+        ax.legend(fontsize=8, loc='best')
+        
+        # Adjust layout to prevent label cutoff
+        ax.margins(x=0.1)  # Add some padding on the sides
+    else:
+        ax.text(0.5, 0.5, 'No timing data available', 
+                ha='center', va='center', transform=ax.transAxes)

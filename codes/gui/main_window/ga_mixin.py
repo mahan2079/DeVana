@@ -4,8 +4,17 @@ from PyQt5.QtGui import *
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
+                           QSpinBox, QDoubleSpinBox, QComboBox, QTabWidget, QGroupBox,
+                           QFormLayout, QMessageBox, QTableWidget, QTableWidgetItem,
+                           QHeaderView, QAbstractItemView, QSplitter, QTextEdit,
+                           QSizePolicy)
+from PyQt5.QtCore import Qt
+import os
+import time
 from computational_metrics_new import visualize_all_metrics, ensure_all_visualizations_visible
 from modules.plotwindow import PlotWindow
 from workers.GAWorker import GAWorker
@@ -1075,9 +1084,19 @@ class GAOptimizationMixin:
             self.violin_plot_widget.layout().addWidget(canvas_violin)
             
             # Add toolbar for interactive features
-            from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
             toolbar_violin = NavigationToolbar(canvas_violin, self.violin_plot_widget)
             self.violin_plot_widget.layout().addWidget(toolbar_violin)
+            
+            # Add save button to toolbar
+            save_button = QPushButton("Save Plot")
+            save_button.clicked.connect(lambda: self.save_plot(fig_violin, "ga_violin_plot"))
+            toolbar_violin.addWidget(save_button)
+            
+            # Add "Open in New Window" button
+            open_new_window_button = QPushButton("Open in New Window")
+            open_new_window_button.setObjectName("secondary-button")
+            open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig_violin, "GA Violin Plot"))
+            self.violin_plot_widget.layout().addWidget(open_new_window_button)
 
             # Add "Open in New Window" button
             open_new_window_button = QPushButton("Open in New Window")
@@ -1153,6 +1172,17 @@ class GAOptimizationMixin:
             # Add toolbar for interactive features
             toolbar_dist = NavigationToolbar(canvas_dist, self.dist_plot_widget)
             self.dist_plot_widget.layout().addWidget(toolbar_dist)
+            
+            # Add save button to toolbar
+            save_button = QPushButton("Save Plot")
+            save_button.clicked.connect(lambda: self.save_plot(fig_dist, "ga_distribution_plot"))
+            toolbar_dist.addWidget(save_button)
+            
+            # Add "Open in New Window" button
+            open_new_window_button = QPushButton("Open in New Window")
+            open_new_window_button.setObjectName("secondary-button")
+            open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig_dist, "GA Distribution Plot"))
+            self.dist_plot_widget.layout().addWidget(open_new_window_button)
 
             # Add "Open in New Window" button
             open_new_window_button = QPushButton("Open in New Window")
@@ -1661,9 +1691,10 @@ class GAOptimizationMixin:
             print(f"Export error details: {traceback.format_exc()}")
             
     def import_ga_benchmark_data(self):
-        """Import GA benchmark data from a CSV file"""
+        """Import GA benchmark data from a JSON file"""
         try:
-            import pandas as pd
+            import json
+            import numpy as np
             from PyQt5.QtWidgets import QFileDialog
             
             # Ask user for file location
@@ -1671,28 +1702,33 @@ class GAOptimizationMixin:
                 self, 
                 "Import GA Benchmark Data", 
                 "", 
-                "CSV Files (*.csv);;All Files (*)"
+                "JSON Files (*.json);;All Files (*)"
             )
             
             if not file_path:
                 return  # User cancelled
                 
             # Load from file
-            df = pd.read_csv(file_path)
+            with open(file_path, 'r') as f:
+                data = json.load(f)
             
-            # Convert string representations back to lists for best_solution and parameter_names
-            if 'best_solution' in df.columns:
-                df['best_solution'] = df['best_solution'].apply(
-                    lambda x: [float(val) for val in x.split(';')] if isinstance(x, str) else x
-                )
-                
-            if 'parameter_names' in df.columns:
-                df['parameter_names'] = df['parameter_names'].apply(
-                    lambda x: x.split(';') if isinstance(x, str) else x
-                )
+            # Extract benchmark data
+            if isinstance(data, dict) and 'ga_benchmark_data' in data:
+                self.ga_benchmark_data = data['ga_benchmark_data']
+            else:
+                self.ga_benchmark_data = data  # Assume direct list of benchmark data
             
-            # Convert DataFrame to list of dictionaries
-            self.ga_benchmark_data = df.to_dict('records')
+            # Convert any NumPy types to Python native types
+            for run in self.ga_benchmark_data:
+                if 'best_solution' in run:
+                    run['best_solution'] = [float(x) for x in run['best_solution']]
+                if 'benchmark_metrics' in run:
+                    metrics = run['benchmark_metrics']
+                    for key, value in metrics.items():
+                        if isinstance(value, list):
+                            metrics[key] = [float(x) if isinstance(x, (np.integer, np.floating)) else x for x in value]
+                        elif isinstance(value, (np.integer, np.floating)):
+                            metrics[key] = float(value)
             
             # Enable the export button
             self.export_benchmark_button.setEnabled(True)
@@ -2443,3 +2479,30 @@ class GAOptimizationMixin:
         
         # Ensure visibility
         ensure_all_visualizations_visible(tab_widget)
+
+    def save_plot(self, fig, plot_name):
+        """Save the plot to a file with a timestamp
+        
+        Args:
+            fig: matplotlib Figure object
+            plot_name: Base name for the saved file
+        """
+        try:
+            # Create results directory if it doesn't exist
+            results_dir = os.path.join(os.getcwd(), "optimization_results")
+            os.makedirs(results_dir, exist_ok=True)
+            
+            # Generate timestamp
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            
+            # Save with timestamp
+            filename = os.path.join(results_dir, f"{plot_name}_{timestamp}.png")
+            fig.savefig(filename, dpi=300, bbox_inches='tight')
+            
+            # Show success message
+            QMessageBox.information(self, "Plot Saved", 
+                                  f"Plot saved successfully to:\n{filename}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error Saving Plot", 
+                               f"Failed to save plot: {str(e)}")
