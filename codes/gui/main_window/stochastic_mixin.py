@@ -37,6 +37,13 @@ class StochasticDesignMixin:
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Initialize all tab widgets first
+        self.design_tabs = ModernQTabWidget()
+        self.input_tabs = ModernQTabWidget()
+        self.sensitivity_tabs = ModernQTabWidget()
+        self.optimization_tabs = ModernQTabWidget()
+
+        # Create all tabs
         self.create_main_system_tab()
         self.create_dva_parameters_tab()
         self.create_target_weights_tab()
@@ -45,29 +52,28 @@ class StochasticDesignMixin:
         self.create_omega_sensitivity_tab()
         self.create_ga_tab()
         self.create_pso_tab()
-        self.de_tab = self.create_de_tab()
+        self.create_de_tab()  # Create DE tab
         self.create_sa_tab()
         self.create_cmaes_tab()
 
-        self.design_tabs = ModernQTabWidget()
-
-        self.input_tabs = ModernQTabWidget()
+        # Add tabs to input tabs
         self.input_tabs.addTab(self.main_system_tab, "Main System")
         self.input_tabs.addTab(self.dva_tab, "DVA Parameters")
         self.input_tabs.addTab(self.tw_tab, "Targets & Weights")
         self.input_tabs.addTab(self.freq_tab, "Frequency & Plot")
         self.input_tabs.addTab(self.omega_sensitivity_tab, "Ω Sensitivity")
 
-        self.sensitivity_tabs = ModernQTabWidget()
+        # Add tabs to sensitivity tabs
         self.sensitivity_tabs.addTab(self.sobol_tab, "Sobol Analysis")
 
-        self.optimization_tabs = ModernQTabWidget()
+        # Add tabs to optimization tabs
         self.optimization_tabs.addTab(self.ga_tab, "GA Optimization")
         self.optimization_tabs.addTab(self.pso_tab, "PSO Optimization")
         self.optimization_tabs.addTab(self.de_tab, "DE Optimization")
         self.optimization_tabs.addTab(self.sa_tab, "SA Optimization")
         self.optimization_tabs.addTab(self.cmaes_tab, "CMA-ES Optimization")
 
+        # Add main tab groups to design tabs
         self.design_tabs.addTab(self.input_tabs, "Input")
         self.design_tabs.addTab(self.sensitivity_tabs, "Sensitivity Analysis")
         self.design_tabs.addTab(self.optimization_tabs, "Optimization")
