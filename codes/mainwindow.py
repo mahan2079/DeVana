@@ -89,7 +89,7 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
                  SidebarMixin, StochasticDesignMixin, SobolAnalysisMixin):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("DeVana")
+        self.setWindowTitle("DeVana - V0.1.0")
         self.resize(1600, 900)
         
         # Disable LaTeX rendering in matplotlib to prevent Unicode errors with Greek characters
