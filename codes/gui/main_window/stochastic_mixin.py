@@ -52,16 +52,21 @@ class StochasticDesignMixin:
         self.create_omega_sensitivity_tab()
         self.create_ga_tab()
         self.create_pso_tab()
-        self.create_de_tab()  # Create DE tab
         self.create_sa_tab()
         self.create_cmaes_tab()
-
+        
+        # Don't create DE tab here - it will be created by integrate_de_functionality method
+        # if DEOptimizationMixin is available
+        
         # Add tabs to input tabs
         self.input_tabs.addTab(self.main_system_tab, "Main System")
         self.input_tabs.addTab(self.dva_tab, "DVA Parameters")
         self.input_tabs.addTab(self.tw_tab, "Targets & Weights")
         self.input_tabs.addTab(self.freq_tab, "Frequency & Plot")
         self.input_tabs.addTab(self.omega_sensitivity_tab, "Ω Sensitivity")
+        
+        # Set the default input tab to Main System (index 0)
+        self.input_tabs.setCurrentIndex(0)
 
         # Add tabs to sensitivity tabs
         self.sensitivity_tabs.addTab(self.sobol_tab, "Sobol Analysis")
@@ -69,14 +74,26 @@ class StochasticDesignMixin:
         # Add tabs to optimization tabs
         self.optimization_tabs.addTab(self.ga_tab, "GA Optimization")
         self.optimization_tabs.addTab(self.pso_tab, "PSO Optimization")
-        self.optimization_tabs.addTab(self.de_tab, "DE Optimization")
         self.optimization_tabs.addTab(self.sa_tab, "SA Optimization")
         self.optimization_tabs.addTab(self.cmaes_tab, "CMA-ES Optimization")
+        
+        # Don't add DE tab here - it will be handled by integrate_de_functionality method
+        # Create a placeholder for now to avoid errors
+        self.de_tab = QWidget()
+        placeholder_layout = QVBoxLayout(self.de_tab)
+        placeholder_label = QLabel("DE Optimization will be added after initialization")
+        placeholder_label.setAlignment(Qt.AlignCenter)
+        placeholder_layout.addWidget(placeholder_label)
+        # Use a different tab text to identify this as a placeholder
+        self.optimization_tabs.addTab(self.de_tab, "DE Optimization (Placeholder)")
 
         # Add main tab groups to design tabs
         self.design_tabs.addTab(self.input_tabs, "Input")
         self.design_tabs.addTab(self.sensitivity_tabs, "Sensitivity Analysis")
         self.design_tabs.addTab(self.optimization_tabs, "Optimization")
+        
+        # Set the default tab to Input (index 0)
+        self.design_tabs.setCurrentIndex(0)
 
         left_layout.addWidget(self.design_tabs)
 
@@ -115,6 +132,7 @@ class StochasticDesignMixin:
         self.run_pso_button.clicked.connect(self.run_pso)
         self.run_pso_button.setVisible(False)
 
+        # Restore DE button
         self.run_de_button = QPushButton("Run DE")
         self.run_de_button.setObjectName("primary-button")
         self.run_de_button.setMinimumHeight(40)
@@ -354,9 +372,23 @@ class StochasticDesignMixin:
                                "Please ensure the optimization was run successfully.")
 
     def create_de_tab(self):
-        """Create the Differential Evolution optimization tab"""
+        """Create a basic DE optimization tab."""
+        # Check if de_tab is already created by DEOptimizationMixin
+        if hasattr(self, 'de_tab') and self.de_tab is not None:
+            return self.de_tab
+            
+        # Create a simple version of the DE tab if not already created
         self.de_tab = QWidget()
-        layout = QVBoxLayout()
+        layout = QVBoxLayout(self.de_tab)
+        
+        # Create a simple information label
+        info_label = QLabel("DE (Differential Evolution) Optimization")
+        info_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        layout.addWidget(info_label)
+        
+        description = QLabel("This tab provides options for Differential Evolution optimization.")
+        description.setWordWrap(True)
+        layout.addWidget(description)
         
         # Create settings group
         settings_group = QGroupBox("DE Settings")
@@ -366,14 +398,12 @@ class StochasticDesignMixin:
         self.de_pop_size_box = QSpinBox()
         self.de_pop_size_box.setRange(10, 1000)
         self.de_pop_size_box.setValue(50)
-        self.de_pop_size_box.setToolTip("Number of individuals in the population")
         settings_layout.addRow("Population Size:", self.de_pop_size_box)
         
         # Number of generations
         self.de_generations_box = QSpinBox()
         self.de_generations_box.setRange(10, 10000)
         self.de_generations_box.setValue(100)
-        self.de_generations_box.setToolTip("Maximum number of generations")
         settings_layout.addRow("Max Generations:", self.de_generations_box)
         
         # Mutation constant
@@ -381,7 +411,6 @@ class StochasticDesignMixin:
         self.de_mutation_box.setRange(0.1, 2.0)
         self.de_mutation_box.setValue(0.8)
         self.de_mutation_box.setSingleStep(0.1)
-        self.de_mutation_box.setToolTip("Mutation constant (F)")
         settings_layout.addRow("Mutation Constant:", self.de_mutation_box)
         
         # Crossover probability
@@ -389,42 +418,51 @@ class StochasticDesignMixin:
         self.de_crossover_box.setRange(0.1, 1.0)
         self.de_crossover_box.setValue(0.7)
         self.de_crossover_box.setSingleStep(0.1)
-        self.de_crossover_box.setToolTip("Crossover probability (CR)")
         settings_layout.addRow("Crossover Probability:", self.de_crossover_box)
         
-        # Strategy
-        self.de_strategy_combo = QComboBox()
-        self.de_strategy_combo.addItems([
-            "best/1/bin",
-            "best/2/bin",
-            "rand/1/bin",
-            "rand/2/bin",
-            "rand-to-best/1/bin",
-            "current-to-best/1/bin"
-        ])
-        self.de_strategy_combo.setToolTip("DE strategy for mutation")
-        settings_layout.addRow("Strategy:", self.de_strategy_combo)
-        
-        # Add settings group to layout
         layout.addWidget(settings_group)
         
-        # Create visualization group
+        # Add placeholder for visualization
         viz_group = QGroupBox("Visualization")
         viz_layout = QVBoxLayout(viz_group)
         
-        # Progress plot
-        self.de_fig = Figure(figsize=(6, 4))
-        self.de_canvas = FigureCanvas(self.de_fig)
-        self.de_canvas.setMinimumHeight(300)
-        self.de_toolbar = NavigationToolbar(self.de_canvas, self)
+        placeholder = QLabel("DE optimization progress will be shown here")
+        placeholder.setAlignment(Qt.AlignCenter)
+        viz_layout.addWidget(placeholder)
         
-        viz_layout.addWidget(self.de_toolbar)
-        viz_layout.addWidget(self.de_canvas)
-        
-        # Add visualization group to layout
         layout.addWidget(viz_group)
         
-        # Set the layout
-        self.de_tab.setLayout(layout)
+        # Add stretch to push everything to the top
+        layout.addStretch(1)
         
         return self.de_tab
+
+    def run_de(self):
+        """Run the differential evolution optimization"""
+        # First check if we've been overridden by a real implementation
+        if hasattr(self, '__class__') and hasattr(self.__class__, '__mro__'):
+            # Check if there's a run_de method in any parent class other than StochasticDesignMixin
+            for cls in self.__class__.__mro__:
+                if cls != StochasticDesignMixin and hasattr(cls, 'run_de'):
+                    # Found another implementation - delegate to it using super()
+                    method_to_call = getattr(super(StochasticDesignMixin, self), 'run_de', None)
+                    if method_to_call and callable(method_to_call):
+                        return method_to_call()
+        
+        # If no other implementation found, show basic message
+        # Try to show the DE tab
+        try:
+            # Show the DE tab when running DE optimization
+            opt_tab_idx = self.design_tabs.indexOf(self.optimization_tabs)
+            self.design_tabs.setCurrentIndex(opt_tab_idx)
+            
+            de_tab_idx = self.optimization_tabs.indexOf(self.de_tab)
+            self.optimization_tabs.setCurrentIndex(de_tab_idx)
+        except Exception:
+            pass
+            
+        # Show the not implemented message
+        QMessageBox.information(
+            self, "Not Implemented", 
+            "The DE optimization functionality is not fully implemented yet."
+        )

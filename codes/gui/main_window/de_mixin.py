@@ -22,9 +22,9 @@ class DEOptimizationMixin:
         # Create sub-tabs widget
         self.de_sub_tabs = QTabWidget()
 
-        # -------------------- Sub-tab 1: DE Parameters --------------------
-        params_tab = QWidget()
-        params_layout = QVBoxLayout(params_tab)
+        # -------------------- Sub-tab 1: DE Settings --------------------
+        settings_tab = QWidget()
+        settings_layout = QVBoxLayout(settings_tab)
 
         # DE Algorithm Parameters Group
         de_params_group = QGroupBox("DE Algorithm Parameters")
@@ -79,18 +79,76 @@ class DEOptimizationMixin:
         de_params_layout.addRow("Adaptive Method:", self.de_adaptive_combo)
 
         # Add the parameters group to the layout
-        params_layout.addWidget(de_params_group)
+        settings_layout.addWidget(de_params_group)
+        
+        # Add a small Run DE button in the settings sub-tab
+        self.hyper_run_de_button = QPushButton("Run DE")
+        self.hyper_run_de_button.setFixedWidth(100)
+        self.hyper_run_de_button.clicked.connect(self.run_de)
+        run_button_layout = QHBoxLayout()
+        run_button_layout.addWidget(self.hyper_run_de_button)
+        run_button_layout.addStretch()
+        settings_layout.addLayout(run_button_layout)
 
-        # Parameter Bounds Table
-        bounds_group = QGroupBox("Parameter Bounds")
-        bounds_layout = QVBoxLayout(bounds_group)
-        
-        self.de_params_table = QTableWidget()
-        self.de_params_table.setColumnCount(4)
-        self.de_params_table.setHorizontalHeaderLabels(["Parameter", "Lower Bound", "Upper Bound", "Fixed"])
-        bounds_layout.addWidget(self.de_params_table)
-        
-        params_layout.addWidget(bounds_group)
+        # -------------------- Sub-tab 2: DVA Parameters --------------------
+        dva_params_tab = QWidget()
+        dva_params_layout = QVBoxLayout(dva_params_tab)
+
+        self.de_dva_params_table = QTableWidget()
+        dva_parameters = [
+            *[f"beta_{i}" for i in range(1,16)],
+            *[f"lambda_{i}" for i in range(1,16)],
+            *[f"mu_{i}" for i in range(1,4)],
+            *[f"nu_{i}" for i in range(1,16)]
+        ]
+        self.de_dva_params_table.setRowCount(len(dva_parameters))
+        self.de_dva_params_table.setColumnCount(5)
+        self.de_dva_params_table.setHorizontalHeaderLabels(
+            ["Parameter", "Fixed", "Fixed Value", "Lower Bound", "Upper Bound"]
+        )
+        self.de_dva_params_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.de_dva_params_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+
+        # Set up table rows
+        for row, param in enumerate(dva_parameters):
+            param_item = QTableWidgetItem(param)
+            param_item.setFlags(Qt.ItemIsEnabled)
+            self.de_dva_params_table.setItem(row, 0, param_item)
+
+            fixed_checkbox = QCheckBox()
+            fixed_checkbox.stateChanged.connect(lambda state, r=row: self.toggle_de_dva_fixed(state, r))
+            self.de_dva_params_table.setCellWidget(row, 1, fixed_checkbox)
+
+            fixed_value_spin = QDoubleSpinBox()
+            fixed_value_spin.setRange(-1e6, 1e6)
+            fixed_value_spin.setDecimals(6)
+            fixed_value_spin.setEnabled(False)
+            self.de_dva_params_table.setCellWidget(row, 2, fixed_value_spin)
+
+            lower_bound_spin = QDoubleSpinBox()
+            lower_bound_spin.setRange(-1e6, 1e6)
+            lower_bound_spin.setDecimals(6)
+            lower_bound_spin.setEnabled(True)
+            self.de_dva_params_table.setCellWidget(row, 3, lower_bound_spin)
+
+            upper_bound_spin = QDoubleSpinBox()
+            upper_bound_spin.setRange(-1e6, 1e6)
+            upper_bound_spin.setDecimals(6)
+            upper_bound_spin.setEnabled(True)
+            self.de_dva_params_table.setCellWidget(row, 4, upper_bound_spin)
+
+            # Default ranges
+            if param.startswith("beta_") or param.startswith("lambda_") or param.startswith("nu_"):
+                lower_bound_spin.setValue(0.0001)
+                upper_bound_spin.setValue(2.5)
+            elif param.startswith("mu_"):
+                lower_bound_spin.setValue(0.0001)
+                upper_bound_spin.setValue(0.75)
+            else:
+                lower_bound_spin.setValue(0.0)
+                upper_bound_spin.setValue(1.0)
+
+        dva_params_layout.addWidget(self.de_dva_params_table)
 
         # Control Buttons
         button_layout = QHBoxLayout()
@@ -103,70 +161,75 @@ class DEOptimizationMixin:
         self.tune_de_button.clicked.connect(self.tune_de_hyperparameters)
         button_layout.addWidget(self.tune_de_button)
         
-        params_layout.addLayout(button_layout)
+        dva_params_layout.addLayout(button_layout)
 
-        # -------------------- Sub-tab 2: Visualization --------------------
-        viz_tab = QWidget()
-        viz_layout = QVBoxLayout(viz_tab)
+        # -------------------- Sub-tab 3: Results --------------------
+        results_tab = QWidget()
+        results_layout = QVBoxLayout(results_tab)
 
+        # Add Results visualization split
+        results_splitter = QSplitter(Qt.Vertical)
+        
+        # Text results area
+        text_results_widget = QWidget()
+        text_results_layout = QVBoxLayout(text_results_widget)
+        text_results_layout.addWidget(QLabel("DE Optimization Results:"))
+        
+        self.de_results_text = QTextEdit()
+        self.de_results_text.setReadOnly(True)
+        text_results_layout.addWidget(self.de_results_text)
+        
+        results_splitter.addWidget(text_results_widget)
+        
+        # Visualization area
+        viz_widget = QWidget()
+        viz_layout = QVBoxLayout(viz_widget)
+        
+        viz_layout.addWidget(QLabel("Optimization Progress:"))
+        
         # Create plot canvas for real-time visualization
         self.de_fig = Figure(figsize=(8, 6))
         self.de_canvas = FigureCanvasQTAgg(self.de_fig)
         viz_layout.addWidget(self.de_canvas)
 
         # Add toolbar for plot interaction
-        toolbar = NavigationToolbar2QT(self.de_canvas, viz_tab)
+        toolbar = NavigationToolbar2QT(self.de_canvas, viz_widget)
         viz_layout.addWidget(toolbar)
 
         # Save visualization button
         save_button = QPushButton("Save Visualization")
         save_button.clicked.connect(self.save_de_visualization)
         viz_layout.addWidget(save_button)
+        
+        results_splitter.addWidget(viz_widget)
+        
+        # Set reasonable splitter sizes
+        results_splitter.setSizes([200, 400])
+        
+        results_layout.addWidget(results_splitter)
 
         # Add tabs to sub-tabs widget
-        self.de_sub_tabs.addTab(params_tab, "Parameters")
-        self.de_sub_tabs.addTab(viz_tab, "Visualization")
+        self.de_sub_tabs.addTab(settings_tab, "DE Settings")
+        self.de_sub_tabs.addTab(dva_params_tab, "DVA Parameters")
+        self.de_sub_tabs.addTab(results_tab, "Results")
 
         # Add sub-tabs to main layout
         layout.addWidget(self.de_sub_tabs)
 
-        # Initialize the parameter table
-        self.initialize_de_parameter_table()
+        # Initialize the old parameter table for backward compatibility
+        self.de_params_table = QTableWidget()  # Create a dummy table for compatibility
         
         # Make sure the tab is properly set up before returning
         self.de_tab.setLayout(layout)
+        
+        # Return the tab
+        return self.de_tab
 
     def initialize_de_parameter_table(self):
-        """Initialize the DE parameter table with default values"""
-        # Get the parameter data from the main window
-        parameter_data = self.get_parameter_data()
-        
-        # Set the number of rows based on parameters
-        self.de_params_table.setRowCount(len(parameter_data))
-        
-        # Fill the table with parameter data
-        for row, (name, lower, upper, fixed) in enumerate(parameter_data):
-            # Parameter name
-            name_item = QTableWidgetItem(name)
-            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
-            self.de_params_table.setItem(row, 0, name_item)
-            
-            # Lower bound
-            lower_item = QTableWidgetItem(str(lower))
-            self.de_params_table.setItem(row, 1, lower_item)
-            
-            # Upper bound
-            upper_item = QTableWidgetItem(str(upper))
-            self.de_params_table.setItem(row, 2, upper_item)
-            
-            # Fixed checkbox
-            checkbox = QCheckBox()
-            checkbox.setChecked(fixed)
-            checkbox.stateChanged.connect(lambda state, r=row: self.toggle_de_fixed(state, r))
-            self.de_params_table.setCellWidget(row, 3, checkbox)
-        
-        # Adjust column widths
-        self.de_params_table.resizeColumnsToContents()
+        """Initialize the DE parameter table with default values - kept for backward compatibility"""
+        # This method is kept for backward compatibility
+        # The DVA parameter table is now initialized directly in create_de_tab
+        pass
 
     def get_parameter_data(self):
         """Get parameter data for optimization algorithms
@@ -228,17 +291,48 @@ class DEOptimizationMixin:
                 lower_bound_item.setText("0.0")
                 upper_bound_item.setText("1.0")
 
+    def toggle_de_dva_fixed(self, state, row, table=None):
+        """Toggle the fixed state of a DE DVA parameter row"""
+        if table is None:
+            table = self.de_dva_params_table
+            
+        fixed = (state == Qt.Checked)
+        fixed_value_spin = table.cellWidget(row, 2)
+        lower_bound_spin = table.cellWidget(row, 3)
+        upper_bound_spin = table.cellWidget(row, 4)
+
+        fixed_value_spin.setEnabled(fixed)
+        lower_bound_spin.setEnabled(not fixed)
+        upper_bound_spin.setEnabled(not fixed)
+        
+        if fixed:
+            # When fixed, set a default value
+            param_name = table.item(row, 0).text()
+            if param_name.startswith(("beta_", "lambda_", "nu_")):
+                fixed_value_spin.setValue(0.5)  # Default value for these parameters
+            elif param_name.startswith("mu_"):
+                fixed_value_spin.setValue(0.1)  # Default value for mu parameters
+            else:
+                fixed_value_spin.setValue(0.0)  # Default for others
+
     def run_de(self):
         """Run the differential evolution optimization"""
         try:
-            # Get parameter data from the table
+            # Get parameter data from the DVA table
             parameter_data = []
-            for row in range(self.de_params_table.rowCount()):
-                name = self.de_params_table.item(row, 0).text()
-                lower = float(self.de_params_table.item(row, 1).text())
-                upper = float(self.de_params_table.item(row, 2).text())
-                fixed = self.de_params_table.cellWidget(row, 3).isChecked()
-                parameter_data.append((name, lower, upper, fixed))
+            for row in range(self.de_dva_params_table.rowCount()):
+                name = self.de_dva_params_table.item(row, 0).text()
+                is_fixed = self.de_dva_params_table.cellWidget(row, 1).isChecked()
+                
+                if is_fixed:
+                    # For fixed parameters, use the fixed value for both lower and upper bounds
+                    value = self.de_dva_params_table.cellWidget(row, 2).value()
+                    parameter_data.append((name, value, value, True))
+                else:
+                    # For non-fixed parameters, use the lower and upper bounds
+                    lower = self.de_dva_params_table.cellWidget(row, 3).value()
+                    upper = self.de_dva_params_table.cellWidget(row, 4).value()
+                    parameter_data.append((name, lower, upper, False))
 
             # Get DE parameters from the GUI
             de_params = {
@@ -248,229 +342,333 @@ class DEOptimizationMixin:
                 'de_CR': self.de_CR_spinbox.value(),
                 'de_tol': self.de_tol_spinbox.value(),
                 'strategy': self.de_strategy_combo.currentText(),
-                'adaptive_method': self.de_adaptive_combo.currentText()
+                'adaptive': self.de_adaptive_combo.currentText()
             }
+            
+            # Show a message in the results area
+            self.de_results_text.clear()
+            self.de_results_text.append("Starting Differential Evolution optimization...")
+            self.de_results_text.append(f"Population size: {de_params['de_pop_size']}")
+            self.de_results_text.append(f"Generations: {de_params['de_num_generations']}")
+            self.de_results_text.append(f"Mutation factor (F): {de_params['de_F']}")
+            self.de_results_text.append(f"Crossover rate (CR): {de_params['de_CR']}")
+            self.de_results_text.append(f"Strategy: {de_params['strategy']}")
+            self.de_results_text.append(f"Adaptive method: {de_params['adaptive']}")
+            self.de_results_text.append("-------------------")
 
-            # Create and configure the DE worker
-            self.de_worker = DEWorker(
-                main_params=self.main_params,
-                target_values_dict=self.target_values,
-                weights_dict=self.weights,
-                omega_start=self.omega_start,
-                omega_end=self.omega_end,
-                omega_points=self.omega_points,
-                de_pop_size=de_params['de_pop_size'],
-                de_num_generations=de_params['de_num_generations'],
-                de_F=de_params['de_F'],
-                de_CR=de_params['de_CR'],
-                de_tol=de_params['de_tol'],
-                de_parameter_data=parameter_data,
-                strategy=de_params['strategy'],
-                adaptive_method=de_params['adaptive_method'],
-                record_statistics=True
-            )
-
-            # Connect signals
-            self.de_worker.finished.connect(self.handle_de_finished)
-            self.de_worker.error.connect(self.handle_de_error)
-            self.de_worker.update.connect(self.handle_de_update)
-            self.de_worker.progress.connect(self.handle_de_progress)
-
-            # Disable the run button and update status
-            self.run_de_button.setEnabled(False)
-            self.statusBar().showMessage("Running DE optimization...")
-
-            # Start the worker
-            self.de_worker.start()
+            # Get main parameters
+            try:
+                # Get main parameters from GUI
+                if hasattr(self, 'target_values') and hasattr(self, 'weights'):
+                    main_params = {
+                        'target_values': self.target_values,
+                        'weights': self.weights
+                    }
+                else:
+                    raise ValueError("Target values and weights not found")
+                
+                omega_start = self.omega_start_box.value()
+                omega_end = self.omega_end_box.value()
+                omega_points = self.omega_points_box.value()
+                
+                self.de_results_text.append(f"Frequency range: {omega_start} - {omega_end}")
+                self.de_results_text.append(f"Number of points: {omega_points}")
+                self.de_results_text.append("-------------------")
+                
+                # Show the worker is running
+                self.de_results_text.append("Optimization in progress...")
+                
+                # Prepare the figure for visualization
+                self.de_fig.clear()
+                self.ax1 = self.de_fig.add_subplot(211)
+                self.ax2 = self.de_fig.add_subplot(212)
+                self.ax1.set_title("Best Fitness")
+                self.ax2.set_title("Population Diversity")
+                self.ax1.set_xlabel("Generation")
+                self.ax1.set_ylabel("Fitness")
+                self.ax2.set_xlabel("Generation")
+                self.ax2.set_ylabel("Diversity")
+                self.fitness_values = []
+                self.diversity_values = []
+                self.generations = []
+                self.de_canvas.draw()
+                
+                # Create and start worker thread
+                self.de_worker = DEWorker(
+                    main_params,
+                    parameter_data,
+                    de_params,
+                    omega_start,
+                    omega_end,
+                    omega_points
+                )
+                self.de_worker.progress_signal.connect(self.handle_de_progress)
+                self.de_worker.finished_signal.connect(self.handle_de_finished)
+                self.de_worker.error_signal.connect(self.handle_de_error)
+                self.de_worker.update_signal.connect(self.handle_de_update)
+                
+                # Show the DE tab with Results subtab
+                self.de_sub_tabs.setCurrentIndex(2)  # Switch to Results tab
+                
+                self.de_worker.start()
+                
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"Failed to start optimization: {str(e)}"
+                )
+                self.de_results_text.append(f"ERROR: {str(e)}")
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to start DE optimization: {str(e)}")
-            self.run_de_button.setEnabled(True)
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to run DE optimization: {str(e)}"
+            )
+            self.de_results_text.append(f"ERROR: {str(e)}")
 
     def handle_de_progress(self, generation, best_fitness, diversity):
-        """Handle progress updates from the DE worker"""
-        # Update progress bar (assuming 100 generations)
-        progress = int((generation / self.de_num_generations_spinbox.value()) * 100)
-        self.statusBar().showMessage(f"Generation {generation}: Best Fitness = {best_fitness:.6f}, Diversity = {diversity:.6f}")
-        
-        # Update visualization
-        self.update_de_visualization()
-
-    def update_de_visualization(self):
-        """Update the DE visualization during optimization"""
+        """Handle progress updates from the DE optimization"""
         try:
-            # Check if we have a worker with statistics
-            if not hasattr(self, 'de_worker') or not hasattr(self.de_worker, 'statistics'):
-                return
+            # Add the data points
+            self.generations.append(generation)
+            self.fitness_values.append(best_fitness)
+            self.diversity_values.append(diversity)
+            
+            # Update the results text
+            if generation % 5 == 0:  # Update every 5 generations to avoid too many updates
+                self.de_results_text.append(f"Generation {generation}: Fitness={best_fitness:.6f}, Diversity={diversity:.6f}")
                 
-            # Get statistics from the worker
-            stats = self.de_worker.statistics
+                # Make sure the text area scrolls to show the latest update
+                scrollbar = self.de_results_text.verticalScrollBar()
+                scrollbar.setValue(scrollbar.maximum())
+                
+            # Update the visualization
+            self.update_de_visualization()
             
-            # Clear the figure
-            self.de_fig.clear()
+        except Exception as e:
+            print(f"Error updating DE progress: {str(e)}")
+    
+    def update_de_visualization(self):
+        """Update the DE visualization with current data"""
+        try:
+            # Clear the plots
+            self.ax1.clear()
+            self.ax2.clear()
             
-            # Create subplots
-            gs = self.de_fig.add_gridspec(2, 2)
+            # Set titles and labels
+            self.ax1.set_title("Best Fitness")
+            self.ax2.set_title("Population Diversity")
+            self.ax1.set_xlabel("Generation")
+            self.ax1.set_ylabel("Fitness")
+            self.ax2.set_xlabel("Generation")
+            self.ax2.set_ylabel("Diversity")
             
-            # 1. Fitness Evolution
-            ax1 = self.de_fig.add_subplot(gs[0, 0])
-            if stats.generations and stats.best_fitness_history:
-                ax1.plot(stats.generations, stats.best_fitness_history, label='Best Fitness')
-                if stats.mean_fitness_history:
-                    ax1.plot(stats.generations, stats.mean_fitness_history, label='Mean Fitness')
-                ax1.set_xlabel('Generation')
-                ax1.set_ylabel('Fitness')
-                ax1.set_title('Fitness Evolution')
-                ax1.legend()
-                ax1.grid(True)
-            
-            # 2. Population Diversity
-            ax2 = self.de_fig.add_subplot(gs[0, 1])
-            if stats.generations and stats.diversity_history:
-                ax2.plot(stats.generations, stats.diversity_history)
-                ax2.set_xlabel('Generation')
-                ax2.set_ylabel('Diversity')
-                ax2.set_title('Population Diversity')
-                ax2.grid(True)
-            
-            # 3. Control Parameters (F and CR values if adaptive)
-            ax3 = self.de_fig.add_subplot(gs[1, 0])
-            if stats.generations and (stats.f_values or stats.cr_values):
-                if stats.f_values:
-                    ax3.plot(stats.generations, stats.f_values, label='F')
-                if stats.cr_values:
-                    ax3.plot(stats.generations, stats.cr_values, label='CR')
-                ax3.set_xlabel('Generation')
-                ax3.set_ylabel('Value')
-                ax3.set_title('Control Parameters')
-                ax3.legend()
-                ax3.grid(True)
-            
-            # 4. Success Rates
-            ax4 = self.de_fig.add_subplot(gs[1, 1])
-            if stats.generations and stats.success_rates:
-                ax4.plot(stats.generations, stats.success_rates)
-                ax4.set_xlabel('Generation')
-                ax4.set_ylabel('Success Rate')
-                ax4.set_title('Success Rate')
-                ax4.grid(True)
-            
-            # Adjust layout and display
+            # Plot the data
+            if self.generations and self.fitness_values:
+                self.ax1.plot(self.generations, self.fitness_values, 'b-')
+                self.ax2.plot(self.generations, self.diversity_values, 'r-')
+                
+                # Set the y-axis limits with some padding
+                min_fitness = min(self.fitness_values)
+                max_fitness = max(self.fitness_values)
+                padding = 0.1 * (max_fitness - min_fitness) if max_fitness > min_fitness else 0.1
+                self.ax1.set_ylim([min_fitness - padding, max_fitness + padding])
+                
+                min_diversity = min(self.diversity_values)
+                max_diversity = max(self.diversity_values)
+                padding = 0.1 * (max_diversity - min_diversity) if max_diversity > min_diversity else 0.1
+                self.ax2.set_ylim([min_diversity - padding, max_diversity + padding])
+                
+            # Redraw the canvas
             self.de_fig.tight_layout()
             self.de_canvas.draw()
             
+            # Process pending events to update the UI
+            QApplication.processEvents()
+            
         except Exception as e:
-            # Silently fail - we don't want to interrupt the optimization
             print(f"Error updating DE visualization: {str(e)}")
-            pass
 
     def handle_de_finished(self, results, best_individual, parameter_names, best_fitness, statistics):
-        """Handle completion of the DE optimization"""
+        """Handle the completion of the DE optimization"""
         try:
-            # Re-enable the run button
-            self.run_de_button.setEnabled(True)
+            # Store the best parameters and fitness
+            self.current_de_best_params = best_individual
+            self.current_de_best_fitness = best_fitness
+            self.current_de_full_results = results
             
-            # Update status
-            self.statusBar().showMessage(f"DE optimization completed. Best fitness: {best_fitness:.6f}")
+            # Display results in the text area
+            self.de_results_text.append("\n=== Optimization Complete ===")
+            self.de_results_text.append(f"Best fitness: {best_fitness:.6f}")
+            self.de_results_text.append("\nBest parameter values:")
             
-            # Store results
-            self.de_results = results
-            self.de_best_individual = best_individual
-            self.de_statistics = statistics
-            
-            # Create final visualization
+            # Create a formatted table of best parameters
+            for i, (name, value) in enumerate(zip(parameter_names, best_individual)):
+                self.de_results_text.append(f"{name:<10}: {value:.6f}")
+                
+            # Create the final visualization
             self.create_de_final_visualization(statistics, parameter_names)
             
-            # Show results in a message box
-            result_text = "Optimization completed successfully!\n\n"
-            result_text += f"Best Fitness: {best_fitness:.6f}\n\n"
-            result_text += "Best Parameters:\n"
-            for name, value in zip(parameter_names, best_individual):
-                result_text += f"{name}: {value:.6f}\n"
+            # Switch to the Results tab to show the final results
+            self.de_sub_tabs.setCurrentIndex(2)
             
-            QMessageBox.information(self, "DE Optimization Complete", result_text)
+            # Enable the run button again
+            if hasattr(self, 'run_de_button'):
+                self.run_de_button.setEnabled(True)
+                
+            # Update status
+            if hasattr(self, 'statusBar'):
+                self.statusBar().showMessage("DE optimization completed", 5000)
+                
+            # Show completion message
+            QMessageBox.information(
+                self,
+                "Optimization Complete",
+                f"Differential Evolution optimization completed successfully.\nBest fitness: {best_fitness:.6f}"
+            )
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error handling DE results: {str(e)}")
+            self.de_results_text.append(f"Error processing results: {str(e)}")
+            QMessageBox.warning(
+                self,
+                "Error Processing Results",
+                f"An error occurred while processing the optimization results: {str(e)}"
+            )
 
     def create_de_final_visualization(self, statistics, parameter_names):
-        """Create the final visualization for DE results"""
+        """Create the final visualization after DE optimization completes"""
         try:
             # Clear the figure
             self.de_fig.clear()
             
-            # Create subplots
+            # Create a 2x2 subplot layout
             gs = self.de_fig.add_gridspec(2, 2)
             
             # 1. Fitness Evolution
             ax1 = self.de_fig.add_subplot(gs[0, 0])
-            ax1.plot(statistics.generations, statistics.best_fitness_history, label='Best Fitness')
-            ax1.plot(statistics.generations, statistics.mean_fitness_history, label='Mean Fitness')
+            ax1.plot(self.generations, self.fitness_values, 'b-', label='Best Fitness')
             ax1.set_xlabel('Generation')
             ax1.set_ylabel('Fitness')
             ax1.set_title('Fitness Evolution')
-            ax1.legend()
             ax1.grid(True)
             
             # 2. Population Diversity
             ax2 = self.de_fig.add_subplot(gs[0, 1])
-            ax2.plot(statistics.generations, statistics.diversity_history)
+            ax2.plot(self.generations, self.diversity_values, 'r-')
             ax2.set_xlabel('Generation')
             ax2.set_ylabel('Diversity')
             ax2.set_title('Population Diversity')
             ax2.grid(True)
             
-            # 3. Parameter Convergence
+            # 3. Parameter Distribution (top parameters)
             ax3 = self.de_fig.add_subplot(gs[1, 0])
-            for i, param in enumerate(parameter_names):
-                ax3.plot(statistics.generations, 
-                        [means[i] for means in statistics.parameter_mean_history],
-                        label=param)
-            ax3.set_xlabel('Generation')
-            ax3.set_ylabel('Parameter Value')
-            ax3.set_title('Parameter Convergence')
-            ax3.legend()
-            ax3.grid(True)
             
-            # 4. Control Parameters (F and CR values if adaptive)
+            # Use the best individual values for this plot
+            if hasattr(self, 'current_de_best_params') and parameter_names:
+                # Select a subset of parameters for visualization (e.g., top 5)
+                num_params = min(5, len(parameter_names))
+                selected_params = parameter_names[:num_params]
+                selected_values = self.current_de_best_params[:num_params]
+                
+                # Create a bar chart of the top parameters
+                y_pos = range(num_params)
+                ax3.barh(y_pos, selected_values, align='center')
+                ax3.set_yticks(y_pos)
+                ax3.set_yticklabels(selected_params)
+                ax3.set_xlabel('Value')
+                ax3.set_title('Top Parameters')
+                ax3.grid(True, axis='x')
+            
+            # 4. Convergence Rate
             ax4 = self.de_fig.add_subplot(gs[1, 1])
-            if statistics.f_values and statistics.cr_values:
-                ax4.plot(statistics.generations, statistics.f_values, label='F')
-                ax4.plot(statistics.generations, statistics.cr_values, label='CR')
+            
+            # Calculate convergence rate (improvement between generations)
+            if len(self.fitness_values) > 1:
+                convergence = []
+                for i in range(1, len(self.fitness_values)):
+                    improvement = abs(self.fitness_values[i] - self.fitness_values[i-1])
+                    convergence.append(improvement)
+                
+                # Plot convergence rate
+                ax4.semilogy(self.generations[1:], convergence, 'g-')
                 ax4.set_xlabel('Generation')
-                ax4.set_ylabel('Value')
-                ax4.set_title('Control Parameters')
-                ax4.legend()
+                ax4.set_ylabel('Improvement')
+                ax4.set_title('Convergence Rate')
                 ax4.grid(True)
             
             # Adjust layout and display
             self.de_fig.tight_layout()
             self.de_canvas.draw()
             
+            # Add a note to the results text
+            self.de_results_text.append("\nVisualization updated with final results.")
+            
         except Exception as e:
-            QMessageBox.warning(self, "Visualization Error", f"Error creating visualization: {str(e)}")
+            self.de_results_text.append(f"Error creating final visualization: {str(e)}")
+            print(f"Error creating DE final visualization: {str(e)}")
 
     def save_de_visualization(self):
-        """Save the current DE visualization"""
+        """Save the DE visualization to a file"""
         try:
-            filename, _ = QFileDialog.getSaveFileName(
-                self, "Save Visualization", "", "PNG Files (*.png);;All Files (*)"
+            # Ask for file path using dialog
+            file_path, _ = QFileDialog.getSaveFileName(
+                None, "Save DE Visualization", "", "PNG Files (*.png);;PDF Files (*.pdf);;All Files (*)"
             )
-            if filename:
-                self.de_fig.savefig(filename, dpi=300, bbox_inches='tight')
-                QMessageBox.information(self, "Success", "Visualization saved successfully!")
+            
+            if file_path:
+                # Save the figure to the file
+                self.de_fig.savefig(file_path, dpi=300, bbox_inches='tight')
+                
+                # Also offer to save the results as text
+                text_path = file_path.rsplit('.', 1)[0] + ".txt"
+                reply = QMessageBox.question(
+                    None, 
+                    "Save Text Results",
+                    "Do you also want to save the text results?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    with open(text_path, 'w') as f:
+                        f.write(self.de_results_text.toPlainText())
+                    
+                QMessageBox.information(None, "File Saved", f"Visualization saved to {file_path}")
+                self.de_results_text.append(f"\nVisualization saved to {file_path}")
+                
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save visualization: {str(e)}")
+            QMessageBox.critical(None, "Save Error", f"Failed to save visualization: {str(e)}")
+            self.de_results_text.append(f"Error saving visualization: {str(e)}")
 
     def handle_de_error(self, error_msg):
-        """Handle errors from the DE worker"""
-        self.run_de_button.setEnabled(True)
-        QMessageBox.critical(self, "DE Optimization Error", str(error_msg))
-        self.statusBar().showMessage("DE optimization failed!")
+        """Handle errors from the DE optimization worker"""
+        try:
+            # Add error to results text
+            self.de_results_text.append(f"\nERROR: {error_msg}")
+            
+            # Make sure the text area scrolls to show the error
+            scrollbar = self.de_results_text.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+            
+            # Show error message box
+            QMessageBox.critical(None, "DE Optimization Error", error_msg)
+            
+        except Exception as e:
+            print(f"Error handling DE error: {str(e)}")
 
     def handle_de_update(self, msg):
-        """Handle status updates from the DE worker"""
-        self.statusBar().showMessage(msg)
+        """Handle update messages from the DE optimization worker"""
+        try:
+            # Add update to results text
+            self.de_results_text.append(f"{msg}")
+            
+            # Make sure the text area scrolls to show the update
+            scrollbar = self.de_results_text.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+            
+        except Exception as e:
+            print(f"Error handling DE update: {str(e)}")
 
     def tune_de_hyperparameters(self):
         """Run hyperparameter tuning for DE"""
@@ -494,18 +692,18 @@ class DEOptimizationMixin:
             
             # Get DVA parameters
             de_dva_parameters = []
-            row_count = self.de_params_table.rowCount()
+            row_count = self.de_dva_params_table.rowCount()
             for row in range(row_count):
-                param_name = self.de_params_table.item(row, 0).text()
-                fixed_widget = self.de_params_table.cellWidget(row, 3)
+                param_name = self.de_dva_params_table.item(row, 0).text()
+                fixed_widget = self.de_dva_params_table.cellWidget(row, 1)
                 fixed = fixed_widget.isChecked()
                 if fixed:
-                    fixed_value_widget = self.de_params_table.cellWidget(row, 2)
+                    fixed_value_widget = self.de_dva_params_table.cellWidget(row, 2)
                     fv = fixed_value_widget.value()
                     de_dva_parameters.append((param_name, fv, fv, True))
                 else:
-                    lower_bound_widget = self.de_params_table.cellWidget(row, 1)
-                    upper_bound_widget = self.de_params_table.cellWidget(row, 2)
+                    lower_bound_widget = self.de_dva_params_table.cellWidget(row, 3)
+                    upper_bound_widget = self.de_dva_params_table.cellWidget(row, 4)
                     lb = lower_bound_widget.value()
                     ub = upper_bound_widget.value()
                     de_dva_parameters.append((param_name, lb, ub, False))
