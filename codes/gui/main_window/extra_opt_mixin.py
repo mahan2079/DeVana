@@ -3,6 +3,11 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
+from workers.DEWorker import DEWorker
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
 class ExtraOptimizationMixin:
     def create_de_tab(self):
@@ -687,8 +692,8 @@ class ExtraOptimizationMixin:
         
         # Create figure and canvas for the current visualization
         fig = Figure(figsize=(8, 6))
-        canvas = FigureCanvas(fig)
-        toolbar = NavigationToolbar(canvas, current_tab)
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar2QT(canvas, current_tab)
         
         # Add toolbar and canvas to layout
         current_tab.layout().addWidget(toolbar)
