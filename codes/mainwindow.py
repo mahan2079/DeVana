@@ -6,6 +6,7 @@ import seaborn as sns
 import pandas as pd
 from scipy import stats
 import computational_metrics_new  # Added import for computational metrics visualization
+import types  # Added for dynamic method assignment
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QLabel, QDoubleSpinBox, QSpinBox,
@@ -45,6 +46,8 @@ from gui.main_window.theme_mixin import ThemeMixin
 from gui.main_window.ga_mixin import GAOptimizationMixin
 from gui.main_window.frf_mixin import FRFMixin
 from gui.main_window.pso_mixin import PSOMixin
+# Import the DE mixin separately - we'll handle its integration differently
+from gui.main_window.de_mixin import DEOptimizationMixin
 from gui.main_window.input_mixin import InputTabsMixin
 from gui.main_window.extra_opt_mixin import ExtraOptimizationMixin
 from gui.main_window.sidebar_mixin import SidebarMixin
@@ -120,6 +123,10 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
         
         # Create the various content pages
         self.create_stochastic_design_page()
+        
+        # Integrate DE functionality before showing the window
+        self.integrate_de_functionality()
+        
         self.create_microchip_controller_page()
         self.create_continuous_beam_page()
         
@@ -144,7 +151,107 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
 
         # Initialize other optimization results holders if they follow a similar pattern
         self.current_pso_best_params = None
-    
+
+    def integrate_de_functionality(self):
+        """Manually integrate DE functionality from DEOptimizationMixin"""
+        try:
+            print("Starting DE functionality integration...")
+            # Import necessary methods from DEOptimizationMixin
+            # Create a temporary instance to access methods
+            temp_de_mixin = DEOptimizationMixin()
+            
+            # Import methods by copying their bound versions to this instance
+            method_list = [
+                'run_de', 'initialize_de_parameter_table', 'get_parameter_data',
+                'toggle_de_fixed', 'handle_de_progress', 'update_de_visualization',
+                'handle_de_finished', 'create_de_final_visualization',
+                'save_de_visualization', 'handle_de_error', 'handle_de_update',
+                'tune_de_hyperparameters'
+            ]
+            
+            for method_name in method_list:
+                if hasattr(DEOptimizationMixin, method_name):
+                    method = getattr(DEOptimizationMixin, method_name)
+                    setattr(self, method_name, types.MethodType(method, self))
+            
+            print("Methods imported successfully")
+            
+            # Create the DE tab properly
+            if hasattr(self, 'de_tab'):
+                print(f"DE tab exists: {self.de_tab}")
+                # If the tab exists, remove it first
+                if hasattr(self, 'optimization_tabs'):
+                    for i in range(self.optimization_tabs.count()):
+                        tab_text = self.optimization_tabs.tabText(i)
+                        if tab_text == "DE Optimization" or tab_text == "DE Optimization (Placeholder)":
+                            print(f"Removing existing DE tab at index {i}: {tab_text}")
+                            self.optimization_tabs.removeTab(i)
+                            break
+            else:
+                print("DE tab doesn't exist yet")
+            
+            # Now create the DE tab using the imported method
+            print("Creating DE tab...")
+            self.create_de_tab = types.MethodType(DEOptimizationMixin.create_de_tab, self)
+            
+            try:
+                # Create the DE tab with proper error handling
+                new_de_tab = self.create_de_tab()
+                print(f"New DE tab created: {new_de_tab}")
+                if new_de_tab is not None:
+                    self.de_tab = new_de_tab
+                else:
+                    print("Warning: create_de_tab returned None")
+                    # Create a simple tab as fallback
+                    self.de_tab = QWidget()
+                    fallback_layout = QVBoxLayout(self.de_tab)
+                    fallback_label = QLabel("DE Optimization Tab (Fallback)")
+                    fallback_layout.addWidget(fallback_label)
+            except Exception as e:
+                print(f"Error creating DE tab: {str(e)}")
+                # Create a simple tab as fallback
+                self.de_tab = QWidget()
+                fallback_layout = QVBoxLayout(self.de_tab)
+                fallback_label = QLabel(f"Error creating DE tab: {str(e)}")
+                fallback_layout.addWidget(fallback_label)
+            
+            print(f"Final DE tab: {self.de_tab}")
+            
+            # Ensure it's added to the optimization_tabs
+            if hasattr(self, 'optimization_tabs'):
+                print(f"Adding DE tab to optimization_tabs with {self.optimization_tabs.count()} existing tabs")
+                if self.de_tab:
+                    tab_index = self.optimization_tabs.addTab(self.de_tab, "DE Optimization")
+                    print(f"DE tab added at index {tab_index}")
+                else:
+                    print("Cannot add DE tab because it is None")
+                
+                # Verify tab was added
+                de_found = False
+                for i in range(self.optimization_tabs.count()):
+                    tab_text = self.optimization_tabs.tabText(i)
+                    print(f"Tab at index {i}: {tab_text}")
+                    if tab_text == "DE Optimization":
+                        de_found = True
+                        # Ensure the tab is visible
+                        self.de_tab.setVisible(True)
+                
+                print(f"DE tab found in tabs: {de_found}")
+                
+                # Don't automatically switch to the DE tab - let the user choose
+                # The default should be the Input tab
+                
+            else:
+                print("optimization_tabs not found")
+            
+            print("DE functionality integration successful")
+            
+        except Exception as e:
+            print(f"Failed to integrate DE functionality: {str(e)}")
+            # Don't raise the exception, just report it
+            import traceback
+            traceback.print_exc()
+
     def set_default_values(self):
         """Reset all inputs to their default values"""
         self.status_bar.showMessage("Resetting to default values...")
