@@ -53,6 +53,7 @@ from gui.main_window.extra_opt_mixin import ExtraOptimizationMixin
 from gui.main_window.sidebar_mixin import SidebarMixin
 from gui.main_window.stochastic_mixin import StochasticDesignMixin
 from gui.main_window.sobol_mixin import SobolAnalysisMixin
+from gui.main_window.omega_sensitivity_mixin import OmegaSensitivityMixin
 
 
 # Additional libraries used
@@ -86,10 +87,10 @@ except ImportError:
 class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin,
                  ThemeMixin, FRFMixin, PSOMixin, GAOptimizationMixin,
                  InputTabsMixin, ExtraOptimizationMixin,
-                 SidebarMixin, StochasticDesignMixin, SobolAnalysisMixin):
+                 SidebarMixin, StochasticDesignMixin, SobolAnalysisMixin, OmegaSensitivityMixin):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("DeVana - V0.1.0")
+        self.setWindowTitle("DeVana - V0.2.0")
         self.resize(1600, 900)
         
         # Disable LaTeX rendering in matplotlib to prevent Unicode errors with Greek characters

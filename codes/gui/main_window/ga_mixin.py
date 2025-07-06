@@ -287,6 +287,128 @@ class GAOptimizationMixin:
         self.qq_plot_widget = QWidget()
         qq_layout.addWidget(self.qq_plot_widget)
         
+        # Add Statistical Analysis tab for comprehensive parameter analysis
+        statistical_analysis_tab = QWidget()
+        statistical_analysis_layout = QVBoxLayout(statistical_analysis_tab)
+        
+        # Create subtabs for different statistical analyses
+        self.statistical_analysis_subtabs = QTabWidget()
+        
+        # 1. Parameter Visualizations Tab
+        param_viz_tab = QWidget()
+        param_viz_layout = QVBoxLayout(param_viz_tab)
+        
+        # Control panel for parameter selection
+        control_panel = QGroupBox("Parameter Selection & Visualization Controls")
+        control_layout = QGridLayout(control_panel)
+        
+        # Parameter selection dropdown
+        QLabel_param_select = QLabel("Select Parameter:")
+        self.param_selection_combo = QComboBox()
+        self.param_selection_combo.setMaxVisibleItems(5)  # Show only 5 items at a time
+        self.param_selection_combo.setMinimumWidth(150)
+        self.param_selection_combo.setMaximumWidth(200)
+        self.param_selection_combo.currentTextChanged.connect(self.on_parameter_selection_changed)
+        
+        # Plot type selection
+        QLabel_plot_type = QLabel("Plot Type:")
+        self.plot_type_combo = QComboBox()
+        self.plot_type_combo.addItems(["Violin Plot", "Distribution Plot", "Scatter Plot", "Q-Q Plot"])
+        self.plot_type_combo.currentTextChanged.connect(self.on_plot_type_changed)
+        
+        # Comparison parameter for scatter plots
+        QLabel_comparison = QLabel("Compare With:")
+        self.comparison_param_combo = QComboBox()
+        self.comparison_param_combo.addItem("None")
+        self.comparison_param_combo.setMaxVisibleItems(5)  # Show only 5 items at a time
+        self.comparison_param_combo.setMinimumWidth(150)
+        self.comparison_param_combo.setMaximumWidth(200)
+        self.comparison_param_combo.setEnabled(False)
+        self.comparison_param_combo.currentTextChanged.connect(self.on_comparison_parameter_changed)
+        
+        # Update plots button
+        self.update_plots_button = QPushButton("Update Plots")
+        self.update_plots_button.clicked.connect(self.update_parameter_plots)
+        
+        # Layout controls
+        control_layout.addWidget(QLabel_param_select, 0, 0)
+        control_layout.addWidget(self.param_selection_combo, 0, 1)
+        control_layout.addWidget(QLabel_plot_type, 0, 2)
+        control_layout.addWidget(self.plot_type_combo, 0, 3)
+        control_layout.addWidget(QLabel_comparison, 1, 0)
+        control_layout.addWidget(self.comparison_param_combo, 1, 1)
+        control_layout.addWidget(self.update_plots_button, 1, 2)
+        
+        param_viz_layout.addWidget(control_panel)
+        
+        # Plot display area with enhanced scrolling
+        self.param_plot_scroll = QScrollArea()
+        self.param_plot_scroll.setWidgetResizable(True)
+        self.param_plot_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.param_plot_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.param_plot_scroll.setMinimumHeight(400)
+        self.param_plot_widget = QWidget()
+        self.param_plot_widget.setLayout(QVBoxLayout())
+        self.param_plot_widget.setMinimumHeight(500)  # Ensure content is visible
+        self.param_plot_scroll.setWidget(self.param_plot_widget)
+        param_viz_layout.addWidget(self.param_plot_scroll)
+        
+        # 2. Parameter Statistics Tab - Make entire tab scrollable
+        param_stats_tab = QWidget()
+        param_stats_main_layout = QVBoxLayout(param_stats_tab)
+        
+        # Create scroll area for the entire statistics tab
+        stats_main_scroll = QScrollArea()
+        stats_main_scroll.setWidgetResizable(True)
+        stats_main_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        stats_main_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Content widget for the scroll area
+        stats_content_widget = QWidget()
+        param_stats_layout = QVBoxLayout(stats_content_widget)
+        
+        # Statistics control panel
+        stats_control_panel = QGroupBox("Statistics Display Options")
+        stats_control_layout = QHBoxLayout(stats_control_panel)
+        
+        # Statistics view dropdown
+        QLabel_stats_view = QLabel("View:")
+        self.stats_view_combo = QComboBox()
+        self.stats_view_combo.addItems(["Summary Table", "Detailed Statistics", "Equations & Formulas"])
+        self.stats_view_combo.setMaxVisibleItems(3)  # Show only 3 items at a time (matches the number of options)
+        self.stats_view_combo.setMinimumWidth(150)
+        self.stats_view_combo.setMaximumWidth(200)
+        self.stats_view_combo.currentTextChanged.connect(self.on_stats_view_changed)
+        
+        stats_control_layout.addWidget(QLabel_stats_view)
+        stats_control_layout.addWidget(self.stats_view_combo)
+        stats_control_layout.addStretch()
+        
+        param_stats_layout.addWidget(stats_control_panel)
+        
+        # Statistics display area with enhanced scrolling
+        self.param_stats_scroll = QScrollArea()
+        self.param_stats_scroll.setWidgetResizable(True)
+        self.param_stats_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.param_stats_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.param_stats_scroll.setMinimumHeight(400)
+        self.param_stats_widget = QWidget()
+        self.param_stats_widget.setLayout(QVBoxLayout())
+        self.param_stats_scroll.setWidget(self.param_stats_widget)
+        param_stats_layout.addWidget(self.param_stats_scroll)
+        
+        # Set the content widget to the main scroll area
+        stats_main_scroll.setWidget(stats_content_widget)
+        param_stats_main_layout.addWidget(stats_main_scroll)
+        
+
+        
+        # Add subtabs to statistical analysis
+        self.statistical_analysis_subtabs.addTab(param_viz_tab, "Parameter Visualizations")
+        self.statistical_analysis_subtabs.addTab(param_stats_tab, "Statistics Tables")
+        
+        statistical_analysis_layout.addWidget(self.statistical_analysis_subtabs)
+        
         # Summary statistics tabs (create subtabs for better organization)
         stats_tab = QWidget()
         stats_layout = QVBoxLayout(stats_tab)
@@ -348,11 +470,12 @@ class GAOptimizationMixin:
         stats_layout.addWidget(stats_subtabs)
         
         # Add all visualization tabs to the benchmark visualization tabs
-        self.benchmark_viz_tabs.addTab(violin_tab, "Violin Plot")
+        self.benchmark_viz_tabs.addTab(violin_tab, "Fitness Analysis")
         self.benchmark_viz_tabs.addTab(dist_tab, "Distribution")
         self.benchmark_viz_tabs.addTab(scatter_tab, "Scatter Plot")
         self.benchmark_viz_tabs.addTab(heatmap_tab, "Parameter Correlations")
         self.benchmark_viz_tabs.addTab(qq_tab, "Q-Q Plot")
+        self.benchmark_viz_tabs.addTab(statistical_analysis_tab, "Statistical Analysis")
         self.benchmark_viz_tabs.addTab(stats_tab, "Statistics")
         
         # GA Operations Performance Tab - already added as a subtab of Statistics
@@ -1098,12 +1221,6 @@ class GAOptimizationMixin:
             open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig_violin, "GA Violin Plot"))
             self.violin_plot_widget.layout().addWidget(open_new_window_button)
 
-            # Add "Open in New Window" button
-            open_new_window_button = QPushButton("Open in New Window")
-            open_new_window_button.setObjectName("secondary-button")
-            open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig_violin, "Violin Plot"))
-            self.violin_plot_widget.layout().addWidget(open_new_window_button)
-
         except Exception as e:
             print(f"Error creating violin plot: {str(e)}")
             
@@ -1182,12 +1299,6 @@ class GAOptimizationMixin:
             open_new_window_button = QPushButton("Open in New Window")
             open_new_window_button.setObjectName("secondary-button")
             open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig_dist, "GA Distribution Plot"))
-            self.dist_plot_widget.layout().addWidget(open_new_window_button)
-
-            # Add "Open in New Window" button
-            open_new_window_button = QPushButton("Open in New Window")
-            open_new_window_button.setObjectName("secondary-button")
-            open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig_dist, "Distribution Plot"))
             self.dist_plot_widget.layout().addWidget(open_new_window_button)
 
         except Exception as e:
@@ -1516,6 +1627,1239 @@ class GAOptimizationMixin:
         except:
             pass
         self.export_benchmark_button.clicked.connect(self.export_ga_benchmark_data)
+        
+        # 8. Generate comprehensive statistical analysis for parameters
+        self.generate_parameter_statistical_analysis(df)
+        
+    def generate_parameter_statistical_analysis(self, df):
+        """Generate comprehensive statistical analysis for optimized parameters across all runs"""
+        try:
+            # Extract parameter data from all runs
+            parameter_data = self.extract_parameter_data_from_runs(df)
+            
+            if not parameter_data:
+                print("No parameter data available for statistical analysis")
+                return
+            
+            # Store parameter data for use in dropdowns
+            self.current_parameter_data = parameter_data
+            
+            # Update parameter dropdowns
+            self.update_parameter_dropdowns(parameter_data)
+            
+            # Initialize with default plots
+            self.update_parameter_plots()
+            
+            # Create parameter statistics tables
+            self.create_parameter_statistics_tables(parameter_data)
+            
+        except Exception as e:
+            print(f"Error generating parameter statistical analysis: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def update_parameter_dropdowns(self, parameter_data):
+        """Update dropdown menus with available parameters"""
+        try:
+            param_names = list(parameter_data.keys())
+            
+            # Update parameter selection dropdown with all parameters
+            self.param_selection_combo.clear()
+            self.param_selection_combo.setMaxVisibleItems(10)  # Show 10 items at a time in dropdown
+            self.param_selection_combo.setStyleSheet("""
+                QComboBox {
+                    min-width: 200px;
+                }
+                QComboBox QListView {
+                    min-width: 200px;
+                }
+            """)
+            for param_name in param_names:
+                self.param_selection_combo.addItem(param_name)
+            
+            # Update comparison parameter dropdown with all parameters
+            self.comparison_param_combo.clear()
+            self.comparison_param_combo.setMaxVisibleItems(10)  # Show 10 items at a time in dropdown
+            self.comparison_param_combo.setStyleSheet("""
+                QComboBox {
+                    min-width: 200px;
+                }
+                QComboBox QListView {
+                    min-width: 200px;
+                }
+            """)
+            self.comparison_param_combo.addItem("None")
+            for param_name in param_names:
+                self.comparison_param_combo.addItem(param_name)
+                
+        except Exception as e:
+            print(f"Error updating parameter dropdowns: {str(e)}")
+    
+    def on_parameter_selection_changed(self):
+        """Handle parameter selection change"""
+        # Auto-update plots when parameter selection changes
+        self.update_parameter_plots()
+    
+    def on_plot_type_changed(self):
+        """Handle plot type change"""
+        plot_type = self.plot_type_combo.currentText()
+        
+        # Enable/disable comparison parameter dropdown based on plot type
+        if plot_type == "Scatter Plot":
+            self.comparison_param_combo.setEnabled(True)
+        else:
+            self.comparison_param_combo.setEnabled(False)
+        
+        # Auto-update plots when plot type changes
+        self.update_parameter_plots()
+    
+    def on_comparison_parameter_changed(self):
+        """Handle comparison parameter change"""
+        # Auto-update plots when comparison parameter changes
+        self.update_parameter_plots()
+    
+    def on_stats_view_changed(self):
+        """Handle statistics view change"""
+        if hasattr(self, 'current_parameter_data'):
+            self.create_parameter_statistics_tables(self.current_parameter_data)
+    
+    def update_parameter_plots(self):
+        """Update parameter plots based on current selections"""
+        try:
+            if not hasattr(self, 'current_parameter_data') or not self.current_parameter_data:
+                print("No parameter data available for plotting")
+                return
+            
+            selected_param = self.param_selection_combo.currentText()
+            plot_type = self.plot_type_combo.currentText()
+            comparison_param = self.comparison_param_combo.currentText()
+            
+            print(f"Debug: Creating plot - Parameter: {selected_param}, Type: {plot_type}, Comparison: {comparison_param}")
+            
+            # Clear existing plots properly
+            if self.param_plot_widget.layout():
+                while self.param_plot_widget.layout().count():
+                    child = self.param_plot_widget.layout().takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+            else:
+                self.param_plot_widget.setLayout(QVBoxLayout())
+            
+            print(f"Debug: Layout cleared, widget count: {self.param_plot_widget.layout().count()}")
+            
+            # Create plots based on selections
+            if plot_type == "Violin Plot":
+                print("Debug: Creating violin plot")
+                self.create_violin_plot(selected_param)
+            elif plot_type == "Distribution Plot":
+                print("Debug: Creating distribution plot")
+                self.create_distribution_plot(selected_param)
+            elif plot_type == "Scatter Plot":
+                print("Debug: Creating scatter plot")
+                self.create_scatter_plot(selected_param, comparison_param)
+            elif plot_type == "Q-Q Plot":
+                print("Debug: Creating Q-Q plot")
+                self.create_qq_plot(selected_param)
+            
+            # Add a spacer at the bottom to push content up
+            spacer = QWidget()
+            spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.param_plot_widget.layout().addWidget(spacer)
+                
+        except Exception as e:
+            print(f"Error updating parameter plots: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def extract_parameter_data_from_runs(self, df):
+        """Extract parameter values from all runs for statistical analysis"""
+        try:
+            parameter_data = {}
+            
+            for idx, row in df.iterrows():
+                run_number = row['run_number']
+                best_solution = row['best_solution']
+                parameter_names = row['parameter_names']
+                
+                # Ensure we have valid data
+                if not isinstance(best_solution, list) or not isinstance(parameter_names, list):
+                    continue
+                
+                if len(best_solution) != len(parameter_names):
+                    continue
+                
+                # Extract parameter values for this run
+                for param_name, param_value in zip(parameter_names, best_solution):
+                    if param_name not in parameter_data:
+                        parameter_data[param_name] = []
+                    parameter_data[param_name].append(param_value)
+            
+            # Convert to numpy arrays for easier statistical analysis
+            for param_name in parameter_data:
+                parameter_data[param_name] = np.array(parameter_data[param_name])
+            
+            return parameter_data
+            
+        except Exception as e:
+            print(f"Error extracting parameter data: {str(e)}")
+            return {}
+    
+    def create_violin_plot(self, selected_param):
+        """Create enhanced violin plot for selected parameter"""
+        try:
+            param_names = [selected_param]
+            
+            n_params = len(param_names)
+            if n_params == 0:
+                return
+            
+            # Determine grid layout - larger plots
+            n_cols = min(2, n_params) if n_params > 4 else min(3, n_params)
+            n_rows = (n_params + n_cols - 1) // n_cols
+            
+            # Create adaptive figure size based on number of parameters and screen space
+            base_width = min(8, 12 if n_params <= 2 else 6)
+            base_height = min(6, 8 if n_params <= 2 else 5)
+            fig = Figure(figsize=(base_width * n_cols, base_height * n_rows), dpi=100, tight_layout=True)
+            fig.patch.set_facecolor('white')
+            
+            # Color palette for different parameters
+            colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', 
+                     '#34495e', '#e67e22', '#95a5a6', '#16a085']
+            
+            for i, param_name in enumerate(param_names):
+                ax = fig.add_subplot(n_rows, n_cols, i + 1)
+                
+                param_values = self.current_parameter_data[param_name]
+                color = colors[i % len(colors)]
+                
+                # Create violin plot with enhanced styling
+                violin_parts = ax.violinplot([param_values], positions=[0], showmeans=True, 
+                                           showmedians=True, showextrema=True)
+                
+                # Customize violin plot
+                for pc in violin_parts['bodies']:
+                    pc.set_facecolor(color)
+                    pc.set_alpha(0.7)
+                    pc.set_edgecolor('black')
+                    pc.set_linewidth(1.2)
+                
+                # Style the median, mean, and extrema
+                if 'cmedians' in violin_parts:
+                    violin_parts['cmedians'].set_color('red')
+                    violin_parts['cmedians'].set_linewidth(2)
+                if 'cmeans' in violin_parts:
+                    violin_parts['cmeans'].set_color('darkred')
+                    violin_parts['cmeans'].set_linewidth(2)
+                if 'cmaxes' in violin_parts:
+                    violin_parts['cmaxes'].set_color('black')
+                if 'cmins' in violin_parts:
+                    violin_parts['cmins'].set_color('black')
+                
+                # Add enhanced box plot overlay
+                box_plot = ax.boxplot([param_values], positions=[0], widths=0.15, patch_artist=True,
+                          boxprops=dict(facecolor='white', alpha=0.8, edgecolor='black', linewidth=1.5),
+                          medianprops=dict(color='red', linewidth=2),
+                          whiskerprops=dict(color='black', linewidth=1.5),
+                          capprops=dict(color='black', linewidth=1.5),
+                          flierprops=dict(marker='o', markerfacecolor='red', markersize=6, alpha=0.7))
+                
+                # Calculate comprehensive statistics
+                mean_val = np.mean(param_values)
+                median_val = np.median(param_values)
+                std_val = np.std(param_values)
+                min_val = np.min(param_values)
+                max_val = np.max(param_values)
+                q1 = np.percentile(param_values, 25)
+                q3 = np.percentile(param_values, 75)
+                iqr = q3 - q1
+                cv = (std_val / mean_val) * 100 if mean_val != 0 else 0
+                
+                # Calculate outliers
+                outlier_threshold = 1.5 * iqr
+                outliers = param_values[(param_values < (q1 - outlier_threshold)) | 
+                                      (param_values > (q3 + outlier_threshold))]
+                n_outliers = len(outliers)
+                
+                # Enhanced statistics text with more information
+                stats_text = (f"Count: {len(param_values)}\n"
+                             f"Mean: {mean_val:.4f}\n"
+                             f"Median: {median_val:.4f}\n"
+                             f"Std Dev: {std_val:.4f}\n"
+                             f"CV: {cv:.1f}%\n"
+                             f"Q1: {q1:.4f}\n"
+                             f"Q3: {q3:.4f}\n"
+                             f"IQR: {iqr:.4f}\n"
+                             f"Range: {max_val - min_val:.4f}\n"
+                             f"Outliers: {n_outliers}")
+                
+                # Enhanced text box styling
+                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
+                       fontsize=10, verticalalignment='top', fontweight='bold',
+                       bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgray', 
+                               alpha=0.9, edgecolor='black', linewidth=1))
+                
+                # Add percentile lines
+                for percentile, value in [(10, np.percentile(param_values, 10)),
+                                        (90, np.percentile(param_values, 90))]:
+                    ax.axhline(y=value, color='orange', linestyle='--', alpha=0.6, 
+                             linewidth=1, label=f'{percentile}th percentile')
+                
+                # Enhanced styling
+                ax.set_title(f"{param_name}", fontsize=14, fontweight='bold', pad=20)
+                ax.set_ylabel("Parameter Value", fontsize=12, fontweight='bold')
+                ax.set_xticks([])
+                ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+                ax.set_facecolor('#f8f9fa')
+                
+                # Add parameter value range as subtitle
+                ax.text(0.5, -0.1, f"Range: [{min_val:.4f}, {max_val:.4f}]", 
+                       transform=ax.transAxes, ha='center', fontsize=10, style='italic')
+            
+            # Create canvas and add to layout
+            canvas = FigureCanvasQTAgg(fig)
+            self.param_plot_widget.layout().addWidget(canvas)
+            
+            # Add toolbar
+            toolbar = NavigationToolbar(canvas, self.param_plot_widget)
+            self.param_plot_widget.layout().addWidget(toolbar)
+            
+            # Add buttons using the helper method
+            self.add_plot_buttons(fig, "Violin Plot", selected_param)
+            
+        except Exception as e:
+            print(f"Error creating violin plot: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def create_distribution_plot(self, selected_param):
+        """Create enhanced distribution plot for selected parameter"""
+        try:
+            param_names = [selected_param]
+            
+            n_params = len(param_names)
+            if n_params == 0:
+                return
+            
+            # Determine grid layout - larger plots
+            n_cols = min(2, n_params) if n_params > 4 else min(3, n_params)
+            n_rows = (n_params + n_cols - 1) // n_cols
+            
+            # Create adaptive figure size for better display
+            base_width = min(8, 12 if n_params <= 2 else 6)
+            base_height = min(6, 8 if n_params <= 2 else 5)
+            fig = Figure(figsize=(base_width * n_cols, base_height * n_rows), dpi=100, tight_layout=True)
+            fig.patch.set_facecolor('white')
+            
+            # Color palette
+            colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', 
+                     '#34495e', '#e67e22', '#95a5a6', '#16a085']
+            
+            for i, param_name in enumerate(param_names):
+                ax = fig.add_subplot(n_rows, n_cols, i + 1)
+                
+                values = self.current_parameter_data[param_name]
+                color = colors[i % len(colors)]
+                
+                # Create enhanced histogram with better binning
+                n_bins = max(20, min(50, len(values) // 10))
+                n, bins, patches = ax.hist(values, bins=n_bins, density=True, alpha=0.7, 
+                                         color=color, edgecolor='black', linewidth=1.2)
+                
+                # Add KDE curve
+                try:
+                    from scipy import stats
+                    kde = stats.gaussian_kde(values)
+                    x_range = np.linspace(values.min(), values.max(), 200)
+                    ax.plot(x_range, kde(x_range), 'darkred', linewidth=3, 
+                           label='Kernel Density Estimate', alpha=0.9)
+                    
+                    # Add normal distribution overlay for comparison
+                    mu, sigma = np.mean(values), np.std(values)
+                    x_norm = np.linspace(values.min(), values.max(), 200)
+                    normal_curve = stats.norm.pdf(x_norm, mu, sigma)
+                    ax.plot(x_norm, normal_curve, 'purple', linewidth=2, linestyle=':', 
+                           label='Normal Distribution', alpha=0.8)
+                    
+                    # Calculate normality test
+                    _, p_value = stats.normaltest(values)
+                    normality_text = f"Normality p-value: {p_value:.4f}"
+                    
+                except Exception as e:
+                    print(f"Error creating KDE for {param_name}: {str(e)}")
+                    normality_text = "Normality test: N/A"
+                
+                # Calculate comprehensive statistics
+                mean_val = np.mean(values)
+                median_val = np.median(values)
+                mode_val = bins[np.argmax(n)] if len(bins) > 1 else mean_val
+                std_val = np.std(values)
+                skewness = stats.skew(values) if 'stats' in locals() else 0
+                kurtosis = stats.kurtosis(values) if 'stats' in locals() else 0
+                
+                # Add statistical lines
+                ax.axvline(mean_val, color='red', linestyle='--', linewidth=2, 
+                          label=f'Mean: {mean_val:.4f}', alpha=0.8)
+                ax.axvline(median_val, color='green', linestyle='--', linewidth=2, 
+                          label=f'Median: {median_val:.4f}', alpha=0.8)
+                ax.axvline(mode_val, color='orange', linestyle='--', linewidth=2, 
+                          label=f'Mode: {mode_val:.4f}', alpha=0.8)
+                
+                # Add percentile lines
+                q1 = np.percentile(values, 25)
+                q3 = np.percentile(values, 75)
+                ax.axvline(q1, color='blue', linestyle=':', linewidth=1.5, 
+                          label=f'Q1: {q1:.4f}', alpha=0.6)
+                ax.axvline(q3, color='blue', linestyle=':', linewidth=1.5, 
+                          label=f'Q3: {q3:.4f}', alpha=0.6)
+                
+                # Add statistics text box
+                stats_text = (f"Count: {len(values)}\n"
+                             f"Mean: {mean_val:.4f}\n"
+                             f"Std Dev: {std_val:.4f}\n"
+                             f"Skewness: {skewness:.3f}\n"
+                             f"Kurtosis: {kurtosis:.3f}\n"
+                             f"Min: {values.min():.4f}\n"
+                             f"Max: {values.max():.4f}\n"
+                             f"{normality_text}")
+                
+                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
+                       fontsize=10, verticalalignment='top', fontweight='bold',
+                       bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgray', 
+                               alpha=0.9, edgecolor='black', linewidth=1))
+                
+                # Enhanced styling
+                ax.set_title(f"{param_name} Distribution", fontsize=14, fontweight='bold', pad=20)
+                ax.set_xlabel("Parameter Value", fontsize=12, fontweight='bold')
+                ax.set_ylabel("Density", fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+                ax.set_facecolor('#f8f9fa')
+                
+                # Enhanced legend
+                legend = ax.legend(loc='upper right', fontsize=9, framealpha=0.9)
+                legend.get_frame().set_facecolor('white')
+                legend.get_frame().set_edgecolor('black')
+                
+                # Add distribution shape analysis
+                shape_text = ""
+                if 'skewness' in locals():
+                    if abs(skewness) < 0.5:
+                        shape_text = "Approximately symmetric"
+                    elif skewness > 0.5:
+                        shape_text = "Right-skewed"
+                    else:
+                        shape_text = "Left-skewed"
+                
+                ax.text(0.5, -0.12, shape_text, transform=ax.transAxes, 
+                       ha='center', fontsize=10, style='italic')
+            
+            # Create canvas and add to layout
+            canvas = FigureCanvasQTAgg(fig)
+            self.param_plot_widget.layout().addWidget(canvas)
+            
+            # Add toolbar
+            toolbar = NavigationToolbar(canvas, self.param_plot_widget)
+            self.param_plot_widget.layout().addWidget(toolbar)
+            
+            # Add buttons using the helper method
+            self.add_plot_buttons(fig, "Distribution Plot", selected_param)
+            
+        except Exception as e:
+            print(f"Error creating distribution plot: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def create_scatter_plot(self, selected_param, comparison_param):
+        """Create scatter plot between selected parameters"""
+        try:
+            if comparison_param == "None" or comparison_param == selected_param:
+                # Show scatter plot of parameter vs run number
+                self.create_parameter_vs_run_scatter(selected_param)
+            else:
+                # Create scatter plot between two specific parameters
+                self.create_two_parameter_scatter(selected_param, comparison_param)
+                
+        except Exception as e:
+            print(f"Error creating scatter plot: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def create_parameter_vs_run_scatter(self, param_name):
+        """Create enhanced scatter plot of parameter vs run number"""
+        try:
+            fig = Figure(figsize=(10, 7), dpi=100, tight_layout=True)
+            fig.patch.set_facecolor('white')
+            ax = fig.add_subplot(111)
+            
+            values = self.current_parameter_data[param_name]
+            run_numbers = range(1, len(values) + 1)
+            
+            # Enhanced scatter plot with color mapping
+            scatter = ax.scatter(run_numbers, values, alpha=0.7, s=60, 
+                               c=values, cmap='viridis', edgecolors='black', linewidth=0.5)
+            
+            # Add colorbar
+            cbar = fig.colorbar(scatter, ax=ax, shrink=0.8, aspect=20)
+            cbar.set_label(f'{param_name} Value', fontsize=12, fontweight='bold')
+            
+            # Add trend line with confidence interval
+            z = np.polyfit(run_numbers, values, 1)
+            p = np.poly1d(z)
+            trend_line = p(run_numbers)
+            ax.plot(run_numbers, trend_line, "r--", linewidth=2, alpha=0.8, 
+                   label=f'Trend: y={z[0]:.6f}x+{z[1]:.6f}')
+            
+            # Calculate R-squared
+            ss_res = np.sum((values - trend_line) ** 2)
+            ss_tot = np.sum((values - np.mean(values)) ** 2)
+            r_squared = 1 - (ss_res / ss_tot)
+            
+            # Add confidence intervals
+            try:
+                from scipy import stats
+                # Calculate prediction intervals
+                residuals = values - trend_line
+                mse = np.mean(residuals**2)
+                std_err = np.sqrt(mse)
+                
+                # 95% confidence intervals
+                ci_upper = trend_line + 1.96 * std_err
+                ci_lower = trend_line - 1.96 * std_err
+                
+                ax.fill_between(run_numbers, ci_lower, ci_upper, alpha=0.2, color='red', 
+                               label='95% Confidence Interval')
+                
+                # Calculate correlation coefficient
+                correlation = np.corrcoef(run_numbers, values)[0, 1]
+                
+            except Exception as e:
+                correlation = 0
+                print(f"Error calculating statistics: {str(e)}")
+            
+            # Add statistics text
+            stats_text = (f"Correlation: {correlation:.4f}\n"
+                         f"R²: {r_squared:.4f}\n"
+                         f"Trend slope: {z[0]:.6f}\n"
+                         f"Mean: {np.mean(values):.4f}\n"
+                         f"Std Dev: {np.std(values):.4f}\n"
+                         f"Range: {np.max(values) - np.min(values):.4f}")
+            
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
+                   fontsize=10, verticalalignment='top', fontweight='bold',
+                   bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgray', 
+                           alpha=0.9, edgecolor='black', linewidth=1))
+            
+            # Enhanced styling
+            ax.set_xlabel("Run Number", fontsize=12, fontweight='bold')
+            ax.set_ylabel(f"{param_name} Value", fontsize=12, fontweight='bold')
+            ax.set_title(f"{param_name} vs Run Number", fontsize=14, fontweight='bold', pad=20)
+            ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+            ax.set_facecolor('#f8f9fa')
+            
+            # Enhanced legend
+            legend = ax.legend(loc='upper right', fontsize=10, framealpha=0.9)
+            legend.get_frame().set_facecolor('white')
+            legend.get_frame().set_edgecolor('black')
+            
+            # Create canvas and add to layout
+            canvas = FigureCanvasQTAgg(fig)
+            self.param_plot_widget.layout().addWidget(canvas)
+            
+            # Add toolbar
+            toolbar = NavigationToolbar(canvas, self.param_plot_widget)
+            self.param_plot_widget.layout().addWidget(toolbar)
+            
+            # Add buttons using the helper method
+            self.add_plot_buttons(fig, "Scatter Plot", param_name)
+            
+        except Exception as e:
+            print(f"Error creating parameter vs run scatter plot: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def create_scatter_matrix(self, param_names):
+        """Create enhanced scatter plot matrix for multiple parameters"""
+        try:
+            import pandas as pd
+            
+            n_params = len(param_names)
+            if n_params < 2:
+                return
+            
+            # Create DataFrame for scatter matrix
+            data_dict = {name: self.current_parameter_data[name] for name in param_names}
+            df = pd.DataFrame(data_dict)
+            
+            # Create responsive figure for scatter matrix
+            base_size = min(4, 6 if n_params <= 3 else 3)
+            fig = Figure(figsize=(base_size * n_params, base_size * n_params), dpi=100, tight_layout=True)
+            fig.patch.set_facecolor('white')
+            
+            # Color palette for parameters
+            colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c']
+            
+            for i, param_x in enumerate(param_names):
+                for j, param_y in enumerate(param_names):
+                    ax = fig.add_subplot(n_params, n_params, i * n_params + j + 1)
+                    
+                    if i == j:
+                        # Diagonal: enhanced histogram with KDE
+                        color = colors[i % len(colors)]
+                        n, bins, patches = ax.hist(df[param_x], bins=20, alpha=0.7, 
+                                                 color=color, edgecolor='black', linewidth=1)
+                        
+                        # Add KDE curve
+                        try:
+                            from scipy import stats
+                            kde = stats.gaussian_kde(df[param_x])
+                            x_range = np.linspace(df[param_x].min(), df[param_x].max(), 100)
+                            kde_values = kde(x_range)
+                            # Scale KDE to match histogram
+                            bin_width = bins[1] - bins[0]
+                            kde_scaled = kde_values * np.max(n) * bin_width / np.max(kde_values)
+                            ax.plot(x_range, kde_scaled, 'darkred', linewidth=2, alpha=0.8)
+                        except:
+                            pass
+                        
+                        ax.set_title(f"{param_x}", fontsize=12, fontweight='bold')
+                        ax.set_facecolor('#f8f9fa')
+                    else:
+                        # Off-diagonal: enhanced scatter plot
+                        scatter = ax.scatter(df[param_x], df[param_y], alpha=0.6, s=30, 
+                                          c=df[param_y], cmap='viridis', edgecolors='black', linewidth=0.3)
+                        
+                        # Add trend line
+                        try:
+                            z = np.polyfit(df[param_x], df[param_y], 1)
+                            p = np.poly1d(z)
+                            x_trend = np.linspace(df[param_x].min(), df[param_x].max(), 100)
+                            ax.plot(x_trend, p(x_trend), "r--", linewidth=1.5, alpha=0.8)
+                        except:
+                            pass
+                        
+                        # Add correlation coefficient and p-value
+                        corr_coef = np.corrcoef(df[param_x], df[param_y])[0, 1]
+                        
+                        # Calculate significance
+                        try:
+                            from scipy import stats
+                            _, p_value = stats.pearsonr(df[param_x], df[param_y])
+                            significance = "***" if p_value < 0.001 else "**" if p_value < 0.01 else "*" if p_value < 0.05 else ""
+                            corr_text = f'r={corr_coef:.3f}{significance}\np={p_value:.3f}'
+                        except:
+                            corr_text = f'r={corr_coef:.3f}'
+                        
+                        ax.text(0.05, 0.95, corr_text, transform=ax.transAxes, fontsize=8,
+                               bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.9, 
+                                       edgecolor='black', linewidth=1))
+                        
+                        ax.set_facecolor('#f8f9fa')
+                    
+                    # Enhanced styling
+                    ax.set_xlabel(param_x, fontsize=10, fontweight='bold')
+                    ax.set_ylabel(param_y, fontsize=10, fontweight='bold')
+                    ax.tick_params(labelsize=8)
+                    ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+            
+            # Add overall title
+            fig.suptitle('Parameter Scatter Matrix', fontsize=16, fontweight='bold', y=0.98)
+            
+            # Create canvas and add to layout
+            canvas = FigureCanvasQTAgg(fig)
+            self.param_plot_widget.layout().addWidget(canvas)
+            
+            # Add toolbar
+            toolbar = NavigationToolbar(canvas, self.param_plot_widget)
+            self.param_plot_widget.layout().addWidget(toolbar)
+            
+            # Add buttons using the helper method
+            self.add_plot_buttons(fig, "Scatter Matrix", "all_parameters")
+            
+            # Add external window button
+            external_button = QPushButton("🔍 Open in New Window")
+            external_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #2ecc71;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #27ae60;
+                }
+            """)
+            external_button.clicked.connect(lambda: self._open_plot_window(fig, "Scatter Matrix"))
+            
+            buttons_layout.addWidget(save_button)
+            buttons_layout.addWidget(external_button)
+            buttons_layout.addStretch()
+            
+            self.param_plot_widget.layout().addWidget(buttons_container)
+            
+        except Exception as e:
+            print(f"Error creating scatter matrix: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def create_two_parameter_scatter(self, param_x, param_y):
+        """Create enhanced scatter plot between two specific parameters"""
+        try:
+            # Create a larger figure with better spacing
+            fig = Figure(figsize=(12, 8), dpi=100)
+            fig.patch.set_facecolor('white')
+            
+            # Create main plot and marginal plots with better spacing
+            gs = fig.add_gridspec(3, 3, height_ratios=[1, 4, 4], width_ratios=[4, 4, 1],
+                                hspace=0.4, wspace=0.4)
+            
+            # Main scatter plot
+            ax_main = fig.add_subplot(gs[1:, :-1])
+            # Top marginal plot (x distribution)
+            ax_top = fig.add_subplot(gs[0, :-1], sharex=ax_main)
+            # Right marginal plot (y distribution)
+            ax_right = fig.add_subplot(gs[1:, -1], sharey=ax_main)
+            
+            values_x = self.current_parameter_data[param_x]
+            values_y = self.current_parameter_data[param_y]
+            
+            # Enhanced scatter plot with better visibility
+            scatter = ax_main.scatter(values_x, values_y, alpha=0.7, s=80, 
+                                    c=np.arange(len(values_x)), cmap='viridis', 
+                                    edgecolors='white', linewidth=0.8)
+            
+            # Add colorbar with better positioning
+            cbar = fig.colorbar(scatter, ax=[ax_main, ax_right], shrink=0.8, aspect=30, pad=0.02)
+            cbar.set_label('Run Order', fontsize=10, fontweight='bold')
+            
+            # Calculate trend line and statistics
+            z = np.polyfit(values_x, values_y, 1)
+            p = np.poly1d(z)
+            x_trend = np.linspace(values_x.min(), values_x.max(), 100)
+            y_trend = p(x_trend)
+            
+            # Add trend line
+            ax_main.plot(x_trend, y_trend, "r--", linewidth=2, alpha=0.8, 
+                        label=f'Trend Line')
+            
+            # Calculate statistics
+            ss_res = np.sum((values_y - p(values_x)) ** 2)
+            ss_tot = np.sum((values_y - np.mean(values_y)) ** 2)
+            r_squared = 1 - (ss_res / ss_tot)
+            
+            try:
+                from scipy import stats
+                # Calculate confidence intervals
+                residuals = values_y - p(values_x)
+                mse = np.mean(residuals**2)
+                std_err = np.sqrt(mse)
+                
+                # 95% confidence intervals
+                y_upper = y_trend + 1.96 * std_err
+                y_lower = y_trend - 1.96 * std_err
+                
+                ax_main.fill_between(x_trend, y_lower, y_upper, alpha=0.2, color='red', 
+                                   label='95% Confidence')
+                
+                # Calculate correlations
+                pearson_corr, pearson_p = stats.pearsonr(values_x, values_y)
+                spearman_corr, spearman_p = stats.spearmanr(values_x, values_y)
+                
+                # Add correlation information to the plot
+                corr_text = (
+                    f"Correlations:\n"
+                    f"• Pearson (r): {pearson_corr:.3f}\n"
+                    f"  p-value: {pearson_p:.3e}\n"
+                    f"• Spearman (ρ): {spearman_corr:.3f}\n"
+                    f"  p-value: {spearman_p:.3e}\n"
+                    f"• R² Score: {r_squared:.3f}"
+                )
+                
+                # Add trend line equation
+                equation_text = (
+                    f"Trend Line:\n"
+                    f"y = {z[0]:.3e}x + {z[1]:.3e}"
+                )
+                
+            except Exception as e:
+                print(f"Error calculating statistics: {str(e)}")
+                pearson_corr = np.corrcoef(values_x, values_y)[0, 1]
+                corr_text = f"Correlation: {pearson_corr:.3f}"
+                equation_text = f"y = {z[0]:.3e}x + {z[1]:.3e}"
+            
+            # Add statistics text boxes with better positioning
+            ax_main.text(0.02, 0.98, corr_text, transform=ax_main.transAxes, 
+                        fontsize=10, verticalalignment='top',
+                        bbox=dict(boxstyle='round,pad=0.5', facecolor='white', 
+                                alpha=0.9, edgecolor='gray', linewidth=1))
+            
+            ax_main.text(0.02, 0.02, equation_text, transform=ax_main.transAxes,
+                        fontsize=10, verticalalignment='bottom',
+                        bbox=dict(boxstyle='round,pad=0.5', facecolor='white',
+                                alpha=0.9, edgecolor='gray', linewidth=1))
+            
+            # Create marginal distributions with KDE
+            try:
+                # Top marginal (x distribution)
+                sns.histplot(values_x, ax=ax_top, bins=30, stat='density', alpha=0.6, 
+                           color='#3498db', edgecolor='black', linewidth=1)
+                kde_x = stats.gaussian_kde(values_x)
+                x_range = np.linspace(values_x.min(), values_x.max(), 100)
+                ax_top.plot(x_range, kde_x(x_range), color='#2980b9', linewidth=2)
+                ax_top.set_ylabel('Density')
+                
+                # Right marginal (y distribution)
+                sns.histplot(values_y, ax=ax_right, bins=30, stat='density', alpha=0.6,
+                           color='#e74c3c', edgecolor='black', linewidth=1,
+                           orientation='horizontal')
+                kde_y = stats.gaussian_kde(values_y)
+                y_range = np.linspace(values_y.min(), values_y.max(), 100)
+                ax_right.plot(kde_y(y_range), y_range, color='#c0392b', linewidth=2)
+                ax_right.set_xlabel('Density')
+            except Exception as e:
+                print(f"Error creating marginal plots: {str(e)}")
+                # Fallback to simple histograms
+                ax_top.hist(values_x, bins=30, density=True, alpha=0.6, color='#3498db')
+                ax_right.hist(values_y, bins=30, density=True, alpha=0.6, color='#e74c3c',
+                            orientation='horizontal')
+            
+            # Clean up axes
+            ax_top.set_title(f'{param_x} Distribution', fontsize=11, pad=10)
+            ax_right.set_title(f'{param_y} Distribution', fontsize=11, rotation=270, pad=15)
+            
+            # Remove unnecessary labels from marginal plots
+            ax_top.set_xlabel('')
+            ax_right.set_ylabel('')
+            
+            # Hide the marginal plot ticks for cleaner look
+            ax_top.tick_params(labelbottom=False)
+            ax_right.tick_params(labelleft=False)
+            
+            # Main plot styling
+            ax_main.set_xlabel(f"{param_x}", fontsize=12, fontweight='bold')
+            ax_main.set_ylabel(f"{param_y}", fontsize=12, fontweight='bold')
+            ax_main.grid(True, alpha=0.3, linestyle='--')
+            
+            # Add correlation strength interpretation
+            corr_strength = ""
+            if abs(pearson_corr) >= 0.8:
+                corr_strength = "Strong"
+                color = "#27ae60"  # Green
+            elif abs(pearson_corr) >= 0.5:
+                corr_strength = "Moderate"
+                color = "#f39c12"  # Orange
+            elif abs(pearson_corr) >= 0.3:
+                corr_strength = "Weak"
+                color = "#e67e22"  # Dark Orange
+            else:
+                corr_strength = "Very Weak"
+                color = "#c0392b"  # Red
+            
+            significance = ""
+            if 'pearson_p' in locals():
+                if pearson_p <= 0.001:
+                    significance = "Highly Significant"
+                elif pearson_p <= 0.01:
+                    significance = "Significant"
+                elif pearson_p <= 0.05:
+                    significance = "Marginally Significant"
+                else:
+                    significance = "Not Significant"
+            
+            title = f"Parameter Correlation Analysis: {corr_strength}"
+            if significance:
+                title += f" ({significance})"
+            
+            fig.suptitle(title, fontsize=14, fontweight='bold', color=color, y=0.95)
+            
+            # Adjust layout
+            fig.tight_layout()
+            
+            # Create canvas and add to layout
+            canvas = FigureCanvasQTAgg(fig)
+            self.param_plot_widget.layout().addWidget(canvas)
+            
+            # Add toolbar
+            toolbar = NavigationToolbar(canvas, self.param_plot_widget)
+            self.param_plot_widget.layout().addWidget(toolbar)
+            
+            # Add buttons using helper method
+            self.add_plot_buttons(fig, "Parameter Correlation", param_x, param_y)
+            
+        except Exception as e:
+            print(f"Error creating two-parameter scatter plot: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def create_qq_plot(self, selected_param):
+        """Create enhanced Q-Q plot for selected parameter"""
+        try:
+            print(f"Debug: Starting QQ plot for parameter: {selected_param}")
+            param_names = [selected_param]
+            
+            n_params = len(param_names)
+            if n_params == 0:
+                print("Debug: No parameters to plot")
+                return
+            
+            # Determine grid layout - larger plots
+            n_cols = min(2, n_params) if n_params > 4 else min(3, n_params)
+            n_rows = (n_params + n_cols - 1) // n_cols
+            
+            # Create adaptive figure size for better display
+            base_width = min(8, 12 if n_params <= 2 else 6)
+            base_height = min(6, 8 if n_params <= 2 else 5)
+            fig = Figure(figsize=(base_width * n_cols, base_height * n_rows), dpi=100, tight_layout=True)
+            fig.patch.set_facecolor('white')
+            
+            # Color palette
+            colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', 
+                     '#34495e', '#e67e22', '#95a5a6', '#16a085']
+            
+            for i, param_name in enumerate(param_names):
+                ax = fig.add_subplot(n_rows, n_cols, i + 1)
+                
+                values = self.current_parameter_data[param_name]
+                color = colors[i % len(colors)]
+                
+                # Create enhanced Q-Q plot
+                try:
+                    from scipy import stats
+                    print(f"Debug: Successfully imported scipy for {param_name}")
+                    
+                    # Get theoretical and sample quantiles
+                    theoretical_quantiles, sample_quantiles = stats.probplot(values, dist="norm", plot=None)
+                    print(f"Debug: Successfully calculated quantiles for {param_name}")
+                except ImportError:
+                    print("SciPy not available for Q-Q plot")
+                    continue
+                except Exception as e:
+                    print(f"Error creating Q-Q plot for {param_name}: {str(e)}")
+                    continue
+                
+                # Plot the Q-Q plot with enhanced styling
+                ax.scatter(theoretical_quantiles, sample_quantiles, alpha=0.7, s=50, 
+                          color=color, edgecolors='black', linewidth=0.5, label='Sample Data')
+                
+                # Add reference line (perfect normal)
+                min_val = min(theoretical_quantiles.min(), sample_quantiles.min())
+                max_val = max(theoretical_quantiles.max(), sample_quantiles.max())
+                ax.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, 
+                       alpha=0.8, label='Perfect Normal')
+                
+                # Add regression line through Q-Q points
+                slope, intercept, r_value, p_value, std_err = stats.linregress(theoretical_quantiles, sample_quantiles)
+                line_x = np.array([theoretical_quantiles.min(), theoretical_quantiles.max()])
+                line_y = slope * line_x + intercept
+                ax.plot(line_x, line_y, 'g-', linewidth=2, alpha=0.8, 
+                       label=f'Regression Line (R²={r_value**2:.3f})')
+                
+                # Perform comprehensive normality tests
+                shapiro_test = stats.shapiro(values)
+                ks_test = stats.kstest(values, 'norm', args=(values.mean(), values.std()))
+                
+                # Additional tests
+                try:
+                    anderson_test = stats.anderson(values, dist='norm')
+                    jarque_bera_test = stats.jarque_bera(values)
+                    
+                    # Determine Anderson-Darling critical value significance
+                    ad_critical_values = anderson_test.critical_values
+                    ad_significance_levels = anderson_test.significance_level
+                    ad_result = "Non-normal"
+                    for j, (cv, sl) in enumerate(zip(ad_critical_values, ad_significance_levels)):
+                        if anderson_test.statistic < cv:
+                            ad_result = f"Normal (α={sl}%)"
+                            break
+                    
+                except Exception as e:
+                    anderson_test = None
+                    jarque_bera_test = None
+                    ad_result = "N/A"
+                
+                # Enhanced test results
+                test_text = (f"Normality Tests:\n"
+                           f"Shapiro-Wilk: W={shapiro_test[0]:.4f}, p={shapiro_test[1]:.4f}\n"
+                           f"Kolmogorov-Smirnov: D={ks_test[0]:.4f}, p={ks_test[1]:.4f}\n")
+                
+                if anderson_test is not None:
+                    test_text += f"Anderson-Darling: {ad_result}\n"
+                if jarque_bera_test is not None:
+                    test_text += f"Jarque-Bera: JB={jarque_bera_test[0]:.4f}, p={jarque_bera_test[1]:.4f}\n"
+                
+                # Add distribution characteristics
+                mean_val = np.mean(values)
+                std_val = np.std(values)
+                skewness = stats.skew(values)
+                kurtosis = stats.kurtosis(values)
+                
+                test_text += f"\nDistribution Properties:\n"
+                test_text += f"Mean: {mean_val:.4f}\n"
+                test_text += f"Std Dev: {std_val:.4f}\n"
+                test_text += f"Skewness: {skewness:.3f}\n"
+                test_text += f"Kurtosis: {kurtosis:.3f}"
+                
+                ax.text(0.02, 0.98, test_text, transform=ax.transAxes, 
+                       fontsize=9, verticalalignment='top', fontweight='bold',
+                       bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgray', 
+                               alpha=0.9, edgecolor='black', linewidth=1))
+                
+                # Enhanced styling
+                ax.set_title(f"{param_name} Q-Q Plot (Normal Distribution)", fontsize=14, fontweight='bold', pad=20)
+                ax.set_xlabel("Theoretical Quantiles", fontsize=12, fontweight='bold')
+                ax.set_ylabel("Sample Quantiles", fontsize=12, fontweight='bold')
+                ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+                ax.set_facecolor('#f8f9fa')
+                
+                # Enhanced legend
+                legend = ax.legend(loc='lower right', fontsize=10, framealpha=0.9)
+                legend.get_frame().set_facecolor('white')
+                legend.get_frame().set_edgecolor('black')
+                
+                # Add interpretation text
+                interpretation = ""
+                if shapiro_test[1] > 0.05:
+                    interpretation = "Data appears normally distributed"
+                elif shapiro_test[1] > 0.01:
+                    interpretation = "Data may deviate from normal"
+                else:
+                    interpretation = "Data significantly non-normal"
+                
+                ax.text(0.5, -0.12, interpretation, transform=ax.transAxes, 
+                       ha='center', fontsize=10, style='italic', fontweight='bold')
+            
+            # Create canvas and add to layout
+            canvas = FigureCanvasQTAgg(fig)
+            self.param_plot_widget.layout().addWidget(canvas)
+            
+            # Add toolbar
+            toolbar = NavigationToolbar(canvas, self.param_plot_widget)
+            self.param_plot_widget.layout().addWidget(toolbar)
+            
+            print(f"Debug: Successfully completed QQ plot for {selected_param}")
+            
+            # Add buttons using the helper method
+            self.add_plot_buttons(fig, "Q-Q Plot", selected_param)
+            
+        except Exception as e:
+            print(f"Error creating Q-Q plot: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def create_parameter_statistics_tables(self, parameter_data):
+        """Create comprehensive statistics tables for each parameter"""
+        try:
+            # Clear existing layout properly
+            if self.param_stats_widget.layout():
+                while self.param_stats_widget.layout().count():
+                    child = self.param_stats_widget.layout().takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+            else:
+                self.param_stats_widget.setLayout(QVBoxLayout())
+            
+            if not parameter_data:
+                no_data_label = QLabel("No parameter data available for statistics")
+                no_data_label.setAlignment(Qt.AlignCenter)
+                self.param_stats_widget.layout().addWidget(no_data_label)
+                return
+            
+            # Get selected view
+            view_type = self.stats_view_combo.currentText()
+            
+            if view_type == "Summary Table":
+                self.create_summary_statistics_table(parameter_data)
+            elif view_type == "Detailed Statistics":
+                self.create_detailed_statistics_tables(parameter_data)
+            elif view_type == "Equations & Formulas":
+                self.create_equations_display()
+            
+        except Exception as e:
+            print(f"Error creating parameter statistics tables: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def create_summary_statistics_table(self, parameter_data):
+        """Create simplified summary statistics table matching the program theme"""
+        try:
+            # Create main statistics table
+            main_table = QTableWidget()
+            param_names = list(parameter_data.keys())
+            
+            # Simplified columns matching the original program style
+            stats_columns = ['Parameter', 'Count', 'Mean', 'Std', 'Min', 'Max', 'Q1', 'Median', 'Q3']
+            main_table.setColumnCount(len(stats_columns))
+            main_table.setHorizontalHeaderLabels(stats_columns)
+            main_table.setRowCount(len(param_names))
+            
+            # Calculate statistics for each parameter
+            for i, param_name in enumerate(param_names):
+                values = parameter_data[param_name]
+                
+                # Basic statistics
+                count = len(values)
+                mean_val = np.mean(values)
+                std_val = np.std(values)
+                min_val = np.min(values)
+                max_val = np.max(values)
+                
+                # Percentiles
+                q1 = np.percentile(values, 25)
+                median_val = np.percentile(values, 50)
+                q3 = np.percentile(values, 75)
+                
+                # Fill table row
+                main_table.setItem(i, 0, QTableWidgetItem(param_name))
+                main_table.setItem(i, 1, QTableWidgetItem(str(count)))
+                main_table.setItem(i, 2, QTableWidgetItem(f"{mean_val:.6f}"))
+                main_table.setItem(i, 3, QTableWidgetItem(f"{std_val:.6f}"))
+                main_table.setItem(i, 4, QTableWidgetItem(f"{min_val:.6f}"))
+                main_table.setItem(i, 5, QTableWidgetItem(f"{max_val:.6f}"))
+                main_table.setItem(i, 6, QTableWidgetItem(f"{q1:.6f}"))
+                main_table.setItem(i, 7, QTableWidgetItem(f"{median_val:.6f}"))
+                main_table.setItem(i, 8, QTableWidgetItem(f"{q3:.6f}"))
+            
+            # Configure table appearance to match program theme
+            main_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            main_table.setAlternatingRowColors(True)
+            main_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            
+            # Add simple title matching program style
+            title_label = QLabel("Parameter Statistics Summary")
+            title_label.setAlignment(Qt.AlignCenter)
+            title_label.setStyleSheet("font-weight: bold; font-size: 12pt; margin: 10px;")
+            
+            # Add widgets to layout
+            self.param_stats_widget.layout().addWidget(title_label)
+            self.param_stats_widget.layout().addWidget(main_table)
+            
+        except Exception as e:
+            print(f"Error creating summary statistics table: {str(e)}")
+    
+    def create_detailed_statistics_tables(self, parameter_data):
+        """Create detailed statistics tables with advanced metrics"""
+        try:
+            # Create detailed statistics table
+            detailed_table = QTableWidget()
+            param_names = list(parameter_data.keys())
+            
+            # Simplified columns for detailed analysis  
+            stats_columns = ['Parameter', 'Mean', 'Std', 'Min', 'Max', 'Range', 'Variance', 'CV%']
+            detailed_table.setColumnCount(len(stats_columns))
+            detailed_table.setHorizontalHeaderLabels(stats_columns)
+            detailed_table.setRowCount(len(param_names))
+            
+            # Calculate detailed statistics for each parameter
+            for i, param_name in enumerate(param_names):
+                values = parameter_data[param_name]
+                
+                # Basic statistics
+                mean_val = np.mean(values)
+                std_val = np.std(values)
+                min_val = np.min(values)
+                max_val = np.max(values)
+                range_val = max_val - min_val
+                variance = np.var(values)
+                cv = (std_val / mean_val) * 100 if mean_val != 0 else 0
+                
+                # Fill table row
+                detailed_table.setItem(i, 0, QTableWidgetItem(param_name))
+                detailed_table.setItem(i, 1, QTableWidgetItem(f"{mean_val:.6f}"))
+                detailed_table.setItem(i, 2, QTableWidgetItem(f"{std_val:.6f}"))
+                detailed_table.setItem(i, 3, QTableWidgetItem(f"{min_val:.6f}"))
+                detailed_table.setItem(i, 4, QTableWidgetItem(f"{max_val:.6f}"))
+                detailed_table.setItem(i, 5, QTableWidgetItem(f"{range_val:.6f}"))
+                detailed_table.setItem(i, 6, QTableWidgetItem(f"{variance:.6f}"))
+                detailed_table.setItem(i, 7, QTableWidgetItem(f"{cv:.2f}%"))
+            
+            # Configure table appearance to match program theme
+            detailed_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            detailed_table.setAlternatingRowColors(True)
+            detailed_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            
+            # Add simple title matching program style
+            title_label = QLabel("Detailed Parameter Statistics")
+            title_label.setAlignment(Qt.AlignCenter)
+            title_label.setStyleSheet("font-weight: bold; font-size: 12pt; margin: 10px;")
+            
+            # Add widgets to layout
+            self.param_stats_widget.layout().addWidget(title_label)
+            self.param_stats_widget.layout().addWidget(detailed_table)
+            
+
+            
+        except Exception as e:
+            print(f"Error creating detailed statistics tables: {str(e)}")
+    
+    def create_equations_display(self):
+        """Create equations and formulas display"""
+        try:
+            equations_text = QTextEdit()
+            equations_text.setReadOnly(True)
+            
+            equations_html = """
+            <h2>Statistical Equations and Explanations</h2>
+            
+            <h3>Basic Statistics</h3>
+            <p><b>Mean (μ):</b> μ = (1/n) Σ(xi) - Average value of the parameter</p>
+            <p><b>Standard Deviation (σ):</b> σ = √[(1/n) Σ(xi - μ)²] - Measure of spread</p>
+            <p><b>Variance (σ²):</b> σ² = (1/n) Σ(xi - μ)² - Square of standard deviation</p>
+            <p><b>Standard Error of Mean:</b> SE = σ/√n - Standard error of the sample mean</p>
+            
+            <h3>Percentiles and Quartiles</h3>
+            <p><b>Quartiles:</b> Q1 (25th percentile), Q2 (50th percentile = median), Q3 (75th percentile)</p>
+            <p><b>Interquartile Range (IQR):</b> IQR = Q3 - Q1 - Middle 50% spread</p>
+            
+            <h3>Shape Measures</h3>
+            <p><b>Skewness:</b> Measure of asymmetry</p>
+            <ul>
+                <li>0 = symmetric distribution</li>
+                <li>>0 = right-skewed (long tail to the right)</li>
+                <li><0 = left-skewed (long tail to the left)</li>
+            </ul>
+            <p><b>Kurtosis:</b> Measure of tail heaviness</p>
+            <ul>
+                <li>0 = normal distribution</li>
+                <li>>0 = heavy tails (leptokurtic)</li>
+                <li><0 = light tails (platykurtic)</li>
+            </ul>
+            
+            <h3>Variability Measures</h3>
+            <p><b>Coefficient of Variation (CV):</b> CV = (σ/μ) × 100% - Relative variability</p>
+            <p><b>Range:</b> Range = Max - Min - Total spread of the data</p>
+            
+            <h3>Correlation</h3>
+            <p><b>Pearson Correlation:</b> r = Σ[(xi - x̄)(yi - ȳ)] / √[Σ(xi - x̄)²Σ(yi - ȳ)²]</p>
+            <p><b>Spearman Correlation:</b> Rank-based correlation coefficient</p>
+            <p><b>Kendall's Tau:</b> Alternative rank-based correlation measure</p>
+            
+            <h3>Interpretation Guidelines</h3>
+            <p><b>Correlation Strength:</b></p>
+            <ul>
+                <li>|r| > 0.7: Strong correlation</li>
+                <li>0.3 < |r| < 0.7: Moderate correlation</li>
+                <li>|r| < 0.3: Weak correlation</li>
+            </ul>
+            
+            <p><b>Normality Tests:</b></p>
+            <ul>
+                <li>Shapiro-Wilk: Tests if data comes from normal distribution</li>
+                <li>Kolmogorov-Smirnov: Compares sample to normal distribution</li>
+                <li>p > 0.05: Data likely normal</li>
+                <li>p ≤ 0.05: Data likely not normal</li>
+            </ul>
+            """
+            equations_text.setHtml(equations_html)
+            
+            self.param_stats_widget.layout().addWidget(equations_text)
+            
+        except Exception as e:
+            print(f"Error creating equations display: {str(e)}")
+    
+
+    
+
         
     def export_ga_benchmark_data(self):
         """Export GA benchmark data to a JSON file with all visualization data"""
@@ -2506,3 +3850,71 @@ class GAOptimizationMixin:
         except Exception as e:
             QMessageBox.critical(self, "Error Saving Plot", 
                                f"Failed to save plot: {str(e)}")
+
+    def add_plot_buttons(self, fig, plot_type, selected_param, comparison_param=None):
+        """Helper method to add consistent plot buttons"""
+        try:
+            # Create buttons container with fixed height
+            buttons_container = QWidget()
+            buttons_container.setFixedHeight(50)  # Set fixed height
+            buttons_layout = QHBoxLayout(buttons_container)
+            buttons_layout.setContentsMargins(10, 5, 10, 5)  # Add some padding
+            
+            # Add save button
+            save_button = QPushButton("💾 Save Plot")
+            save_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #3498db;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    min-width: 120px;
+                }
+                QPushButton:hover {
+                    background-color: #2980b9;
+                }
+            """)
+            
+            # Determine plot name based on type
+            if comparison_param and comparison_param != "None":
+                plot_name = f"{plot_type.lower().replace(' ', '_')}_{selected_param}_vs_{comparison_param}"
+                window_title = f"{plot_type} - {selected_param} vs {comparison_param}"
+            else:
+                plot_name = f"{plot_type.lower().replace(' ', '_')}_{selected_param}"
+                window_title = f"{plot_type} - {selected_param}"
+            
+            save_button.clicked.connect(lambda: self.save_plot(fig, plot_name))
+            
+            # Add external window button
+            external_button = QPushButton("🔍 Open in New Window")
+            external_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #2ecc71;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    min-width: 120px;
+                }
+                QPushButton:hover {
+                    background-color: #27ae60;
+                }
+            """)
+            external_button.clicked.connect(lambda: self._open_plot_window(fig, window_title))
+            
+            # Add buttons to layout
+            buttons_layout.addWidget(save_button)
+            buttons_layout.addWidget(external_button)
+            buttons_layout.addStretch()
+            
+            # Add buttons container to main layout
+            self.param_plot_widget.layout().addWidget(buttons_container)
+            print(f"Debug: Added buttons for {plot_type}")
+            
+        except Exception as e:
+            print(f"Error adding plot buttons: {str(e)}")
+            import traceback
+            traceback.print_exc()
