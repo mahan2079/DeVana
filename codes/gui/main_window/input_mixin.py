@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -20,16 +21,15 @@ class InputTabsMixin:
         main_container = QWidget()
         main_layout = QVBoxLayout(main_container)
         
-        # Main system parameters group
-        params_group = QGroupBox("Main System Parameters")
-        params_layout = QFormLayout(params_group)
+        # Create form layout for parameters
+        params_form = QFormLayout()
         
         # MU parameter
         self.mu_box = QDoubleSpinBox()
         self.mu_box.setRange(-1e6, 1e6)
         self.mu_box.setDecimals(6)
         self.mu_box.setValue(1.0)
-        params_layout.addRow("μ (MU):", self.mu_box)
+        params_form.addRow("μ (MU):", self.mu_box)
 
         # LANDA parameters (Lambda)
         self.landa_boxes = []
@@ -42,7 +42,7 @@ class InputTabsMixin:
             else:
                 box.setValue(0.5)
             self.landa_boxes.append(box)
-            params_layout.addRow(f"Λ_{i+1}:", box)
+            params_form.addRow(f"Λ_{i+1}:", box)
 
         # NU parameters
         self.nu_boxes = []
@@ -52,51 +52,52 @@ class InputTabsMixin:
             box.setDecimals(6)
             box.setValue(0.75)
             self.nu_boxes.append(box)
-            params_layout.addRow(f"Ν_{i+1}:", box)
+            params_form.addRow(f"Ν_{i+1}:", box)
 
         # A_LOW parameter
         self.a_low_box = QDoubleSpinBox()
         self.a_low_box.setRange(0, 1e10)
         self.a_low_box.setDecimals(6)
         self.a_low_box.setValue(0.05)
-        params_layout.addRow("A_LOW:", self.a_low_box)
+        params_form.addRow("A_LOW:", self.a_low_box)
 
         # A_UPP parameter
         self.a_up_box = QDoubleSpinBox()
         self.a_up_box.setRange(0, 1e10)
         self.a_up_box.setDecimals(6)
         self.a_up_box.setValue(0.05)
-        params_layout.addRow("A_UPP:", self.a_up_box)
+        params_form.addRow("A_UPP:", self.a_up_box)
 
         # F_1 parameter
         self.f_1_box = QDoubleSpinBox()
         self.f_1_box.setRange(0, 1e10)
         self.f_1_box.setDecimals(6)
         self.f_1_box.setValue(100.0)
-        params_layout.addRow("F_1:", self.f_1_box)
+        params_form.addRow("F_1:", self.f_1_box)
 
         # F_2 parameter
         self.f_2_box = QDoubleSpinBox()
         self.f_2_box.setRange(0, 1e10)
         self.f_2_box.setDecimals(6)
         self.f_2_box.setValue(100.0)
-        params_layout.addRow("F_2:", self.f_2_box)
+        params_form.addRow("F_2:", self.f_2_box)
 
         # OMEGA_DC parameter
         self.omega_dc_box = QDoubleSpinBox()
         self.omega_dc_box.setRange(0, 1e10)
         self.omega_dc_box.setDecimals(6)
         self.omega_dc_box.setValue(5000.0)
-        params_layout.addRow("Ω_DC:", self.omega_dc_box)
+        params_form.addRow("Ω_DC:", self.omega_dc_box)
 
         # ZETA_DC parameter
         self.zeta_dc_box = QDoubleSpinBox()
         self.zeta_dc_box.setRange(0, 1e10)
         self.zeta_dc_box.setDecimals(6)
         self.zeta_dc_box.setValue(0.01)
-        params_layout.addRow("ζ_DC:", self.zeta_dc_box)
+        params_form.addRow("ζ_DC:", self.zeta_dc_box)
         
-        main_layout.addWidget(params_group)
+        # Add form layout to main layout
+        main_layout.addLayout(params_form)
         main_layout.addStretch()
         
         # Set the container as the scroll area's widget
@@ -104,6 +105,8 @@ class InputTabsMixin:
         
         # Add scroll area to the tab's layout
         layout.addWidget(scroll_area)
+        
+        return self.main_system_tab
 
     def create_dva_parameters_tab(self):
         """Create the DVA parameters tab"""
@@ -522,137 +525,6 @@ class InputTabsMixin:
         vis_tab = QWidget()
         vis_layout = QVBoxLayout(vis_tab)
         vis_layout.addWidget(self.vis_tabs)
-        self.sobol_sub_tabs = QTabWidget()
-
-        # -------------------- Sub-tab 1: Sobol Analysis Settings --------------------
-        sobol_settings_tab = QWidget()
-        sobol_settings_layout = QFormLayout(sobol_settings_tab)
-
-        self.num_samples_line = QLineEdit()
-        self.num_samples_line.setPlaceholderText("e.g. 32,64,128")
-        sobol_settings_layout.addRow("Num Samples List:", self.num_samples_line)
-
-        self.n_jobs_spin = QSpinBox()
-        self.n_jobs_spin.setRange(1, 64)
-        self.n_jobs_spin.setValue(5)
-        sobol_settings_layout.addRow("Number of Jobs (n_jobs):", self.n_jobs_spin)
-
-        # Add a small Run Sobol button in the settings sub-tab
-        self.hyper_run_sobol_button = QPushButton("Run Sobol")
-        self.hyper_run_sobol_button.setFixedWidth(100)
-        self.hyper_run_sobol_button.clicked.connect(self._run_sobol_implementation)
-        sobol_settings_layout.addRow("Run Sobol:", self.hyper_run_sobol_button)
-
-        # -------------------- Sub-tab 2: DVA Parameters --------------------
-        dva_param_tab = QWidget()
-        dva_param_layout = QVBoxLayout(dva_param_tab)
-
-        self.dva_param_table = QTableWidget()
-        dva_parameters = [
-            *[f"beta_{i}" for i in range(1,16)],
-            *[f"lambda_{i}" for i in range(1,16)],
-            *[f"mu_{i}" for i in range(1,4)],
-            *[f"nu_{i}" for i in range(1,16)]
-        ]
-        self.dva_param_table.setRowCount(len(dva_parameters))
-        self.dva_param_table.setColumnCount(5)
-        self.dva_param_table.setHorizontalHeaderLabels(
-            ["Parameter", "Fixed", "Fixed Value", "Lower Bound", "Upper Bound"]
-        )
-        self.dva_param_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.dva_param_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-
-        for row, param in enumerate(dva_parameters):
-            param_item = QTableWidgetItem(param)
-            param_item.setFlags(Qt.ItemIsEnabled)
-            self.dva_param_table.setItem(row, 0, param_item)
-
-            fixed_checkbox = QCheckBox()
-            fixed_checkbox.stateChanged.connect(lambda state, r=row: self.toggle_fixed(state, r))
-            self.dva_param_table.setCellWidget(row, 1, fixed_checkbox)
-
-            fixed_value_spin = QDoubleSpinBox()
-            fixed_value_spin.setRange(-1e6, 1e6)
-            fixed_value_spin.setDecimals(6)
-            fixed_value_spin.setEnabled(False)
-            self.dva_param_table.setCellWidget(row, 2, fixed_value_spin)
-
-            lower_bound_spin = QDoubleSpinBox()
-            lower_bound_spin.setRange(-1e6, 1e6)
-            lower_bound_spin.setDecimals(6)
-            lower_bound_spin.setEnabled(True)
-            self.dva_param_table.setCellWidget(row, 3, lower_bound_spin)
-
-            upper_bound_spin = QDoubleSpinBox()
-            upper_bound_spin.setRange(-1e6, 1e6)
-            upper_bound_spin.setDecimals(6)
-            upper_bound_spin.setEnabled(True)
-            self.dva_param_table.setCellWidget(row, 4, upper_bound_spin)
-
-            # Default ranges
-            if param.startswith("beta_") or param.startswith("lambda_") or param.startswith("nu_"):
-                lower_bound_spin.setValue(0.0001)
-                upper_bound_spin.setValue(2.5)
-            elif param.startswith("mu_"):
-                lower_bound_spin.setValue(0.0001)
-                upper_bound_spin.setValue(0.75)
-            else:
-                lower_bound_spin.setValue(0.0)
-                upper_bound_spin.setValue(1.0)
-
-        dva_param_layout.addWidget(self.dva_param_table)
-
-        # -------------------- Sub-tab 3: Sobol Results --------------------
-        sobol_results_tab = QWidget()
-        sobol_results_layout = QVBoxLayout(sobol_results_tab)
-        
-        # Results text area
-        self.sobol_results_text = QTextEdit()
-        self.sobol_results_text.setReadOnly(True)
-        self.sobol_results_text.setStyleSheet("font-family: monospace;")
-        sobol_results_layout.addWidget(self.sobol_results_text)
-        
-        # Placeholder for Sobol plots
-        plot_container = QWidget()
-        plot_layout = QVBoxLayout(plot_container)
-        
-        # Plotting controls section
-        plot_controls = QWidget()
-        plot_controls_layout = QHBoxLayout(plot_controls)
-        
-        self.sobol_combo = QComboBox()
-        self.sobol_combo.currentIndexChanged.connect(self.update_sobol_plot)
-        plot_controls_layout.addWidget(QLabel("Plot Type:"))
-        plot_controls_layout.addWidget(self.sobol_combo)
-        
-        save_button = QPushButton("Save Results")
-        save_button.clicked.connect(self.save_sobol_results)
-        plot_controls_layout.addWidget(save_button)
-        
-        plot_layout.addWidget(plot_controls)
-        
-        # Figure canvas
-        self.sobol_figure = Figure(figsize=(4, 4))
-        self.sobol_canvas = FigureCanvas(self.sobol_figure)
-        self.sobol_canvas.setMinimumHeight(300)
-        toolbar = NavigationToolbar(self.sobol_canvas, self)
-        
-        plot_layout.addWidget(toolbar)
-        plot_layout.addWidget(self.sobol_canvas)
-        
-        sobol_results_layout.addWidget(plot_container)
-        
-        # Initialize plots dictionary
-        self.sobol_plots = {}
-
-        # Add sub-tabs to the Sobol tab widget
-        self.sobol_sub_tabs.addTab(sobol_settings_tab, "Analysis Settings")
-        self.sobol_sub_tabs.addTab(dva_param_tab, "DVA Parameters")
-        self.sobol_sub_tabs.addTab(sobol_results_tab, "Results")
-
-        # Add the Sobol sub-tabs widget to the main Sobol tab layout
-        layout.addWidget(self.sobol_sub_tabs)
-        self.sobol_tab.setLayout(layout)
 
     def get_main_system_params(self):
         """Get the main system parameters in a tuple format"""
@@ -882,6 +754,23 @@ class InputTabsMixin:
     def refresh_sensitivity_plot(self):
         """Refresh the sensitivity analysis plots with current data"""
         try:
+            # Check if we have sensitivity results
+            if not hasattr(self, 'sensitivity_results') or self.sensitivity_results is None:
+                QMessageBox.warning(self, "No Data", "No sensitivity analysis results available. Please run the analysis first.")
+                return
+                
+            results = self.sensitivity_results
+            
+            # Extract data from results
+            omega_points = results.get("omega_points", [])
+            max_slopes = results.get("max_slopes", [])
+            relative_changes = results.get("relative_changes", [])
+            optimal_points = results.get("optimal_points", 0)
+            
+            if not omega_points or not max_slopes:
+                QMessageBox.warning(self, "No Data", "No valid data found in sensitivity analysis results.")
+                return
+            
             # Get current tab index
             current_tab = self.vis_tabs.currentIndex()
             
@@ -890,11 +779,24 @@ class InputTabsMixin:
                 self.convergence_fig.clear()
                 ax = self.convergence_fig.add_subplot(111)
                 
-                # Add convergence plot data here
-                # This is a placeholder - actual implementation would depend on your data
-                ax.set_title('Slope Convergence')
-                ax.set_xlabel('Iteration')
-                ax.set_ylabel('Slope')
+                # Plot slope convergence
+                ax.plot(omega_points, max_slopes, 'o-', linewidth=2, markersize=6, 
+                       color='#1f77b4', label='Maximum Slope')
+                
+                # Highlight the optimal point
+                if optimal_points in omega_points:
+                    opt_idx = omega_points.index(optimal_points)
+                    ax.plot(optimal_points, max_slopes[opt_idx], 'ro', markersize=10, 
+                           label=f'Optimal Point: {optimal_points}')
+                
+                ax.set_title('Slope Convergence Analysis', fontsize=14, fontweight='bold')
+                ax.set_xlabel('Number of Omega Points', fontsize=12)
+                ax.set_ylabel('Maximum Slope', fontsize=12)
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+                
+                # Format the plot nicely
+                ax.tick_params(axis='both', which='major', labelsize=10)
                 
                 self.convergence_canvas.draw()
                 
@@ -902,11 +804,38 @@ class InputTabsMixin:
                 self.rel_change_fig.clear()
                 ax = self.rel_change_fig.add_subplot(111)
                 
-                # Add relative change plot data here
-                # This is a placeholder - actual implementation would depend on your data
-                ax.set_title('Relative Change')
-                ax.set_xlabel('Iteration')
-                ax.set_ylabel('Relative Change')
+                # Plot relative changes (skip first point as it has no relative change)
+                if len(relative_changes) > 0:
+                    # Remove NaN values for plotting
+                    valid_indices = [i for i, val in enumerate(relative_changes) if not np.isnan(val)]
+                    valid_points = [omega_points[i] for i in valid_indices]
+                    valid_changes = [relative_changes[i] for i in valid_indices]
+                    
+                    if valid_points:
+                        ax.semilogy(valid_points, valid_changes, 'o-', linewidth=2, markersize=6, 
+                                   color='#ff7f0e', label='Relative Change')
+                        
+                        # Add convergence threshold line
+                        convergence_threshold = self.sensitivity_threshold.value()
+                        ax.axhline(y=convergence_threshold, color='red', linestyle='--', 
+                                  linewidth=2, label=f'Convergence Threshold: {convergence_threshold}')
+                        
+                        # Highlight convergence point if it exists
+                        convergence_point = results.get("convergence_point")
+                        if convergence_point and convergence_point in omega_points:
+                            conv_idx = omega_points.index(convergence_point)
+                            if conv_idx < len(relative_changes) and not np.isnan(relative_changes[conv_idx]):
+                                ax.plot(convergence_point, relative_changes[conv_idx], 'go', 
+                                       markersize=10, label=f'Convergence Point: {convergence_point}')
+                
+                ax.set_title('Relative Change in Maximum Slope', fontsize=14, fontweight='bold')
+                ax.set_xlabel('Number of Omega Points', fontsize=12)
+                ax.set_ylabel('Relative Change (log scale)', fontsize=12)
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+                
+                # Format the plot nicely
+                ax.tick_params(axis='both', which='major', labelsize=10)
                 
                 self.rel_change_canvas.draw()
             
@@ -918,7 +847,8 @@ class InputTabsMixin:
             self.rel_change_no_data_label.setVisible(False)
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", 
-                               f"Failed to refresh sensitivity plot: {str(e)}")
+            import traceback
+            error_msg = f"Failed to refresh sensitivity plot: {str(e)}\n{traceback.format_exc()}"
+            QMessageBox.critical(self, "Error", error_msg)
 
 

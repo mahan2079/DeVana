@@ -2,7 +2,7 @@
 
 ![DeVana Logo](Logo.png)
 
-**Version:** V0.1.0  
+**Version:** V0.2.0  
 **Release Date:** January 2025  
 **Author:** Mahan Dashti Gohari  
 

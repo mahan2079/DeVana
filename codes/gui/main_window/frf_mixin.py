@@ -446,22 +446,10 @@ class FRFMixin:
             QMessageBox.critical(self, "Import Error", f"Error importing data: {str(e)}")
     
     def create_sobol_analysis_tab(self):
-        self.sobol_tab = QWidget()
-        layout = QVBoxLayout(self.sobol_tab)
-
-        # Create sub-tabs widget
-        # No relative change data available
-        ax = self.rel_change_fig.add_subplot(111)
-        ax.text(0.5, 0.5, "Insufficient data for relative change calculation", 
-                horizontalalignment='center', verticalalignment='center',
-                transform=ax.transAxes, fontsize=14, fontstyle='italic', color='#888')
-        
-        # Update the figure
-        self.rel_change_fig.tight_layout()
-        self.rel_change_canvas.draw()
-        
-        # Hide "no data" message
-        self.rel_change_no_data_label.setVisible(False)
+        """This method is overridden by SobolAnalysisMixin - do not implement here"""
+        # Call the SobolAnalysisMixin method directly
+        from gui.main_window.sobol_mixin import SobolAnalysisMixin
+        return SobolAnalysisMixin.create_sobol_analysis_tab(self)
         
     def run_frf(self):
         """Run the FRF analysis"""
