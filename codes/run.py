@@ -111,6 +111,7 @@ def exception_hook(exctype, value, tb):
 # Set the exception hook
 sys.excepthook = exception_hook
 
+# DeVana v0.2.2
 
 class WelcomePage(QWidget):
     def __init__(self):
@@ -142,7 +143,7 @@ class WelcomePage(QWidget):
             padding: 20px;
         """)
         
-        self.version_label = QLabel("Version V0.2.1")
+        self.version_label = QLabel("Version V0.2.2")
         self.version_label.setFont(QFont("Segoe UI", 18, QFont.Normal))
         self.version_label.setAlignment(Qt.AlignCenter)
         self.version_label.setStyleSheet("""
@@ -307,26 +308,33 @@ class WelcomePage(QWidget):
         
     def update_animations(self):
         """Update background animations"""
-        # Update gradient phase for animated background
-        self.gradient_phase += 0.01
-        if self.gradient_phase >= 1.0:
-            self.gradient_phase = 0.0
-            
-        # Update pulse phase for subtle pulsing effect
-        self.pulse_phase += 0.03
-        if self.pulse_phase >= 6.28:  # 2π
-            self.pulse_phase = 0.0
-            
-        # Update particle positions
-        for particle in self.particle_positions:
-            particle[1] += particle[3]  # Move particle down
-            if particle[1] > 600:  # Reset particle to top
-                particle[1] = -10
-                import random
-                particle[0] = random.randint(0, 800)
+        try:
+            # Update gradient phase for animated background
+            self.gradient_phase += 0.01
+            if self.gradient_phase >= 1.0:
+                self.gradient_phase = 0.0
                 
-        # Trigger repaint
-        self.update()
+            # Update pulse phase for subtle pulsing effect
+            self.pulse_phase += 0.03
+            if self.pulse_phase >= 6.28:  # 2π
+                self.pulse_phase = 0.0
+                
+            # Update particle positions
+            for particle in self.particle_positions:
+                particle[1] += particle[3]  # Move particle down
+                if particle[1] > 600:  # Reset particle to top
+                    particle[1] = -10
+                    import random
+                    particle[0] = random.randint(0, 800)
+                    
+            # Trigger repaint - only if the widget is visible and not already repainting
+            if self.isVisible() and not hasattr(self, '_repainting'):
+                self.update()
+        except Exception as e:
+            print(f"Error in update_animations: {e}")
+            # Stop the animation timer to prevent cascading errors
+            if hasattr(self, 'animation_timer'):
+                self.animation_timer.stop()
         
     def update_progress(self):
         """Update progress bar with smooth animation"""
@@ -351,69 +359,81 @@ class WelcomePage(QWidget):
             
     def paintEvent(self, event):
         """Custom paint event with sophisticated visual effects and elegant gradients"""
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        # Prevent recursive repainting
+        if hasattr(self, '_repainting'):
+            return
         
-        # Enhanced animated gradient background
-        import math
-        gradient = QLinearGradient(0, 0, self.width(), self.height())
+        self._repainting = True
+        try:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
         
-        # Create more sophisticated shifting colors
-        base_hue = 240 + (self.gradient_phase * 80)  # Blue to purple to pink
-        
-        # More elegant color palette
-        color1 = QColor.fromHsv(int(base_hue) % 360, 85, 25)          # Deep rich base
-        color2 = QColor.fromHsv(int(base_hue + 40) % 360, 70, 35)     # Mid tone
-        color3 = QColor.fromHsv(int(base_hue + 80) % 360, 60, 20)     # Dark accent
-        color4 = QColor.fromHsv(int(base_hue + 120) % 360, 50, 30)    # Complementary
-        
-        gradient.setColorAt(0.0, color1)
-        gradient.setColorAt(0.3, color2)
-        gradient.setColorAt(0.7, color3)
-        gradient.setColorAt(1.0, color4)
-        painter.fillRect(self.rect(), gradient)
-        
-        # Enhanced floating particles with better colors
-        painter.setPen(Qt.NoPen)
-        for i, particle in enumerate(self.particle_positions):
-            x, y, size, speed, opacity = particle
+            # Enhanced animated gradient background
+            import math
+            gradient = QLinearGradient(0, 0, self.width(), self.height())
             
-            # Create more vibrant particle colors
-            particle_hue = (base_hue + i * 15) % 360
-            glow_color = QColor.fromHsv(int(particle_hue), 100, 80, int(opacity * 180))
-            center_color = QColor.fromHsv(int(particle_hue), 60, 95, int(opacity * 220))
+            # Create more sophisticated shifting colors
+            base_hue = 240 + (self.gradient_phase * 80)  # Blue to purple to pink
             
-            # Draw glowing outer ring
-            painter.setBrush(QBrush(glow_color))
-            painter.drawEllipse(int(x), int(y), size, size)
+            # More elegant color palette
+            color1 = QColor.fromHsv(int(base_hue) % 360, 85, 25)          # Deep rich base
+            color2 = QColor.fromHsv(int(base_hue + 40) % 360, 70, 35)     # Mid tone
+            color3 = QColor.fromHsv(int(base_hue + 80) % 360, 60, 20)     # Dark accent
+            color4 = QColor.fromHsv(int(base_hue + 120) % 360, 50, 30)    # Complementary
             
-            # Add bright center
-            painter.setBrush(QBrush(center_color))
-            painter.drawEllipse(int(x + size/4), int(y + size/4), size//2, size//2)
-        
-        # Enhanced geometric patterns
-        painter.setPen(QPen(QColor(255, 255, 255, 15), 1))
-        painter.setBrush(Qt.NoBrush)
-        
-        # Multiple animated circle sets
-        pulse_scale = 1.0 + 0.08 * math.sin(self.pulse_phase)
-        center_x, center_y = self.width() // 2, self.height() // 2
-        
-        # Main circles
-        for i in range(4):
-            radius = (40 + i * 25) * pulse_scale
-            painter.drawEllipse(int(center_x - radius), int(center_y - radius), 
-                              int(radius * 2), int(radius * 2))
-        
-        # Secondary offset circles
-        painter.setPen(QPen(QColor(255, 255, 255, 10), 1))
-        offset_scale = 1.0 + 0.05 * math.sin(self.pulse_phase + 1.5)
-        for i in range(3):
-            radius = (30 + i * 35) * offset_scale
-            painter.drawEllipse(int(center_x - radius), int(center_y - radius), 
-                              int(radius * 2), int(radius * 2))
-        
-        painter.end()
+            gradient.setColorAt(0.0, color1)
+            gradient.setColorAt(0.3, color2)
+            gradient.setColorAt(0.7, color3)
+            gradient.setColorAt(1.0, color4)
+            painter.fillRect(self.rect(), gradient)
+            
+            # Enhanced floating particles with better colors
+            painter.setPen(Qt.NoPen)
+            for i, particle in enumerate(self.particle_positions):
+                x, y, size, speed, opacity = particle
+                
+                # Create more vibrant particle colors
+                particle_hue = (base_hue + i * 15) % 360
+                glow_color = QColor.fromHsv(int(particle_hue), 100, 80, int(opacity * 180))
+                center_color = QColor.fromHsv(int(particle_hue), 60, 95, int(opacity * 220))
+                
+                # Draw glowing outer ring
+                painter.setBrush(QBrush(glow_color))
+                painter.drawEllipse(int(x), int(y), size, size)
+                
+                # Add bright center
+                painter.setBrush(QBrush(center_color))
+                painter.drawEllipse(int(x + size/4), int(y + size/4), size//2, size//2)
+            
+            # Enhanced geometric patterns
+            painter.setPen(QPen(QColor(255, 255, 255, 15), 1))
+            painter.setBrush(Qt.NoBrush)
+            
+            # Multiple animated circle sets
+            pulse_scale = 1.0 + 0.08 * math.sin(self.pulse_phase)
+            center_x, center_y = self.width() // 2, self.height() // 2
+            
+            # Main circles
+            for i in range(4):
+                radius = (40 + i * 25) * pulse_scale
+                painter.drawEllipse(int(center_x - radius), int(center_y - radius), 
+                                  int(radius * 2), int(radius * 2))
+            
+            # Secondary offset circles
+            painter.setPen(QPen(QColor(255, 255, 255, 10), 1))
+            offset_scale = 1.0 + 0.05 * math.sin(self.pulse_phase + 1.5)
+            for i in range(3):
+                radius = (30 + i * 35) * offset_scale
+                painter.drawEllipse(int(center_x - radius), int(center_y - radius), 
+                                  int(radius * 2), int(radius * 2))
+            
+            painter.end()
+        except Exception as e:
+            print(f"Error in paintEvent: {e}")
+        finally:
+            # Always clear the repainting flag
+            if hasattr(self, '_repainting'):
+                delattr(self, '_repainting')
 
 
 class SplashScreen(QSplashScreen):
@@ -440,7 +460,7 @@ class SplashScreen(QSplashScreen):
         
         font.setPointSize(14)
         self.painter.setFont(font)
-        self.painter.drawText(50, 200, "Version V0.2.1")
+        self.painter.drawText(50, 200, "Version V0.2.2")
         
         font.setPointSize(12)
         font.setBold(False)

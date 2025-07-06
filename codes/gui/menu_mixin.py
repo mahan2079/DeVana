@@ -162,7 +162,7 @@ class MenuMixin:
         QMessageBox.about(
             self,
             "About DeVana",
-            "DeVana V0.2.1\n\n"
+            "DeVana V0.2.2\n\n"
             "A modern application for designing and optimizing vibration systems.\n\n"
             "© 2023 DeVana Team\n"
             "All rights reserved."

@@ -12,9 +12,11 @@ BEAM_IMPORTS_SUCCESSFUL = True
 try:
     from Continues_beam.utils import ForceRegionManager
     from Continues_beam.ui.results_dashboard import ResultsDashboard
-    from Continues_beam.ui.cross_section_visualizer import CrossSectionVisualizer
-    from Continues_beam.ui.force_regions_panel import ForceRegionsPanel
-    from Continues_beam.ui.scrollable_form_widget import ScrollableFormWidget
+    from Continues_beam.ui.composite_beam_interface import CompositeBeamInterface
+    from Continues_beam.ui.enhanced_cross_section_visualizer import EnhancedCrossSectionVisualizer
+    from Continues_beam.ui.beam_side_view import BeamSideViewWidget
+    from Continues_beam.ui.force_visualization import ForceVisualizationWidget
+    from Continues_beam.ui.material_database import MaterialDatabase
     from Continues_beam.beam.solver import solve_beam_vibration
     from Continues_beam.beam_animation_adapter import BeamAnimationAdapter
     from Continues_beam.mode_shape_adapter import ModeShapeAdapter
@@ -24,7 +26,7 @@ except ImportError as e:
 
 class ContinuousBeamMixin:
     def create_continuous_beam_page(self):
-        """Create the continuous beam analysis page"""
+        """Create the enhanced continuous beam analysis page with composite capabilities."""
         if not BEAM_IMPORTS_SUCCESSFUL:
             # Create placeholder page if imports failed
             beam_page = QWidget()
@@ -36,79 +38,189 @@ class ContinuousBeamMixin:
             center_layout.setAlignment(Qt.AlignCenter)
             
             # Error message
-            error_label = QLabel("Continuous Beam Module Not Available")
+            error_label = QLabel("Composite Beam Module Not Available")
             error_label.setFont(QFont("Segoe UI", 24, QFont.Bold))
             error_label.setAlignment(Qt.AlignCenter)
+            error_label.setStyleSheet("color: #D32F2F;")
             center_layout.addWidget(error_label)
             
-            description = QLabel("Please make sure the 'Continues beam' module is correctly installed.")
+            description = QLabel("Please make sure the 'Continues_beam' module is correctly installed.")
             description.setFont(QFont("Segoe UI", 12))
             description.setAlignment(Qt.AlignCenter)
+            description.setStyleSheet("color: #666666;")
             center_layout.addWidget(description)
+            
+            # Add some helpful information
+            help_text = QLabel("""
+            The Composite Beam Analysis module provides:
+            • Multi-layer composite beam modeling
+            • Temperature-dependent material properties
+            • Advanced finite element analysis
+            • Real-time visualization of cross-sections and forces
+            • Professional engineering tools for beam design
+            """)
+            help_text.setFont(QFont("Segoe UI", 10))
+            help_text.setAlignment(Qt.AlignCenter)
+            help_text.setStyleSheet("color: #888888; margin-top: 20px;")
+            center_layout.addWidget(help_text)
             
             layout.addWidget(center_widget)
             self.content_stack.addWidget(beam_page)
             return
         
-        # Create the comprehensive beam analysis interface
+        # Create the comprehensive composite beam analysis interface
         try:
             beam_page = QWidget()
             main_layout = QVBoxLayout(beam_page)
             main_layout.setContentsMargins(0, 0, 0, 0)
+            main_layout.setSpacing(0)
             
-            # Create tab widget for different sections
-            beam_tabs = QTabWidget()
+            # Create header with title and quick info
+            header = self.create_beam_header()
+            main_layout.addWidget(header)
             
-            # 1. Input Parameters Tab
-            input_tab = self.create_beam_input_tab()
-            beam_tabs.addTab(input_tab, "Input Parameters")
+            # Create the main composite beam interface
+            theme = getattr(self, 'current_theme', 'Dark')
+            self.composite_beam_interface = CompositeBeamInterface(theme=theme)
             
-            # 2. Analysis Tab
-            analysis_tab = self.create_beam_analysis_tab()
-            beam_tabs.addTab(analysis_tab, "Analysis & Results")
+            # Connect signals
+            self.composite_beam_interface.analysis_completed.connect(self.on_beam_analysis_completed)
             
-            # 3. Visualization Tab
-            viz_tab = self.create_beam_visualization_tab()
-            beam_tabs.addTab(viz_tab, "Visualization")
+            # Store reference for theme updates
+            self.beam_interface = self.composite_beam_interface
             
-            main_layout.addWidget(beam_tabs)
+            # Add to main layout
+            main_layout.addWidget(self.composite_beam_interface)
+            
+            # Add the page to the stack
             self.content_stack.addWidget(beam_page)
-            print("Comprehensive beam analysis page created successfully")
+            print("Enhanced composite beam analysis page created successfully")
             
         except Exception as e:
-            print(f"Error creating beam analysis page: {str(e)}")
+            print(f"Error creating composite beam analysis page: {str(e)}")
             import traceback
             traceback.print_exc()
             # Create a fallback page
-            beam_page = QWidget()
-            layout = QVBoxLayout(beam_page)
-            
-            # Centered content
-            center_widget = QWidget()
-            center_layout = QVBoxLayout(center_widget)
-            center_layout.setAlignment(Qt.AlignCenter)
-            
-            # Error message
-            error_label = QLabel("Continuous Beam Module Error")
-            error_label.setFont(QFont("Segoe UI", 24, QFont.Bold))
-            error_label.setAlignment(Qt.AlignCenter)
-            center_layout.addWidget(error_label)
-            
-            description = QLabel(f"Error initializing continuous beam module: {str(e)}")
-            description.setFont(QFont("Segoe UI", 12))
-            description.setAlignment(Qt.AlignCenter)
-            center_layout.addWidget(description)
-            
-            layout.addWidget(center_widget)
-            self.content_stack.addWidget(beam_page)
+            self.create_fallback_beam_page(str(e))
     
-    def create_beam_input_tab(self):
-        """Create the input parameters tab"""
+    def create_beam_header(self):
+        """Create a professional header for the beam analysis page."""
+        header = QWidget()
+        header.setFixedHeight(80)
+        header.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #1976D2, stop:1 #1565C0);
+                border-bottom: 2px solid #0D47A1;
+            }
+        """)
+        
+        layout = QHBoxLayout(header)
+        layout.setContentsMargins(20, 10, 20, 10)
+        
+        # Title section
+        title_layout = QVBoxLayout()
+        
+        title = QLabel("Composite Beam Analysis")
+        title.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        title.setStyleSheet("color: white;")
+        title_layout.addWidget(title)
+        
+        subtitle = QLabel("Advanced multi-layer composite beam modeling with temperature-dependent properties")
+        subtitle.setFont(QFont("Segoe UI", 10))
+        subtitle.setStyleSheet("color: rgba(255, 255, 255, 0.8);")
+        title_layout.addWidget(subtitle)
+        
+        layout.addLayout(title_layout)
+        layout.addStretch()
+        
+        # Quick stats section (will be updated by the interface)
+        stats_layout = QVBoxLayout()
+        stats_layout.setAlignment(Qt.AlignRight)
+        
+        self.layers_count_label = QLabel("Layers: 0")
+        self.layers_count_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.layers_count_label.setStyleSheet("color: white;")
+        stats_layout.addWidget(self.layers_count_label)
+        
+        self.analysis_status_label = QLabel("Ready for analysis")
+        self.analysis_status_label.setFont(QFont("Segoe UI", 9))
+        self.analysis_status_label.setStyleSheet("color: rgba(255, 255, 255, 0.8);")
+        stats_layout.addWidget(self.analysis_status_label)
+        
+        layout.addLayout(stats_layout)
+        
+        return header
+    
+    def create_fallback_beam_page(self, error_message):
+        """Create a fallback page when the enhanced interface fails."""
+        beam_page = QWidget()
+        layout = QVBoxLayout(beam_page)
+        
+        # Error display
+        error_widget = QWidget()
+        error_layout = QVBoxLayout(error_widget)
+        error_layout.setAlignment(Qt.AlignCenter)
+        
+        error_label = QLabel("Composite Beam Module Error")
+        error_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        error_label.setAlignment(Qt.AlignCenter)
+        error_label.setStyleSheet("color: #D32F2F; margin-bottom: 10px;")
+        error_layout.addWidget(error_label)
+        
+        error_detail = QLabel(f"Error initializing enhanced composite beam module:\n{error_message}")
+        error_detail.setFont(QFont("Segoe UI", 10))
+        error_detail.setAlignment(Qt.AlignCenter)
+        error_detail.setWordWrap(True)
+        error_detail.setStyleSheet("color: #666666; margin-bottom: 20px;")
+        error_layout.addWidget(error_detail)
+        
+        # Fallback to basic beam interface
+        fallback_label = QLabel("Falling back to basic beam analysis...")
+        fallback_label.setFont(QFont("Segoe UI", 12))
+        fallback_label.setAlignment(Qt.AlignCenter)
+        fallback_label.setStyleSheet("color: #1976D2; margin-bottom: 20px;")
+        error_layout.addWidget(fallback_label)
+        
+        layout.addWidget(error_widget)
+        
+        # Create basic beam interface
+        try:
+            basic_interface = self.create_basic_beam_interface()
+            layout.addWidget(basic_interface)
+        except Exception as e:
+            basic_error_label = QLabel(f"Basic interface also failed: {str(e)}")
+            basic_error_label.setStyleSheet("color: #D32F2F;")
+            layout.addWidget(basic_error_label)
+        
+        self.content_stack.addWidget(beam_page)
+    
+    def create_basic_beam_interface(self):
+        """Create a basic beam interface as fallback."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Create tab widget for different sections
+        beam_tabs = QTabWidget()
+        
+        # 1. Input Parameters Tab
+        input_tab = self.create_basic_input_tab()
+        beam_tabs.addTab(input_tab, "Basic Input")
+        
+        # 2. Results Tab
+        results_tab = self.create_basic_results_tab()
+        beam_tabs.addTab(results_tab, "Results")
+        
+        layout.addWidget(beam_tabs)
+        return widget
+    
+    def create_basic_input_tab(self):
+        """Create a basic input tab for simple beam analysis."""
         input_widget = QWidget()
         layout = QHBoxLayout(input_widget)
         
         # Left side - Beam Parameters
-        left_panel = QGroupBox("Beam Parameters")
+        left_panel = QGroupBox("Basic Beam Parameters")
         left_layout = QVBoxLayout(left_panel)
         
         # Beam geometry
@@ -136,8 +248,8 @@ class ContinuousBeamMixin:
         
         left_layout.addWidget(geom_group)
         
-        # Material properties
-        material_group = QGroupBox("Material Properties")
+        # Single layer material properties
+        material_group = QGroupBox("Material Properties (Single Layer)")
         material_layout = QFormLayout(material_group)
         
         self.youngs_modulus_input = QDoubleSpinBox()
@@ -163,67 +275,14 @@ class ContinuousBeamMixin:
         
         left_layout.addWidget(material_group)
         
-        # Boundary conditions
-        boundary_group = QGroupBox("Boundary Conditions")
-        boundary_layout = QFormLayout(boundary_group)
-        
-        self.spring_stiffness_input = QDoubleSpinBox()
-        self.spring_stiffness_input.setRange(0, 1e8)
-        self.spring_stiffness_input.setValue(0)
-        self.spring_stiffness_input.setSuffix(" N/m")
-        self.spring_stiffness_input.setDecimals(0)
-        boundary_layout.addRow("Tip Spring Stiffness:", self.spring_stiffness_input)
-        
-        left_layout.addWidget(boundary_group)
-        
         layout.addWidget(left_panel)
         
-        # Right side - Loading and Analysis Settings
-        right_panel = QGroupBox("Loading & Analysis Settings")
+        # Right side - Analysis Settings
+        right_panel = QGroupBox("Analysis Settings")
         right_layout = QVBoxLayout(right_panel)
         
-        # Loading conditions
-        loading_group = QGroupBox("Loading Conditions")
-        loading_layout = QVBoxLayout(loading_group)
-        
-        # Force type selection
-        force_type_layout = QHBoxLayout()
-        force_type_layout.addWidget(QLabel("Force Type:"))
-        self.force_type_combo = QComboBox()
-        self.force_type_combo.addItems(["No Force", "Harmonic Force", "Impulse Force", "Custom Force"])
-        self.force_type_combo.currentTextChanged.connect(self.update_force_parameters)
-        force_type_layout.addWidget(self.force_type_combo)
-        loading_layout.addLayout(force_type_layout)
-        
-        # Force parameters (initially hidden)
-        self.force_params_widget = QWidget()
-        self.force_params_layout = QFormLayout(self.force_params_widget)
-        
-        self.force_magnitude_input = QDoubleSpinBox()
-        self.force_magnitude_input.setRange(0, 1e6)
-        self.force_magnitude_input.setValue(1000)
-        self.force_magnitude_input.setSuffix(" N")
-        self.force_params_layout.addRow("Magnitude:", self.force_magnitude_input)
-        
-        self.force_frequency_input = QDoubleSpinBox()
-        self.force_frequency_input.setRange(0.1, 1000)
-        self.force_frequency_input.setValue(20)
-        self.force_frequency_input.setSuffix(" Hz")
-        self.force_params_layout.addRow("Frequency:", self.force_frequency_input)
-        
-        self.force_position_input = QDoubleSpinBox()
-        self.force_position_input.setRange(0, 1)
-        self.force_position_input.setValue(0.9)
-        self.force_position_input.setSuffix(" (ratio)")
-        self.force_params_layout.addRow("Position:", self.force_position_input)
-        
-        loading_layout.addWidget(self.force_params_widget)
-        self.force_params_widget.hide()
-        
-        right_layout.addWidget(loading_group)
-        
-        # Analysis settings
-        analysis_group = QGroupBox("Analysis Settings")
+        # Analysis parameters
+        analysis_group = QGroupBox("Analysis Parameters")
         analysis_layout = QFormLayout(analysis_group)
         
         self.time_span_input = QDoubleSpinBox()
@@ -240,177 +299,154 @@ class ContinuousBeamMixin:
         right_layout.addWidget(analysis_group)
         
         # Run analysis button
-        self.run_analysis_btn = QPushButton("Run Analysis")
-        self.run_analysis_btn.setStyleSheet("""
+        self.run_basic_analysis_btn = QPushButton("Run Basic Analysis")
+        self.run_basic_analysis_btn.setStyleSheet("""
             QPushButton {
-                background-color: #1E3A8A;
+                background-color: #1976D2;
                 color: white;
                 border: none;
-                padding: 10px 20px;
+                padding: 12px 24px;
                 font-size: 14px;
                 font-weight: bold;
-                border-radius: 5px;
+                border-radius: 6px;
             }
             QPushButton:hover {
-                background-color: #1E40AF;
+                background-color: #1565C0;
             }
             QPushButton:pressed {
-                background-color: #1E3A8A;
+                background-color: #0D47A1;
             }
         """)
-        self.run_analysis_btn.clicked.connect(self.run_beam_analysis)
-        right_layout.addWidget(self.run_analysis_btn)
+        self.run_basic_analysis_btn.clicked.connect(self.run_basic_beam_analysis)
+        right_layout.addWidget(self.run_basic_analysis_btn)
         
         layout.addWidget(right_panel)
         
         return input_widget
     
-    def create_beam_analysis_tab(self):
-        """Create the analysis and results tab"""
+    def create_basic_results_tab(self):
+        """Create a basic results tab."""
+        results_widget = QWidget()
+        layout = QVBoxLayout(results_widget)
+        
+        # Results text area
+        self.basic_results_text = QTextEdit()
+        self.basic_results_text.setReadOnly(True)
+        self.basic_results_text.setPlainText("Run analysis to see results here...")
+        layout.addWidget(self.basic_results_text)
+        
+        return results_widget
+    
+    def run_basic_beam_analysis(self):
+        """Run a basic beam analysis."""
         try:
-            # Use the existing ResultsDashboard
-            self.results_dashboard = ResultsDashboard()
-            return self.results_dashboard
+            self.run_basic_analysis_btn.setText("Running Analysis...")
+            self.run_basic_analysis_btn.setEnabled(False)
+            
+            # Create single layer
+            layers = [{
+                'height': self.thickness_input.value(),
+                'E': lambda: self.youngs_modulus_input.value(),
+                'rho': lambda: self.density_input.value()
+            }]
+            
+            # Run analysis
+            results = solve_beam_vibration(
+                width=self.beam_width_input.value(),
+                layers=layers,
+                L=self.beam_length_input.value(),
+                k_spring=0.0,
+                num_elems=self.num_elements_input.value(),
+                t_span=(0, self.time_span_input.value()),
+                num_time_points=self.time_points_input.value()
+            )
+            
+            # Display basic results
+            results_text = f"""
+Basic Beam Analysis Results:
+
+Geometry:
+- Length: {self.beam_length_input.value():.3f} m
+- Width: {self.beam_width_input.value():.4f} m
+- Thickness: {self.thickness_input.value():.4f} m
+
+Material Properties:
+- Young's Modulus: {self.youngs_modulus_input.value()/1e9:.1f} GPa
+- Density: {self.density_input.value():.0f} kg/m³
+
+Natural Frequencies:
+"""
+            
+            freqs = results['natural_frequencies_hz'][:5]
+            for i, freq in enumerate(freqs):
+                results_text += f"- Mode {i+1}: {freq:.2f} Hz\n"
+            
+            results_text += f"\nMaximum tip displacement: {np.max(np.abs(results['tip_displacement']))*1000:.2f} mm"
+            
+            self.basic_results_text.setPlainText(results_text)
+            
+            QMessageBox.information(self, "Analysis Complete", "Basic beam analysis completed!")
+            
         except Exception as e:
-            print(f"Error creating results dashboard: {e}")
-            # Create a simple fallback
-            analysis_widget = QWidget()
-            layout = QVBoxLayout(analysis_widget)
-            layout.addWidget(QLabel("Results will appear here after running analysis"))
-            return analysis_widget
+            QMessageBox.critical(self, "Analysis Error", f"Error running analysis:\n{str(e)}")
+            
+        finally:
+            self.run_basic_analysis_btn.setText("Run Basic Analysis")
+            self.run_basic_analysis_btn.setEnabled(True)
+    
+    def on_beam_analysis_completed(self, results):
+        """Handle completion of beam analysis from the composite interface."""
+        try:
+            # Update header status
+            self.analysis_status_label.setText("Analysis completed successfully")
+            
+            # Update visualization tabs if they exist
+            if hasattr(self, 'beam_animation_adapter'):
+                self.beam_animation_adapter.update_animation(results)
+                
+            if hasattr(self, 'mode_shape_adapter'):
+                self.mode_shape_adapter.update_results(results)
+            
+            print("Composite beam analysis completed and visualizations updated")
+            
+        except Exception as e:
+            print(f"Error handling analysis completion: {str(e)}")
+            self.analysis_status_label.setText("Analysis completed with errors")
+    
+    def update_force_parameters(self, force_type):
+        """Update force parameters based on selection (for basic interface)."""
+        if hasattr(self, 'force_params_widget'):
+            if force_type == "No Force":
+                self.force_params_widget.hide()
+            else:
+                self.force_params_widget.show()
+    
+    # Legacy methods for backward compatibility
+    def create_beam_input_tab(self):
+        """Legacy method - redirects to basic input tab."""
+        return self.create_basic_input_tab()
+    
+    def create_beam_analysis_tab(self):
+        """Legacy method - redirects to basic results tab."""
+        return self.create_basic_results_tab()
     
     def create_beam_visualization_tab(self):
-        """Create the visualization tab"""
+        """Legacy method - creates a basic visualization tab."""
         viz_widget = QWidget()
         layout = QVBoxLayout(viz_widget)
         
-        # Create tab widget for different visualizations
-        viz_tabs = QTabWidget()
+        info_label = QLabel("Enhanced visualizations available in the main composite interface")
+        info_label.setAlignment(Qt.AlignCenter)
+        info_label.setStyleSheet("color: #666666; font-style: italic; padding: 50px;")
+        layout.addWidget(info_label)
         
-        try:
-            # Beam Animation
-            self.beam_animation_adapter = BeamAnimationAdapter()
-            viz_tabs.addTab(self.beam_animation_adapter, "Beam Animation")
-            
-            # Mode Shape Animation
-            self.mode_shape_adapter = ModeShapeAdapter()
-            viz_tabs.addTab(self.mode_shape_adapter, "Mode Shapes")
-            
-        except Exception as e:
-            print(f"Error creating visualization adapters: {e}")
-            # Create simple placeholders
-            beam_anim_tab = QWidget()
-            QVBoxLayout(beam_anim_tab).addWidget(QLabel("Beam animation will appear here"))
-            viz_tabs.addTab(beam_anim_tab, "Beam Animation")
-            
-            mode_tab = QWidget()
-            QVBoxLayout(mode_tab).addWidget(QLabel("Mode shapes will appear here"))
-            viz_tabs.addTab(mode_tab, "Mode Shapes")
-        
-        layout.addWidget(viz_tabs)
         return viz_widget
     
-    def update_force_parameters(self, force_type):
-        """Update force parameters based on selected type"""
-        if force_type == "No Force":
-            self.force_params_widget.hide()
-        else:
-            self.force_params_widget.show()
-            
-            if force_type == "Harmonic Force":
-                self.force_frequency_input.show()
-                self.force_params_layout.labelForField(self.force_frequency_input).show()
-            elif force_type == "Impulse Force":
-                self.force_frequency_input.hide()
-                self.force_params_layout.labelForField(self.force_frequency_input).hide()
-    
     def run_beam_analysis(self):
-        """Run the beam analysis with current parameters"""
-        try:
-            self.run_analysis_btn.setText("Running Analysis...")
-            self.run_analysis_btn.setEnabled(False)
-            
-            # Get parameters from UI
-            width = self.beam_width_input.value()
-            length = self.beam_length_input.value()
-            thickness = self.thickness_input.value()
-            E = self.youngs_modulus_input.value()
-            rho = self.density_input.value()
-            k_spring = self.spring_stiffness_input.value()
-            num_elems = self.num_elements_input.value()
-            
-            # Create layer definition
-            layers = [
-                {
-                    'height': thickness,
-                    'E': lambda T=0: E,
-                    'rho': lambda T=0: rho
-                }
-            ]
-            
-            # Create force function based on selection
-            force_type = self.force_type_combo.currentText()
-            if force_type == "No Force":
-                force_func = lambda x, t: 0.0
-            elif force_type == "Harmonic Force":
-                magnitude = self.force_magnitude_input.value()
-                frequency = self.force_frequency_input.value()
-                position_ratio = self.force_position_input.value()
-                force_position = length * position_ratio
-                
-                def force_func(x, t):
-                    if abs(x - force_position) < length / (2 * num_elems):
-                        return magnitude * np.sin(2 * np.pi * frequency * t)
-                    return 0.0
-            elif force_type == "Impulse Force":
-                magnitude = self.force_magnitude_input.value()
-                position_ratio = self.force_position_input.value()
-                force_position = length * position_ratio
-                
-                def force_func(x, t):
-                    if abs(x - force_position) < length / (2 * num_elems) and t < 0.01:
-                        return magnitude
-                    return 0.0
-            else:
-                force_func = lambda x, t: 0.0
-            
-            # Run analysis
-            time_span = self.time_span_input.value()
-            time_points = self.time_points_input.value()
-            
-            results = solve_beam_vibration(
-                width=width,
-                layers=layers,
-                L=length,
-                k_spring=k_spring,
-                num_elems=num_elems,
-                f_profile=force_func,
-                t_span=(0, time_span),
-                num_time_points=time_points
-            )
-            
-            # Update results dashboard
-            if hasattr(self, 'results_dashboard'):
-                self.results_dashboard.update_results(results)
-            
-            # Update visualizations
-            if hasattr(self, 'beam_animation_adapter'):
-                self.beam_animation_adapter.update_animation(results)
-            
-            if hasattr(self, 'mode_shape_adapter'):
-                self.mode_shape_adapter.update_mode_shapes(results)
-            
-            print("Beam analysis completed successfully")
-            
-        except Exception as e:
-            print(f"Error running beam analysis: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            
-            # Show error message
-            QMessageBox.critical(self, "Analysis Error", 
-                               f"Error running beam analysis:\n{str(e)}")
+        """Legacy method - redirects to basic analysis."""
+        self.run_basic_beam_analysis()
         
-        finally:
-            self.run_analysis_btn.setText("Run Analysis")
-            self.run_analysis_btn.setEnabled(True)
+    def update_beam_interface_theme(self, theme):
+        """Update the beam interface theme."""
+        if hasattr(self, 'beam_interface') and self.beam_interface:
+            self.beam_interface.set_theme(theme)
