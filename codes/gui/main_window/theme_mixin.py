@@ -2,7 +2,7 @@ from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtCore import Qt
 
 class ThemeMixin:
-    """Mixin handling light/dark theme support"""
+    """Mixin handling light/dark theme support with enhanced elegant styling"""
     def toggle_theme(self):
         """Toggle between light and dark themes"""
         if self.current_theme == 'Dark':
@@ -20,24 +20,25 @@ class ThemeMixin:
             self.apply_light_theme()
 
     def apply_dark_theme(self):
-        """Apply a modern dark theme with accent colors"""
+        """Apply an elegant dark theme with gradient backgrounds and vibrant accents"""
         dark_palette = QPalette()
         
-        # Base colors
-        dark_color = QColor(18, 18, 18)
-        darker_color = QColor(12, 12, 12)
-        medium_color = QColor(40, 40, 40)
-        light_color = QColor(60, 60, 60)
-        text_color = QColor(240, 240, 240)
-        disabled_text_color = QColor(128, 128, 128)
+        # Enhanced base colors with depth
+        dark_color = QColor(15, 15, 20)          # Deep dark blue-black
+        darker_color = QColor(8, 8, 12)          # Even deeper background
+        medium_color = QColor(35, 35, 45)        # Medium dark with blue tint
+        light_color = QColor(55, 55, 70)         # Lighter dark with blue tint
+        text_color = QColor(245, 245, 250)       # Almost white with slight blue tint
+        disabled_text_color = QColor(120, 120, 135)
         
-        # Accent colors
-        primary_color = QColor(75, 111, 247)      # Blue
-        secondary_color = QColor(107, 64, 216)    # Purple
-        success_color = QColor(46, 204, 113)      # Green
-        warning_color = QColor(241, 196, 15)      # Yellow
-        danger_color = QColor(231, 76, 60)        # Red
-        info_color = QColor(52, 152, 219)         # Light Blue
+        # Vibrant accent colors for elegance
+        primary_color = QColor(94, 129, 255)     # Vibrant blue
+        secondary_color = QColor(138, 43, 226)   # Blue violet
+        tertiary_color = QColor(255, 64, 129)    # Pink accent
+        success_color = QColor(76, 217, 100)     # Vibrant green
+        warning_color = QColor(255, 193, 7)      # Amber
+        danger_color = QColor(255, 87, 87)       # Coral red
+        info_color = QColor(41, 182, 246)        # Cyan
         
         # Set up the palette
         dark_palette.setColor(QPalette.Window, dark_color)
@@ -51,83 +52,119 @@ class ThemeMixin:
         dark_palette.setColor(QPalette.Button, dark_color)
         dark_palette.setColor(QPalette.ButtonText, text_color)
         dark_palette.setColor(QPalette.Disabled, QPalette.ButtonText, disabled_text_color)
-        dark_palette.setColor(QPalette.BrightText, Qt.red)
+        dark_palette.setColor(QPalette.BrightText, tertiary_color)
         dark_palette.setColor(QPalette.Link, primary_color)
         dark_palette.setColor(QPalette.Highlight, primary_color)
         dark_palette.setColor(QPalette.HighlightedText, Qt.white)
-        dark_palette.setColor(QPalette.Disabled, QPalette.Highlight, QColor(80, 80, 80))
+        dark_palette.setColor(QPalette.Disabled, QPalette.Highlight, QColor(80, 80, 90))
         dark_palette.setColor(QPalette.Disabled, QPalette.HighlightedText, disabled_text_color)
         
         self.setPalette(dark_palette)
         
-        # Dark theme stylesheet
+        # Enhanced dark theme stylesheet with gradients and elegant styling
         dark_stylesheet = f"""
             QMainWindow {{
-                background-color: #121212;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #0F0F14, stop: 0.5 #12121A, stop: 1 #0A0A0F);
+                color: {text_color.name()};
             }}
             QWidget {{
-                color: #F0F0F0;
-                background-color: #121212;
+                color: {text_color.name()};
+                background: transparent;
             }}
             #sidebar {{
-                background-color: #1A1A1A;
-                border-right: 1px solid #2D2D2D;
+                background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #1A1A25, stop: 0.3 #1E1E2D, stop: 1 #16161F);
+                border-right: 2px solid qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {primary_color.name()}, stop: 0.5 {secondary_color.name()}, stop: 1 {primary_color.name()});
+                border-radius: 0px 8px 8px 0px;
             }}
             #logo-container {{
-                background-color: #171717;
-                border-bottom: 1px solid #2D2D2D;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #1F1F2A, stop: 1 #181823);
+                border-bottom: 1px solid {primary_color.name()};
+                border-radius: 8px 8px 0px 0px;
             }}
             #run-card {{
-                background-color: #1E1E1E;
-                border-radius: 8px;
-                border: 1px solid #2D2D2D;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #1E1E28, stop: 0.5 #1A1A24, stop: 1 #161620);
+                border-radius: 12px;
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             }}
             QTabWidget::pane {{
-                border: 1px solid #2D2D2D;
-                border-radius: 4px;
-                background-color: #1A1A1A;
-                top: -1px;
+                border: 2px solid {primary_color.name()};
+                border-radius: 8px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #1A1A25, stop: 1 #161620);
+                top: -2px;
+                padding: 10px;
+            }}
+            QTabWidget::tab-bar {{
+                alignment: left;
             }}
             QTabBar::tab {{
-                background-color: #1D1D1D;
-                color: #B0B0B0;
-                border: 1px solid #2D2D2D;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #1D1D28, stop: 1 #191923);
+                color: #B0B0C0;
+                border: 1px solid #2D2D3D;
                 border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                padding: 8px 16px;
-                margin-right: 2px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                padding: 10px 20px;
+                margin-right: 3px;
+                font-weight: 500;
+                min-width: 120px;
+                min-height: 30px;
             }}
             QTabBar::tab:selected {{
-                background-color: #1A1A1A;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
                 color: #FFFFFF;
-                border-bottom: 2px solid {primary_color.name()};
+                border-bottom: 3px solid {tertiary_color.name()};
+                font-weight: bold;
+                min-width: 120px;
+                min-height: 30px;
             }}
             QTabBar::tab:hover {{
-                background-color: #2D2D2D;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #2D2D3D, stop: 1 #252530);
+                color: #FFFFFF;
+                min-width: 120px;
+                min-height: 30px;
             }}
             QScrollArea, QScrollBar {{
                 border: none;
-                background-color: #1A1A1A;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #1A1A25, stop: 1 #161620);
             }}
             QScrollBar:vertical {{
                 border: none;
-                background-color: #1A1A1A;
-                width: 10px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #1A1A25, stop: 1 #1E1E2A);
+                width: 12px;
                 margin: 0px;
+                border-radius: 6px;
             }}
             QScrollBar:horizontal {{
                 border: none;
-                background-color: #1A1A1A;
-                height: 10px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #1A1A25, stop: 1 #1E1E2A);
+                height: 12px;
                 margin: 0px;
+                border-radius: 6px;
             }}
             QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{
-                background-color: #3D3D3D;
-                border-radius: 5px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
+                border-radius: 6px;
+                min-height: 20px;
             }}
             QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {{
-                background-color: #4D4D4D;
+                background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 {QColor(primary_color.red() + 30, primary_color.green() + 30, primary_color.blue() + 30).name()}, 
+                    stop: 1 {QColor(secondary_color.red() + 30, secondary_color.green() + 30, secondary_color.blue() + 30).name()});
             }}
             QScrollBar::add-line, QScrollBar::sub-line {{
                 background: none;
@@ -142,62 +179,100 @@ class ThemeMixin:
                 background: none;
             }}
             QGroupBox {{
-                border: 1px solid #2D2D2D;
-                border-radius: 6px;
-                margin-top: 12px;
-                padding-top: 12px;
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #2D2D3D, stop: 1 #3D3D4D);
+                border-radius: 10px;
+                margin-top: 20px;
+                padding-top: 25px;
+                padding-left: 10px;
+                padding-right: 10px;
+                padding-bottom: 15px;
                 font-weight: bold;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 rgba(30, 30, 40, 0.3), stop: 1 rgba(20, 20, 30, 0.3));
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
-                left: 10px;
-                padding: 0 5px;
-                color: #CCCCCC;
+                left: 15px;
+                padding: 6px 12px;
+                color: #FFFFFF;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: bold;
             }}
             QGroupBox:hover {{
-                border: 1px solid {primary_color.name()};
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
             }}
             QPushButton {{
-                background-color: #333333;
-                border: 1px solid #444444;
-                border-radius: 4px;
-                padding: 6px 16px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #333344, stop: 1 #2A2A3A);
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #444455, stop: 1 #555566);
+                border-radius: 8px;
+                padding: 10px 24px;
                 color: #FFFFFF;
-                font-weight: bold;
+                font-weight: 600;
+                font-size: 11px;
+                min-width: 80px;
+                min-height: 32px;
             }}
             QPushButton:hover {{
-                background-color: #444444;
-                border: 1px solid #555555;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #444455, stop: 1 #3A3A4A);
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
+                transform: translateY(-1px);
             }}
             QPushButton:pressed {{
-                background-color: #222222;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #222233, stop: 1 #1A1A2A);
+                transform: translateY(1px);
             }}
             QPushButton:disabled {{
-                background-color: #2A2A2A;
-                color: #666666;
-                border: 1px solid #393939;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #2A2A35, stop: 1 #252530);
+                color: #666677;
+                border: 1px solid #393944;
             }}
             #primary-button {{
-                background-color: {primary_color.name()};
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
                 border: none;
                 color: white;
-                border-radius: 4px;
-                padding: 8px 20px;
+                border-radius: 10px;
+                padding: 12px 28px;
                 font-weight: bold;
+                font-size: 12px;
+                min-width: 100px;
+                min-height: 36px;
             }}
             #primary-button:hover {{
-                background-color: {QColor(primary_color.red() + 20, primary_color.green() + 20, primary_color.blue() + 20).name()};
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {QColor(primary_color.red() + 20, primary_color.green() + 20, primary_color.blue() + 20).name()}, 
+                    stop: 1 {QColor(secondary_color.red() + 20, secondary_color.green() + 20, secondary_color.blue() + 20).name()});
+                transform: translateY(-2px);
             }}
             #primary-button:pressed {{
-                background-color: {QColor(primary_color.red() - 20, primary_color.green() - 20, primary_color.blue() - 20).name()};
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {QColor(primary_color.red() - 20, primary_color.green() - 20, primary_color.blue() - 20).name()}, 
+                    stop: 1 {QColor(secondary_color.red() - 20, secondary_color.green() - 20, secondary_color.blue() - 20).name()});
+                transform: translateY(0px);
             }}
             #secondary-button {{
-                background-color: transparent;
-                border: 1px solid {primary_color.name()};
+                background: transparent;
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
                 color: {primary_color.name()};
-                border-radius: 4px;
-                padding: 8px 16px;
+                border-radius: 8px;
+                padding: 10px 24px;
+                font-weight: 600;
+                font-size: 11px;
+                min-width: 90px;
+                min-height: 34px;
             }}
             #secondary-button:hover {{
                 background-color: rgba(75, 111, 247, 0.1);
@@ -206,19 +281,26 @@ class ThemeMixin:
                 background-color: rgba(75, 111, 247, 0.2);
             }}
             QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
-                border: 1px solid #333333;
-                border-radius: 4px;
-                padding: 5px 8px;
-                background-color: #1E1E1E;
+                border: 2px solid #333344;
+                border-radius: 8px;
+                padding: 8px 12px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #1E1E28, stop: 1 #1A1A24);
                 color: #FFFFFF;
                 selection-background-color: {primary_color.name()};
+                font-size: 11px;
+                min-height: 24px;
             }}
             QLineEdit:hover, QTextEdit:hover, QPlainTextEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {{
-                border: 1px solid {primary_color.name()};
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #252530, stop: 1 #20202C);
             }}
             QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{
-                border: 1px solid {primary_color.name()};
-                background-color: #252525;
+                border: 2px solid {primary_color.name()};
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #252530, stop: 1 #20202C);
             }}
             QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {{
                 border: 1px solid #2A2A2A;
@@ -384,21 +466,22 @@ class ThemeMixin:
         self.setStyleSheet(dark_stylesheet)
 
     def apply_light_theme(self):
-        """Apply a modern light theme with accent colors"""
+        """Apply an elegant light theme with sophisticated gradients and vibrant accents"""
         light_palette = QPalette()
         
-        # Base colors
-        light_color = QColor(250, 250, 250)
-        lighter_color = QColor(255, 255, 255)
-        medium_color = QColor(240, 240, 240)
-        dark_color = QColor(225, 225, 225)
-        text_color = QColor(40, 40, 40)
-        disabled_text_color = QColor(150, 150, 150)
+        # Enhanced base colors with warmth
+        light_color = QColor(252, 252, 255)       # Slightly blue-tinted white
+        lighter_color = QColor(255, 255, 255)     # Pure white
+        medium_color = QColor(245, 245, 250)      # Light blue-gray
+        dark_color = QColor(220, 220, 230)        # Soft gray
+        text_color = QColor(30, 30, 40)           # Dark blue-gray
+        disabled_text_color = QColor(140, 140, 150)
         
-        # Accent colors
-        primary_color = QColor(66, 133, 244)      # Blue
-        secondary_color = QColor(103, 58, 183)    # Purple
-        success_color = QColor(76, 175, 80)       # Green
+        # Enhanced accent colors
+        primary_color = QColor(79, 122, 255)      # Vibrant blue
+        secondary_color = QColor(138, 43, 226)    # Blue violet
+        tertiary_color = QColor(255, 64, 129)     # Pink accent
+        success_color = QColor(76, 217, 100)      # Vibrant green
         warning_color = QColor(255, 152, 0)       # Orange
         danger_color = QColor(244, 67, 54)        # Red
         info_color = QColor(33, 150, 243)         # Light Blue
@@ -424,52 +507,78 @@ class ThemeMixin:
         
         self.setPalette(light_palette)
         
-        # Light theme stylesheet
+        # Enhanced light theme stylesheet with gradients
         light_stylesheet = f"""
             QMainWindow {{
-                background-color: #FAFAFA;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #FCFCFF, stop: 0.5 #F8F8FC, stop: 1 #F5F5FA);
+                color: {text_color.name()};
             }}
             QWidget {{
-                color: #282828;
-                background-color: #FAFAFA;
+                color: {text_color.name()};
+                background: transparent;
             }}
             #sidebar {{
-                background-color: #F0F0F0;
-                border-right: 1px solid #E0E0E0;
+                background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #F5F5FA, stop: 0.3 #F0F0F5, stop: 1 #F8F8FC);
+                border-right: 2px solid qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {primary_color.name()}, stop: 0.5 {secondary_color.name()}, stop: 1 {primary_color.name()});
+                border-radius: 0px 8px 8px 0px;
             }}
             #logo-container {{
-                background-color: #FFFFFF;
-                border-bottom: 1px solid #E0E0E0;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #FFFFFF, stop: 1 #F8F8FC);
+                border-bottom: 1px solid {primary_color.name()};
+                border-radius: 8px 8px 0px 0px;
             }}
             #run-card {{
-                background-color: #FFFFFF;
-                border-radius: 8px;
-                border: 1px solid #E0E0E0;
-                box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.05);
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #FFFFFF, stop: 0.5 #FAFAFA, stop: 1 #F5F5FA);
+                border-radius: 12px;
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             }}
             QTabWidget::pane {{
-                border: 1px solid #E0E0E0;
-                border-radius: 4px;
-                background-color: #FFFFFF;
-                top: -1px;
+                border: 2px solid {primary_color.name()};
+                border-radius: 8px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #FFFFFF, stop: 1 #F5F5FA);
+                top: -2px;
+                padding: 10px;
+            }}
+            QTabWidget::tab-bar {{
+                alignment: left;
             }}
             QTabBar::tab {{
-                background-color: #F5F5F5;
-                color: #707070;
-                border: 1px solid #E0E0E0;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #F5F5FA, stop: 1 #F0F0F5);
+                color: #707080;
+                border: 1px solid #E0E0E5;
                 border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                padding: 8px 16px;
-                margin-right: 2px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                padding: 10px 20px;
+                margin-right: 3px;
+                font-weight: 500;
+                min-width: 120px;
+                min-height: 30px;
             }}
             QTabBar::tab:selected {{
-                background-color: #FFFFFF;
-                color: #282828;
-                border-bottom: 2px solid {primary_color.name()};
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
+                color: #FFFFFF;
+                border-bottom: 3px solid {tertiary_color.name()};
+                font-weight: bold;
+                min-width: 120px;
+                min-height: 30px;
             }}
             QTabBar::tab:hover {{
-                background-color: #EEEEEE;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #EEEEEE, stop: 1 #E5E5EA);
+                color: {text_color.name()};
+                min-width: 120px;
+                min-height: 30px;
             }}
             QScrollArea, QScrollBar {{
                 border: none;
@@ -507,30 +616,46 @@ class ThemeMixin:
                 background: none;
             }}
             QGroupBox {{
-                border: 1px solid #E0E0E0;
-                border-radius: 6px;
-                margin-top: 12px;
-                padding-top: 12px;
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #E0E0E0, stop: 1 #D0D0D0);
+                border-radius: 10px;
+                margin-top: 20px;
+                padding-top: 25px;
+                padding-left: 10px;
+                padding-right: 10px;
+                padding-bottom: 15px;
                 font-weight: bold;
-                background-color: #FFFFFF;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #FFFFFF, stop: 1 #FAFAFA);
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
-                left: 10px;
-                padding: 0 5px;
-                color: #505050;
+                left: 15px;
+                padding: 6px 12px;
+                color: #FFFFFF;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: bold;
             }}
             QGroupBox:hover {{
-                border: 1px solid {primary_color.name()};
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 {primary_color.name()}, stop: 1 {secondary_color.name()});
             }}
             QPushButton {{
-                background-color: #F0F0F0;
-                border: 1px solid #D0D0D0;
-                border-radius: 4px;
-                padding: 6px 16px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #F5F5F5, stop: 1 #EEEEEE);
+                border: 2px solid qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #D0D0D0, stop: 1 #C0C0C0);
+                border-radius: 8px;
+                padding: 10px 24px;
                 color: #404040;
-                font-weight: bold;
+                font-weight: 600;
+                font-size: 11px;
+                min-width: 80px;
+                min-height: 32px;
             }}
             QPushButton:hover {{
                 background-color: #E5E5E5;

@@ -92,6 +92,7 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
         super().__init__()
         self.setWindowTitle("DeVana - V0.2.0")
         self.resize(1600, 900)
+        self.setMinimumSize(1200, 800)  # Set minimum window size
         
         # Disable LaTeX rendering in matplotlib to prevent Unicode errors with Greek characters
         import matplotlib as mpl
@@ -110,6 +111,7 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
         
         # Create central widget with main layout
         central_widget = QWidget()
+        central_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.main_layout = QHBoxLayout(central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
@@ -118,9 +120,17 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
         # Create sidebar
         self.create_sidebar(BEAM_IMPORTS_SUCCESSFUL)
         
+        # Create scroll area for content
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
         # Create stacked widget for main content
         self.content_stack = QStackedWidget()
-        self.main_layout.addWidget(self.content_stack, 1)
+        self.content_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        scroll_area.setWidget(self.content_stack)
+        self.main_layout.addWidget(scroll_area, 1)
         
         # Create the various content pages
         self.create_stochastic_design_page()
