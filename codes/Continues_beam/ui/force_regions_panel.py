@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem, QLabel, QSpacerItem, QSizePolicy,
     QMessageBox
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 
 from .force_region_dialog import ForceRegionDialog
 from ..utils import ForceRegion
@@ -21,6 +21,8 @@ class ForceRegionsPanel(QWidget):
     editing, and removing them. It interacts with a ForceRegionManager
     to keep track of the regions.
     """
+    
+    regions_changed = pyqtSignal()
     
     def __init__(self, region_manager, parent=None):
         """
@@ -115,8 +117,9 @@ class ForceRegionsPanel(QWidget):
             
             self.region_manager.add_region(region)
             
-            # Refresh the list
+            # Refresh the list and emit signal
             self.refresh_regions_list()
+            self.regions_changed.emit()
             
     def edit_region(self):
         """Edit the selected force region."""
@@ -144,8 +147,9 @@ class ForceRegionsPanel(QWidget):
             region.spatial_type = region_data['spatial_type']
             region.locations = region_data['locations']
             
-            # Refresh the list
+            # Refresh the list and emit signal
             self.refresh_regions_list()
+            self.regions_changed.emit()
             
     def remove_region(self):
         """Remove the selected force region."""
@@ -160,5 +164,6 @@ class ForceRegionsPanel(QWidget):
         # Remove the region from the manager
         self.region_manager.remove_region(selected_index)
         
-        # Refresh the list
-        self.refresh_regions_list() 
+        # Refresh the list and emit signal
+        self.refresh_regions_list()
+        self.regions_changed.emit() 

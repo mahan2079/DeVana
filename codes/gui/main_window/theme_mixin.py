@@ -11,6 +11,10 @@ class ThemeMixin:
         else:
             self.current_theme = 'Dark'
             self.apply_dark_theme()
+            
+        # Update beam interface theme if it exists
+        if hasattr(self, 'update_beam_interface_theme'):
+            self.update_beam_interface_theme(self.current_theme)
     
     def apply_current_theme(self):
         """Apply the current theme"""
@@ -18,6 +22,10 @@ class ThemeMixin:
             self.apply_dark_theme()
         else:
             self.apply_light_theme()
+            
+        # Update beam interface theme if it exists
+        if hasattr(self, 'update_beam_interface_theme'):
+            self.update_beam_interface_theme(self.current_theme)
 
     def apply_dark_theme(self):
         """Apply an elegant dark theme with gradient backgrounds and vibrant accents"""
