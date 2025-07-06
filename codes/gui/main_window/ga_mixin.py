@@ -1522,106 +1522,255 @@ class GAOptimizationMixin:
         except Exception as e:
             print(f"Error creating Q-Q plot: {str(e)}")
         
-        # 6. Update statistics table
+                # 6. Update statistics table with enhanced metrics
         try:
-            # Calculate statistics for fitness and available parameters
+            # Calculate comprehensive statistics for fitness and available parameters
             stats_data = []
             
-            # Add fitness statistics
+            # Enhanced fitness statistics
+            fitness_values = df["best_fitness"]
             fitness_stats = {
                 "Metric": "Best Fitness",
-                "Min": df["best_fitness"].min(),
-                "Max": df["best_fitness"].max(),
-                "Mean": df["best_fitness"].mean(),
-                "Std": df["best_fitness"].std()
+                "Min": fitness_values.min(),
+                "Max": fitness_values.max(),
+                "Mean": fitness_values.mean(),
+                "Std": fitness_values.std(),
+                "Median": fitness_values.median(),
+                "Q1": fitness_values.quantile(0.25),
+                "Q3": fitness_values.quantile(0.75),
+                "IQR": fitness_values.quantile(0.75) - fitness_values.quantile(0.25),
+                "Variance": fitness_values.var(),
+                "CV%": (fitness_values.std() / fitness_values.mean()) * 100 if fitness_values.mean() != 0 else 0,
+                "Range": fitness_values.max() - fitness_values.min(),
+                "Skewness": fitness_values.skew(),
+                "Kurtosis": fitness_values.kurtosis()
             }
             stats_data.append(fitness_stats)
             
-            # Add statistics for other metrics in results
+            # Add success rate statistics
+            tolerance = 1e-6  # Default tolerance for success
+            if hasattr(self, 'ga_tol_box'):
+                tolerance = self.ga_tol_box.value()
+            
+            success_count = len(fitness_values[fitness_values <= tolerance])
+            success_rate = (success_count / len(fitness_values)) * 100
+            
+            success_stats = {
+                "Metric": "Success Rate",
+                "Min": f"{success_rate:.2f}%",
+                "Max": f"({success_count}/{len(fitness_values)})",
+                "Mean": f"Tolerance: {tolerance:.2e}",
+                "Std": f"Below: {success_count}",
+                "Median": f"Above: {len(fitness_values) - success_count}",
+                "Q1": "-",
+                "Q3": "-",
+                "IQR": "-",
+                "Variance": "-",
+                "CV%": "-",
+                "Range": "-",
+                "Skewness": "-",
+                "Kurtosis": "-"
+            }
+            stats_data.append(success_stats)
+            
+            # Add elapsed time statistics if available
+            if 'elapsed_time' in df.columns:
+                time_values = df["elapsed_time"]
+                time_stats = {
+                    "Metric": "Elapsed Time (s)",
+                    "Min": time_values.min(),
+                    "Max": time_values.max(),
+                    "Mean": time_values.mean(),
+                    "Std": time_values.std(),
+                    "Median": time_values.median(),
+                    "Q1": time_values.quantile(0.25),
+                    "Q3": time_values.quantile(0.75),
+                    "IQR": time_values.quantile(0.75) - time_values.quantile(0.25),
+                    "Variance": time_values.var(),
+                    "CV%": (time_values.std() / time_values.mean()) * 100 if time_values.mean() != 0 else 0,
+                    "Range": time_values.max() - time_values.min(),
+                    "Skewness": time_values.skew(),
+                    "Kurtosis": time_values.kurtosis()
+                }
+                stats_data.append(time_stats)
+            
+            # Add convergence statistics if available
+            if 'convergence_generation' in df.columns:
+                conv_values = df["convergence_generation"]
+                conv_stats = {
+                    "Metric": "Convergence Generation",
+                    "Min": conv_values.min(),
+                    "Max": conv_values.max(),
+                    "Mean": conv_values.mean(),
+                    "Std": conv_values.std(),
+                    "Median": conv_values.median(),
+                    "Q1": conv_values.quantile(0.25),
+                    "Q3": conv_values.quantile(0.75),
+                    "IQR": conv_values.quantile(0.75) - conv_values.quantile(0.25),
+                    "Variance": conv_values.var(),
+                    "CV%": (conv_values.std() / conv_values.mean()) * 100 if conv_values.mean() != 0 else 0,
+                    "Range": conv_values.max() - conv_values.min(),
+                    "Skewness": conv_values.skew(),
+                    "Kurtosis": conv_values.kurtosis()
+                }
+                stats_data.append(conv_stats)
+            
+            # Add statistics for other numeric metrics in results
             for col in df.columns:
-                if col not in ["run_number", "best_fitness", "best_solution", "parameter_names"] and df[col].dtype in [np.float64, np.int64]:
-                    metric_stats = {
-                        "Metric": col,
-                        "Min": df[col].min(),
-                        "Max": df[col].max(),
-                        "Mean": df[col].mean(),
-                        "Std": df[col].std()
-                    }
-                    stats_data.append(metric_stats)
+                if col not in ["run_number", "best_fitness", "best_solution", "parameter_names", "elapsed_time", "convergence_generation"] and df[col].dtype in [np.float64, np.int64]:
+                    try:
+                        col_values = df[col]
+                        metric_stats = {
+                            "Metric": col.replace('_', ' ').title(),
+                            "Min": col_values.min(),
+                            "Max": col_values.max(),
+                            "Mean": col_values.mean(),
+                            "Std": col_values.std(),
+                            "Median": col_values.median(),
+                            "Q1": col_values.quantile(0.25),
+                            "Q3": col_values.quantile(0.75),
+                            "IQR": col_values.quantile(0.75) - col_values.quantile(0.25),
+                            "Variance": col_values.var(),
+                            "CV%": (col_values.std() / col_values.mean()) * 100 if col_values.mean() != 0 else 0,
+                            "Range": col_values.max() - col_values.min(),
+                            "Skewness": col_values.skew(),
+                            "Kurtosis": col_values.kurtosis()
+                        }
+                        stats_data.append(metric_stats)
+                    except Exception as e:
+                        print(f"Error calculating statistics for column {col}: {e}")
             
-            # Update table with statistics
+            # Update table headers and size for enhanced statistics
+            enhanced_headers = ["Metric", "Min", "Max", "Mean", "Std", "Median", "Q1", "Q3", "IQR", "Variance", "CV%", "Range", "Skewness", "Kurtosis"]
+            self.benchmark_stats_table.setColumnCount(len(enhanced_headers))
+            self.benchmark_stats_table.setHorizontalHeaderLabels(enhanced_headers)
             self.benchmark_stats_table.setRowCount(len(stats_data))
+            
+            # Populate the enhanced statistics table
             for row, stat in enumerate(stats_data):
-                self.benchmark_stats_table.setItem(row, 0, QTableWidgetItem(str(stat["Metric"])))
-                self.benchmark_stats_table.setItem(row, 1, QTableWidgetItem(f"{stat['Min']:.6f}"))
-                self.benchmark_stats_table.setItem(row, 2, QTableWidgetItem(f"{stat['Max']:.6f}"))
-                self.benchmark_stats_table.setItem(row, 3, QTableWidgetItem(f"{stat['Mean']:.6f}"))
-                self.benchmark_stats_table.setItem(row, 4, QTableWidgetItem(f"{stat['Std']:.6f}"))
-                
-            # 7. Update runs table with fitness, rank and best/worst/mean indicators
-            self.benchmark_runs_table.setRowCount(len(df))
+                for col, header in enumerate(enhanced_headers):
+                    value = stat.get(header, "-")
+                    if isinstance(value, (int, float)) and not isinstance(value, str):
+                        if abs(value) >= 1000 or (abs(value) < 0.001 and value != 0):
+                            # Use scientific notation for very large or very small numbers
+                            formatted_value = f"{value:.3e}"
+                        else:
+                            # Use regular formatting for normal numbers
+                            formatted_value = f"{value:.6f}"
+                    else:
+                        formatted_value = str(value)
+                    
+                    item = QTableWidgetItem(formatted_value)
+                    item.setTextAlignment(Qt.AlignCenter)
+                    self.benchmark_stats_table.setItem(row, col, item)
             
-            # Sort runs by fitness (assuming lower is better)
-            sorted_df = df.sort_values('best_fitness')
+            # Add confidence intervals as a separate section
+            confidence_data = []
             
-            # Get index of run with fitness value closest to mean
-            mean_fitness = df['best_fitness'].mean()
-            mean_index = (df['best_fitness'] - mean_fitness).abs().idxmin()
+            # Calculate 95% confidence intervals for fitness
+            import scipy.stats as stats
+            fitness_mean = fitness_values.mean()
+            fitness_std = fitness_values.std()
+            fitness_n = len(fitness_values)
+            fitness_se = fitness_std / np.sqrt(fitness_n)
+            fitness_ci = stats.t.interval(0.95, fitness_n-1, loc=fitness_mean, scale=fitness_se)
             
-            # Create a button class for the details button
-            class DetailButton(QPushButton):
-                def __init__(self, run_number):
-                    super().__init__("View Details")
-                    self.run_number = run_number
+            ci_stats = {
+                "Metric": "Fitness 95% CI",
+                "Min": f"[{fitness_ci[0]:.6f},",
+                "Max": f"{fitness_ci[1]:.6f}]",
+                "Mean": f"±{fitness_ci[1] - fitness_mean:.6f}",
+                "Std": f"SE: {fitness_se:.6f}",
+                "Median": f"n = {fitness_n}",
+                "Q1": "-",
+                "Q3": "-",
+                "IQR": "-",
+                "Variance": "-",
+                "CV%": "-",
+                "Range": "-",
+                "Skewness": "-",
+                "Kurtosis": "-"
+            }
             
-            # Populate the table
-            for i, (_, row) in enumerate(sorted_df.iterrows()):
-                run_number = int(row['run_number'])
-                fitness = row['best_fitness']
-                
-                # Create items for the table
-                run_item = QTableWidgetItem(str(run_number))
-                fitness_item = QTableWidgetItem(f"{fitness:.6f}")
-                rank_item = QTableWidgetItem(f"{i+1}/{len(df)}")
-                
-                # Set alignment
-                run_item.setTextAlignment(Qt.AlignCenter)
-                fitness_item.setTextAlignment(Qt.AlignCenter)
-                rank_item.setTextAlignment(Qt.AlignCenter)
-                
-                # Color coding
-                if i == 0:  # Best run (lowest fitness)
-                    run_item.setBackground(QColor(200, 255, 200))  # Light green
-                    fitness_item.setBackground(QColor(200, 255, 200))
-                    rank_item.setBackground(QColor(200, 255, 200))
-                    run_item.setToolTip("Best Run (Lowest Fitness)")
-                elif i == len(df) - 1:  # Worst run (highest fitness)
-                    run_item.setBackground(QColor(255, 200, 200))  # Light red
-                    fitness_item.setBackground(QColor(255, 200, 200))
-                    rank_item.setBackground(QColor(255, 200, 200))
-                    run_item.setToolTip("Worst Run (Highest Fitness)")
-                elif row.name == mean_index:  # Mean run (closest to mean fitness)
-                    run_item.setBackground(QColor(255, 255, 200))  # Light yellow
-                    fitness_item.setBackground(QColor(255, 255, 200))
-                    rank_item.setBackground(QColor(255, 255, 200))
-                    run_item.setToolTip("Mean Run (Closest to Average Fitness)")
-                
-                # Add items to the table
-                self.benchmark_runs_table.setItem(i, 0, run_item)
-                self.benchmark_runs_table.setItem(i, 1, fitness_item)
-                self.benchmark_runs_table.setItem(i, 2, rank_item)
-                
-                # Add a details button
-                detail_btn = DetailButton(run_number)
-                detail_btn.clicked.connect(lambda _, btn=detail_btn: self.show_run_details(
-                    self.benchmark_runs_table.item(
-                        [i for i in range(self.benchmark_runs_table.rowCount()) 
-                         if int(self.benchmark_runs_table.item(i, 0).text()) == btn.run_number][0], 0)))
-                self.benchmark_runs_table.setCellWidget(i, 3, detail_btn)
+            # Add the confidence interval row
+            current_rows = self.benchmark_stats_table.rowCount()
+            self.benchmark_stats_table.setRowCount(current_rows + 1)
+            for col, header in enumerate(enhanced_headers):
+                value = ci_stats.get(header, "-")
+                item = QTableWidgetItem(str(value))
+                item.setTextAlignment(Qt.AlignCenter)
+                # Highlight confidence interval row
+                item.setBackground(QColor(240, 248, 255))  # Light blue background
+                self.benchmark_stats_table.setItem(current_rows, col, item)
         except Exception as e:
             print(f"Error updating statistics tables: {str(e)}")
         
-        # Connect export button if not already connected
+         
+         # 7. Update runs table with fitness, rank and best/worst/mean indicators
+        try:
+             self.benchmark_runs_table.setRowCount(len(df))
+             
+             # Sort runs by fitness (assuming lower is better)
+             sorted_df = df.sort_values('best_fitness')
+             
+             # Get index of run with fitness value closest to mean
+             mean_fitness = df['best_fitness'].mean()
+             mean_index = (df['best_fitness'] - mean_fitness).abs().idxmin()
+             
+             # Create a button class for the details button
+             class DetailButton(QPushButton):
+                 def __init__(self, run_number):
+                     super().__init__("View Details")
+                     self.run_number = run_number
+             
+             # Populate the table
+             for i, (_, row) in enumerate(sorted_df.iterrows()):
+                 run_number = int(row['run_number'])
+                 fitness = row['best_fitness']
+                 
+                 # Create items for the table
+                 run_item = QTableWidgetItem(str(run_number))
+                 fitness_item = QTableWidgetItem(f"{fitness:.6f}")
+                 rank_item = QTableWidgetItem(f"{i+1}/{len(df)}")
+                 
+                 # Set alignment
+                 run_item.setTextAlignment(Qt.AlignCenter)
+                 fitness_item.setTextAlignment(Qt.AlignCenter)
+                 rank_item.setTextAlignment(Qt.AlignCenter)
+                 
+                 # Color coding
+                 if i == 0:  # Best run (lowest fitness)
+                     run_item.setBackground(QColor(200, 255, 200))  # Light green
+                     fitness_item.setBackground(QColor(200, 255, 200))
+                     rank_item.setBackground(QColor(200, 255, 200))
+                     run_item.setToolTip("Best Run (Lowest Fitness)")
+                 elif i == len(df) - 1:  # Worst run (highest fitness)
+                     run_item.setBackground(QColor(255, 200, 200))  # Light red
+                     fitness_item.setBackground(QColor(255, 200, 200))
+                     rank_item.setBackground(QColor(255, 200, 200))
+                     run_item.setToolTip("Worst Run (Highest Fitness)")
+                 elif row.name == mean_index:  # Mean run (closest to mean fitness)
+                     run_item.setBackground(QColor(255, 255, 200))  # Light yellow
+                     fitness_item.setBackground(QColor(255, 255, 200))
+                     rank_item.setBackground(QColor(255, 255, 200))
+                     run_item.setToolTip("Mean Run (Closest to Average Fitness)")
+                 
+                 # Add items to the table
+                 self.benchmark_runs_table.setItem(i, 0, run_item)
+                 self.benchmark_runs_table.setItem(i, 1, fitness_item)
+                 self.benchmark_runs_table.setItem(i, 2, rank_item)
+                 
+                 # Add a details button
+                 detail_btn = DetailButton(run_number)
+                 detail_btn.clicked.connect(lambda _, btn=detail_btn: self.show_run_details(
+                     self.benchmark_runs_table.item(
+                         [i for i in range(self.benchmark_runs_table.rowCount()) 
+                          if int(self.benchmark_runs_table.item(i, 0).text()) == btn.run_number][0], 0)))
+                 self.benchmark_runs_table.setCellWidget(i, 3, detail_btn)
+        except Exception as e:
+             print(f"Error updating runs table: {str(e)}")
+         
+         # Connect export button if not already connected
         try:
             self.export_benchmark_button.clicked.disconnect()
         except:
@@ -2275,6 +2424,26 @@ class GAOptimizationMixin:
             # Add buttons using the helper method
             self.add_plot_buttons(fig, "Scatter Matrix", "all_parameters")
             
+            # Create buttons layout
+            buttons_layout = QHBoxLayout()
+            
+            # Create save button
+            save_button = QPushButton("💾 Save Plot")
+            save_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #3498db;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #2980b9;
+                }
+            """)
+            save_button.clicked.connect(lambda: self.save_plot(fig, "Scatter Matrix"))
+            
             # Add external window button
             external_button = QPushButton("🔍 Open in New Window")
             external_button.setStyleSheet("""
@@ -2295,6 +2464,10 @@ class GAOptimizationMixin:
             buttons_layout.addWidget(save_button)
             buttons_layout.addWidget(external_button)
             buttons_layout.addStretch()
+            
+            # Create buttons container
+            buttons_container = QWidget()
+            buttons_container.setLayout(buttons_layout)
             
             self.param_plot_widget.layout().addWidget(buttons_container)
             

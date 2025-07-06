@@ -350,48 +350,66 @@ class WelcomePage(QWidget):
             self.loading_label.setText("Welcome!")
             
     def paintEvent(self, event):
-        """Custom paint event with sophisticated visual effects"""
+        """Custom paint event with sophisticated visual effects and elegant gradients"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Animated gradient background
+        # Enhanced animated gradient background
         import math
         gradient = QLinearGradient(0, 0, self.width(), self.height())
         
-        # Create shifting colors based on gradient phase
-        base_hue = 240 + (self.gradient_phase * 60)  # Blue to purple
-        color1 = QColor.fromHsv(int(base_hue) % 360, 60, 40)
-        color2 = QColor.fromHsv(int(base_hue + 30) % 360, 80, 20)
-        color3 = QColor.fromHsv(int(base_hue + 60) % 360, 50, 35)
+        # Create more sophisticated shifting colors
+        base_hue = 240 + (self.gradient_phase * 80)  # Blue to purple to pink
+        
+        # More elegant color palette
+        color1 = QColor.fromHsv(int(base_hue) % 360, 85, 25)          # Deep rich base
+        color2 = QColor.fromHsv(int(base_hue + 40) % 360, 70, 35)     # Mid tone
+        color3 = QColor.fromHsv(int(base_hue + 80) % 360, 60, 20)     # Dark accent
+        color4 = QColor.fromHsv(int(base_hue + 120) % 360, 50, 30)    # Complementary
         
         gradient.setColorAt(0.0, color1)
-        gradient.setColorAt(0.5, color2)
-        gradient.setColorAt(1.0, color3)
+        gradient.setColorAt(0.3, color2)
+        gradient.setColorAt(0.7, color3)
+        gradient.setColorAt(1.0, color4)
         painter.fillRect(self.rect(), gradient)
         
-        # Draw floating particles
+        # Enhanced floating particles with better colors
         painter.setPen(Qt.NoPen)
-        for particle in self.particle_positions:
+        for i, particle in enumerate(self.particle_positions):
             x, y, size, speed, opacity = particle
-            # Create glowing effect
-            glow_color = QColor(100, 150, 255, int(opacity * 255))
+            
+            # Create more vibrant particle colors
+            particle_hue = (base_hue + i * 15) % 360
+            glow_color = QColor.fromHsv(int(particle_hue), 100, 80, int(opacity * 180))
+            center_color = QColor.fromHsv(int(particle_hue), 60, 95, int(opacity * 220))
+            
+            # Draw glowing outer ring
             painter.setBrush(QBrush(glow_color))
             painter.drawEllipse(int(x), int(y), size, size)
             
-            # Add smaller bright center
-            center_color = QColor(200, 230, 255, int(opacity * 150))
+            # Add bright center
             painter.setBrush(QBrush(center_color))
             painter.drawEllipse(int(x + size/4), int(y + size/4), size//2, size//2)
         
-        # Draw subtle geometric patterns
-        painter.setPen(QPen(QColor(255, 255, 255, 20), 1))
+        # Enhanced geometric patterns
+        painter.setPen(QPen(QColor(255, 255, 255, 15), 1))
         painter.setBrush(Qt.NoBrush)
         
-        # Animated circles
-        pulse_scale = 1.0 + 0.1 * math.sin(self.pulse_phase)
+        # Multiple animated circle sets
+        pulse_scale = 1.0 + 0.08 * math.sin(self.pulse_phase)
         center_x, center_y = self.width() // 2, self.height() // 2
+        
+        # Main circles
+        for i in range(4):
+            radius = (40 + i * 25) * pulse_scale
+            painter.drawEllipse(int(center_x - radius), int(center_y - radius), 
+                              int(radius * 2), int(radius * 2))
+        
+        # Secondary offset circles
+        painter.setPen(QPen(QColor(255, 255, 255, 10), 1))
+        offset_scale = 1.0 + 0.05 * math.sin(self.pulse_phase + 1.5)
         for i in range(3):
-            radius = (50 + i * 30) * pulse_scale
+            radius = (30 + i * 35) * offset_scale
             painter.drawEllipse(int(center_x - radius), int(center_y - radius), 
                               int(radius * 2), int(radius * 2))
         
