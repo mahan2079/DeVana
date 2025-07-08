@@ -10,15 +10,19 @@
 
 ## Overview
 
-**DeVana** is a state-of-the-art framework for modeling, analyzing, and optimizing Dynamic Vibration Absorbers (DVAs) in complex mechanical systems. Designed for engineers and researchers, DeVana facilitates the creation of efficient, robust, and stable systems across various industries, including structural engineering, aerospace, automotive, industrial machinery and etc.
+**DeVana** is a state-of-the-art framework for modeling, analyzing, and optimizing Dynamic Vibration Absorbers (DVAs) in complex mechanical systems. Designed for engineers and researchers, DeVana facilitates the creation of efficient, robust, and stable systems across various industries, including structural engineering, aerospace, automotive, industrial machinery and more.
+
+The framework bridges the gap between discrete system modeling and continuous system analysis, providing a comprehensive workflow for DVA optimization. DeVana handles the critical middle phase of the design process, taking discrete models as input and producing optimized DVA parameter ranges that can be further validated in continuous system analysis.
 
 ### Key Features
 
-- **Comprehensive Modeling**: Multi-degree-of-freedom system modeling with integrated DVAs.
-- **Advanced Optimization**: Multi-objective genetic algorithms to achieve optimal designs.
-- **Sensitivity Analysis**: Sobol method for sensitivity analysis and prioritizing impactful parameters.
-- **Real-Time Visualization**: Interactive dashboards for Frequency Response Functions (FRF) and optimization progress.
-- **User-Friendly Configuration**: Intuitive JSON-based configuration files for flexibility and customization.
+- **Comprehensive Modeling**: Multi-degree-of-freedom system modeling with integrated DVAs
+- **Advanced Optimization Suite**: Multiple algorithms including Genetic Algorithms, Particle Swarm Optimization, Differential Evolution, Simulated Annealing, CMA-ES, and Bayesian Optimization
+- **Sensitivity Analysis**: Sobol method for sensitivity analysis and prioritizing impactful parameters
+- **Statistical Analysis**: Aggregation of multiple optimization runs to identify robust parameter ranges
+- **Real-Time Visualization**: Interactive dashboards for Frequency Response Functions (FRF) and optimization progress
+- **Continuous Beam Analysis**: Advanced composite beam modeling with temperature-dependent material properties
+- **User-Friendly Configuration**: Intuitive JSON-based configuration files for flexibility and customization
 
 ---
 
@@ -26,37 +30,62 @@
 
 DeVana optimizes DVAs based on the following:
 
-- **Minimizing Vibrational Energy**: Reducing stress and enhancing durability.
-- **Resonance Control**: Managing peak magnitudes and their frequencies.
-- **Bandwidth Optimization**: Ensuring robustness over a range of frequencies.
-- **Energy Dissipation Balance**: Enhancing stability and uniform energy distribution.
+- **Minimizing Vibrational Energy**: Reducing stress and enhancing durability
+- **Resonance Control**: Managing peak magnitudes and their frequencies
+- **Bandwidth Optimization**: Ensuring robustness over a range of frequencies
+- **Energy Dissipation Balance**: Enhancing stability and uniform energy distribution
 
 For technical details, refer to the [DeVana Documentation](User_Manual.pdf).
 
 ---
 
-## Usage Workflow
+## Complete DVA Design Workflow
 
-### Step 1: Define System Parameters
+### Phase 1: Discrete System Modeling (Pre-DeVana)
+- Model the mechanical system as a discrete mass-spring-damper system
+- Define degrees of freedom, connectivity, and external forces
+- Establish initial system parameters (mass, stiffness, damping matrices)
+
+### Phase 2: DVA Optimization (DeVana Core)
+
+#### Step 1: Define System Parameters
 Set primary system properties such as mass, stiffness, damping, and external forces in `config/system_config.json`.
 
-### Step 2: Configure DVAs
+#### Step 2: Configure DVAs
 Customize DVA parameters (e.g., mass, stiffness, damping) in `config/dva_config.json`.
 
-### Step 3: Set Performance Targets
+#### Step 3: Set Performance Targets
 Specify optimization goals in `config/performance_targets.json`.
 
-### Step 4: Analyze System
-Run FRF analysis to assess vibrational responses:
+#### Step 4: Analyze System
+Run Frequency Response Function (FRF) analysis to assess vibrational responses and establish baseline performance.
 
-### Step 5: Conduct Sensitivity Analysis
-Identify influential parameters:
+#### Step 5: Conduct Sensitivity Analysis
+Identify influential parameters using the Sobol method to prioritize optimization efforts:
+- Determine which DVA parameters have the greatest impact on system performance
+- Visualize parameter sensitivity across frequency ranges
+- Focus optimization on the most influential parameters
 
-### Step 6: Optimize DVAs
-Execute genetic algorithm optimization:
+#### Step 6: Optimize DVAs
+Execute optimization using one or multiple algorithms:
+- **Genetic Algorithm (GA)**: Multi-objective evolutionary optimization with adaptive rates
+- **Particle Swarm Optimization (PSO)**: Social behavior-inspired optimization with various topology options
+- **Differential Evolution (DE)**: Population-based stochastic function minimizer
+- **Simulated Annealing (SA)**: Temperature-based probabilistic technique for global optimization
+- **CMA-ES**: Covariance Matrix Adaptation Evolution Strategy for non-linear, non-convex optimization
+- **Bayesian Optimization**: Sample-efficient optimization using probabilistic surrogate models
 
-### Step 7: Implement Optimized Parameters
-Update configuration files with results and validate the system.
+#### Step 7: Statistical Analysis of Results
+- Run multiple optimization instances with different initial conditions
+- Aggregate results to identify robust parameter ranges
+- Analyze convergence patterns and solution stability
+- Generate statistical distributions of optimal parameters
+
+### Phase 3: Continuous System Implementation (Post-DeVana)
+- Apply optimized DVA parameter ranges to continuous system models
+- Validate performance using the integrated Continuous Beam Analysis module
+- Fine-tune parameters based on continuous system response
+- Implement final design in physical system
 
 ---
 
@@ -65,6 +94,16 @@ Update configuration files with results and validate the system.
 ### Prerequisites
 - Python 3.7+
 - pip (Python package installer)
+
+### Dependencies
+- NumPy: Numerical computing
+- Matplotlib & Seaborn: Data visualization
+- Pandas: Data manipulation
+- SciPy: Scientific computing
+- PyQt5: GUI framework
+- SALib: Sensitivity analysis
+- joblib: Parallel computing
+- adjustText: Text annotation in plots
 
 ### Steps
 
@@ -85,14 +124,49 @@ Update configuration files with results and validate the system.
    pip install -r requirements.txt
    ```
 
+4. Launch the application:
+   ```bash
+   python codes/run.py
+   ```
+
+---
+
+## Advanced Features
+
+### Continuous Beam Analysis
+The integrated Continuous Beam module provides:
+- Multi-layer composite beam analysis
+- Temperature-dependent material properties
+- Automatic calculation of effective flexural rigidity and mass per unit length
+- Advanced finite element analysis with Euler-Bernoulli beam elements
+- Natural frequency and mode shape calculation
+- Time-domain vibration analysis
+- Interactive visualization with real-time animations
+
+### Optimization Algorithm Comparison
+DeVana allows side-by-side comparison of different optimization algorithms:
+- Performance benchmarking across algorithms
+- Convergence rate visualization
+- Solution quality assessment
+- Computational efficiency metrics
+
+### Comprehensive Metrics Visualization
+- Real-time optimization progress tracking
+- Parameter convergence plots
+- Fitness landscape visualization
+- Statistical distribution of solutions
+- Sensitivity analysis heatmaps
+
+---
 
 ## Contributing
 
 Contributions are welcome! Fork the repository, create a branch for your feature or fix, and submit a pull request.
 
 ### Guidelines
-- Ensure code quality and update documentation.
-- Include unit tests for new features or fixes.
+- Ensure code quality and update documentation
+- Include unit tests for new features or fixes
+- Follow the existing code style and architecture
 
 ---
 

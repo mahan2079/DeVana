@@ -40,7 +40,7 @@ class EnhancedCrossSectionVisualizer(QWidget):
         self.hovered_layer = -1
         self.theme = theme  # Store current theme
         
-        self.setMinimumSize(400, 300)
+        self.setMinimumSize(400, 900)
         self.setMouseTracking(True)
         
         # Initialize layout

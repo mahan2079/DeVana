@@ -207,7 +207,7 @@ class CompositeBeamInterface(QWidget):
         
         self.layer_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.layer_table.setAlternatingRowColors(True)
-        self.layer_table.setMaximumHeight(200)
+        self.layer_table.setMinimumHeight(400)
         
         layout.addWidget(self.layer_table)
         
