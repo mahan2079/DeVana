@@ -78,6 +78,13 @@ class DEOptimizationMixin:
         ])
         de_params_layout.addRow("Adaptive Method:", self.de_adaptive_combo)
 
+        # Number of independent runs for benchmarking
+        self.de_num_runs_spinbox = QSpinBox()
+        self.de_num_runs_spinbox.setRange(1, 100)
+        self.de_num_runs_spinbox.setValue(1)
+        self.de_num_runs_spinbox.setToolTip("Number of DE runs (1 = single run)")
+        de_params_layout.addRow("Benchmark Runs:", self.de_num_runs_spinbox)
+
         # Add the parameters group to the layout
         settings_layout.addWidget(de_params_group)
         
@@ -167,18 +174,38 @@ class DEOptimizationMixin:
         results_tab = QWidget()
         results_layout = QVBoxLayout(results_tab)
 
+        # Header with export button
+        header_container = QWidget()
+        header_layout = QHBoxLayout(header_container)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(QLabel("DE Optimization Results:"))
+        header_layout.addStretch()
+        self.export_de_results_button = QPushButton("Export DE Results")
+        self.export_de_results_button.setToolTip("Export the DE optimization results to a JSON file")
+        self.export_de_results_button.setEnabled(False)
+        self.export_de_results_button.clicked.connect(self.export_de_results_to_file)
+        header_layout.addWidget(self.export_de_results_button)
+        results_layout.addWidget(header_container)
+
+        # Progress bar (hidden until run starts)
+        self.de_progress_bar = QProgressBar()
+        self.de_progress_bar.setRange(0, 100)
+        self.de_progress_bar.setValue(0)
+        self.de_progress_bar.setTextVisible(True)
+        self.de_progress_bar.setFormat("DE Progress: %p%")
+        self.de_progress_bar.hide()
+        results_layout.addWidget(self.de_progress_bar)
+
         # Add Results visualization split
         results_splitter = QSplitter(Qt.Vertical)
-        
+
         # Text results area
         text_results_widget = QWidget()
         text_results_layout = QVBoxLayout(text_results_widget)
-        text_results_layout.addWidget(QLabel("DE Optimization Results:"))
-        
         self.de_results_text = QTextEdit()
         self.de_results_text.setReadOnly(True)
         text_results_layout.addWidget(self.de_results_text)
-        
+
         results_splitter.addWidget(text_results_widget)
         
         # Visualization area
@@ -208,10 +235,26 @@ class DEOptimizationMixin:
         
         results_layout.addWidget(results_splitter)
 
-        # Add tabs to sub-tabs widget
+        # -------------------- Sub-tab 4: Benchmarking --------------------
+        benchmark_tab = QWidget()
+        benchmark_layout = QVBoxLayout(benchmark_tab)
+
+        self.de_benchmark_table = QTableWidget()
+        self.de_benchmark_table.setColumnCount(4)
+        self.de_benchmark_table.setHorizontalHeaderLabels([
+            "Run #", "Best Fitness", "Conv. Gen", "Exec Time (s)"
+        ])
+        self.de_benchmark_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        benchmark_layout.addWidget(self.de_benchmark_table)
+
+        self.de_benchmark_fig = Figure(figsize=(6, 4))
+        self.de_benchmark_canvas = FigureCanvasQTAgg(self.de_benchmark_fig)
+        benchmark_layout.addWidget(self.de_benchmark_canvas)
+
         self.de_sub_tabs.addTab(settings_tab, "DE Settings")
         self.de_sub_tabs.addTab(dva_params_tab, "DVA Parameters")
         self.de_sub_tabs.addTab(results_tab, "Results")
+        self.de_sub_tabs.addTab(benchmark_tab, "DE Benchmarking")
 
         # Add sub-tabs to main layout
         layout.addWidget(self.de_sub_tabs)
@@ -318,6 +361,11 @@ class DEOptimizationMixin:
     def run_de(self):
         """Run the differential evolution optimization"""
         try:
+            if hasattr(self, 'de_worker') and self.de_worker.isRunning():
+                QMessageBox.warning(self, "Process Running",
+                                   "A Differential Evolution optimization is already running. Please wait for it to complete.")
+                return
+
             # Get parameter data from the DVA table
             parameter_data = []
             for row in range(self.de_dva_params_table.rowCount()):
@@ -342,8 +390,13 @@ class DEOptimizationMixin:
                 'de_CR': self.de_CR_spinbox.value(),
                 'de_tol': self.de_tol_spinbox.value(),
                 'strategy': self.de_strategy_combo.currentText(),
-                'adaptive': self.de_adaptive_combo.currentText()
+                'adaptive': self.de_adaptive_combo.currentText(),
+                'num_runs': self.de_num_runs_spinbox.value()
             }
+
+            # Store run information for progress tracking
+            self.total_de_runs = de_params['num_runs']
+            self.current_de_run = 1
             
             # Show a message in the results area
             self.de_results_text.clear()
@@ -354,19 +407,14 @@ class DEOptimizationMixin:
             self.de_results_text.append(f"Crossover rate (CR): {de_params['de_CR']}")
             self.de_results_text.append(f"Strategy: {de_params['strategy']}")
             self.de_results_text.append(f"Adaptive method: {de_params['adaptive']}")
+            self.de_results_text.append(f"Benchmark runs: {de_params['num_runs']}")
             self.de_results_text.append("-------------------")
 
             # Get main parameters
             try:
-                # Get main parameters from GUI
-                if hasattr(self, 'target_values') and hasattr(self, 'weights'):
-                    main_params = {
-                        'target_values': self.target_values,
-                        'weights': self.weights
-                    }
-                else:
-                    raise ValueError("Target values and weights not found")
-                
+                main_params = self.get_main_system_params()
+                target_values, weights = self.get_target_values_weights()
+
                 omega_start = self.omega_start_box.value()
                 omega_end = self.omega_end_box.value()
                 omega_points = self.omega_points_box.value()
@@ -392,20 +440,39 @@ class DEOptimizationMixin:
                 self.diversity_values = []
                 self.generations = []
                 self.de_canvas.draw()
-                
-                # Create and start worker thread
+
+                # Show progress bar
+                if hasattr(self, 'de_progress_bar'):
+                    self.de_progress_bar.setValue(0)
+                    self.de_progress_bar.show()
+
+                if hasattr(self, 'run_de_button'):
+                    self.run_de_button.setEnabled(False)
+
+                # Create and start worker thread with correct parameters
                 self.de_worker = DEWorker(
-                    main_params,
-                    parameter_data,
-                    de_params,
-                    omega_start,
-                    omega_end,
-                    omega_points
+                    main_params=main_params,
+                    target_values_dict=target_values,
+                    weights_dict=weights,
+                    omega_start=omega_start,
+                    omega_end=omega_end,
+                    omega_points=omega_points,
+                    de_pop_size=de_params['de_pop_size'],
+                    de_num_generations=de_params['de_num_generations'],
+                    de_F=de_params['de_F'],
+                    de_CR=de_params['de_CR'],
+                    de_tol=de_params['de_tol'],
+                    de_parameter_data=parameter_data,
+                    strategy=de_params['strategy'],
+                    adaptive_method=de_params['adaptive'],
+                    record_statistics=True,
+                    num_runs=de_params['num_runs']
                 )
-                self.de_worker.progress_signal.connect(self.handle_de_progress)
-                self.de_worker.finished_signal.connect(self.handle_de_finished)
-                self.de_worker.error_signal.connect(self.handle_de_error)
-                self.de_worker.update_signal.connect(self.handle_de_update)
+                self.de_worker.progress.connect(self.handle_de_progress)
+                self.de_worker.multi_run_progress.connect(self.handle_de_multi_run_progress)
+                self.de_worker.finished.connect(self.handle_de_finished)
+                self.de_worker.error.connect(self.handle_de_error)
+                self.de_worker.update.connect(self.handle_de_update)
                 
                 # Show the DE tab with Results subtab
                 self.de_sub_tabs.setCurrentIndex(2)  # Switch to Results tab
@@ -435,6 +502,12 @@ class DEOptimizationMixin:
             self.generations.append(generation)
             self.fitness_values.append(best_fitness)
             self.diversity_values.append(diversity)
+
+            if hasattr(self, 'de_progress_bar') and self.de_worker:
+                total_gen = self.de_worker.de_num_generations
+                run_fraction = (generation / total_gen)
+                overall = ((getattr(self, 'current_de_run', 1) - 1) + run_fraction) / getattr(self, 'total_de_runs', 1)
+                self.de_progress_bar.setValue(int(overall * 100))
             
             # Update the results text
             if generation % 5 == 0:  # Update every 5 generations to avoid too many updates
@@ -491,13 +564,32 @@ class DEOptimizationMixin:
         except Exception as e:
             print(f"Error updating DE visualization: {str(e)}")
 
+    def handle_de_multi_run_progress(self, current_run, total_runs):
+        """Handle progress between multiple DE runs"""
+        try:
+            self.current_de_run = current_run
+            self.total_de_runs = total_runs
+            self.de_results_text.append(f"\n--- Starting run {current_run}/{total_runs} ---")
+            if hasattr(self, 'statusBar'):
+                self.statusBar().showMessage(f"DE optimization run {current_run} of {total_runs}")
+        except Exception as e:
+            print(f"Error handling multi-run progress: {str(e)}")
+
     def handle_de_finished(self, results, best_individual, parameter_names, best_fitness, statistics):
         """Handle the completion of the DE optimization"""
         try:
             # Store the best parameters and fitness
             self.current_de_best_params = best_individual
             self.current_de_best_fitness = best_fitness
-            self.current_de_full_results = results
+            if hasattr(statistics, 'run_best_fitnesses'):
+                # Multi-run statistics
+                self.current_de_full_results = {
+                    'results': results,
+                    'multi_run_stats': statistics.__dict__
+                }
+                self.visualize_de_benchmark_results(statistics)
+            else:
+                self.current_de_full_results = results
             
             # Display results in the text area
             self.de_results_text.append("\n=== Optimization Complete ===")
@@ -510,9 +602,19 @@ class DEOptimizationMixin:
                 
             # Create the final visualization
             self.create_de_final_visualization(statistics, parameter_names)
-            
-            # Switch to the Results tab to show the final results
-            self.de_sub_tabs.setCurrentIndex(2)
+
+            # Switch to appropriate tab to show final results
+            if getattr(self, 'total_de_runs', 1) > 1:
+                self.de_sub_tabs.setCurrentIndex(3)
+            else:
+                self.de_sub_tabs.setCurrentIndex(2)
+
+            if hasattr(self, 'de_progress_bar'):
+                self.de_progress_bar.setValue(100)
+                self.de_progress_bar.hide()
+
+            if hasattr(self, 'export_de_results_button'):
+                self.export_de_results_button.setEnabled(True)
             
             # Enable the run button again
             if hasattr(self, 'run_de_button'):
@@ -641,6 +743,58 @@ class DEOptimizationMixin:
             QMessageBox.critical(None, "Save Error", f"Failed to save visualization: {str(e)}")
             self.de_results_text.append(f"Error saving visualization: {str(e)}")
 
+    def export_de_results_to_file(self):
+        """Export DE optimization results to a JSON file"""
+        try:
+            if not hasattr(self, 'current_de_full_results'):
+                QMessageBox.warning(self, "No Results", "No DE optimization results available to export.")
+                return
+
+            file_path, _ = QFileDialog.getSaveFileName(self, "Export DE Results", "", "JSON Files (*.json)")
+            if file_path:
+                import json
+                with open(file_path, 'w') as f:
+                    json.dump(self.current_de_full_results, f, indent=4)
+                QMessageBox.information(self, "Export Complete", f"Results saved to {file_path}")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Error", f"Failed to export results: {str(e)}")
+
+    def visualize_de_benchmark_results(self, stats):
+        """Visualize results from multiple DE runs"""
+        try:
+            if not stats or not stats.run_best_fitnesses:
+                return
+
+            df = pd.DataFrame({
+                'Run': list(range(1, len(stats.run_best_fitnesses) + 1)),
+                'BestFitness': stats.run_best_fitnesses,
+                'ConvergenceGen': stats.run_convergence_gens,
+                'ExecTime': stats.run_execution_times
+            })
+
+            self.de_benchmark_table.setRowCount(len(df))
+            for i, row in df.iterrows():
+                self.de_benchmark_table.setItem(i, 0, QTableWidgetItem(str(row['Run'])))
+                self.de_benchmark_table.setItem(i, 1, QTableWidgetItem(f"{row['BestFitness']:.6f}"))
+                self.de_benchmark_table.setItem(i, 2, QTableWidgetItem(str(row['ConvergenceGen'])))
+                self.de_benchmark_table.setItem(i, 3, QTableWidgetItem(f"{row['ExecTime']:.2f}"))
+
+            self.de_benchmark_fig.clear()
+            ax1 = self.de_benchmark_fig.add_subplot(211)
+            sns.violinplot(y=df['BestFitness'], ax=ax1, color='skyblue')
+            ax1.set_title('Distribution of Best Fitness')
+            ax1.set_ylabel('Fitness')
+
+            ax2 = self.de_benchmark_fig.add_subplot(212)
+            sns.violinplot(y=df['ConvergenceGen'], ax=ax2, color='lightgreen')
+            ax2.set_title('Distribution of Convergence Generation')
+            ax2.set_ylabel('Generation')
+
+            self.de_benchmark_fig.tight_layout()
+            self.de_benchmark_canvas.draw()
+        except Exception as e:
+            print(f"Error visualizing DE benchmark results: {str(e)}")
+
     def handle_de_error(self, error_msg):
         """Handle errors from the DE optimization worker"""
         try:
@@ -653,6 +807,10 @@ class DEOptimizationMixin:
             
             # Show error message box
             QMessageBox.critical(None, "DE Optimization Error", error_msg)
+
+            if hasattr(self, 'de_progress_bar'):
+                self.de_progress_bar.hide()
+                self.de_progress_bar.setValue(0)
             
         except Exception as e:
             print(f"Error handling DE error: {str(e)}")
