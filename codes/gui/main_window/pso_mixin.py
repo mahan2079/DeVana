@@ -1778,9 +1778,11 @@ class PSOMixin:
 
     # -------- Parameter Visualization Helpers --------
     def pso_on_parameter_selection_changed(self):
+        """Refresh plots when selection changes"""
         self.pso_update_parameter_plots()
 
     def pso_on_plot_type_changed(self):
+        """Toggle comparison dropdown and refresh plots"""
         plot_type = self.pso_plot_type_combo.currentText()
         if plot_type == "Scatter Plot":
             self.pso_comparison_param_combo.setEnabled(True)
@@ -1789,9 +1791,11 @@ class PSOMixin:
         self.pso_update_parameter_plots()
 
     def pso_on_comparison_parameter_changed(self):
+        """Refresh plots when comparison parameter changes"""
         self.pso_update_parameter_plots()
 
     def pso_extract_parameter_data_from_runs(self, df):
+        """Return dictionary of parameter arrays from DataFrame"""
         parameter_data = {}
         for _, row in df.iterrows():
             sol = row.get('best_solution')
@@ -1799,21 +1803,27 @@ class PSOMixin:
             if isinstance(sol, list) and isinstance(names, list) and len(sol) == len(names):
                 for name, val in zip(names, sol):
                     parameter_data.setdefault(name, []).append(val)
-        for key in parameter_data:
-            parameter_data[key] = np.array(parameter_data[key])
+        for key, vals in parameter_data.items():
+            parameter_data[key] = np.array(vals)
         return parameter_data
 
     def pso_update_parameter_dropdowns(self, parameter_data):
+        """Populate dropdown menus with parameters"""
         names = list(parameter_data.keys())
         self.pso_param_selection_combo.clear()
+        self.pso_param_selection_combo.setMaxVisibleItems(10)
         self.pso_param_selection_combo.addItems(names)
+
         self.pso_comparison_param_combo.clear()
+        self.pso_comparison_param_combo.setMaxVisibleItems(10)
         self.pso_comparison_param_combo.addItem("None")
         self.pso_comparison_param_combo.addItems(names)
 
     def pso_update_parameter_plots(self):
+        """Create the selected parameter visualization"""
         if not hasattr(self, 'pso_current_parameter_data') or not self.pso_current_parameter_data:
             return
+
         param = self.pso_param_selection_combo.currentText()
         plot_type = self.pso_plot_type_combo.currentText()
         comp_param = self.pso_comparison_param_combo.currentText()
@@ -1823,6 +1833,8 @@ class PSOMixin:
                 child = self.pso_param_plot_widget.layout().takeAt(0)
                 if child.widget():
                     child.widget().deleteLater()
+        else:
+            self.pso_param_plot_widget.setLayout(QVBoxLayout())
 
         if plot_type == "Violin Plot":
             self.pso_create_violin_plot(param)
@@ -1833,57 +1845,263 @@ class PSOMixin:
         elif plot_type == "Q-Q Plot":
             self.pso_create_qq_plot(param)
 
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.pso_param_plot_widget.layout().addWidget(spacer)
+
     def pso_create_violin_plot(self, param):
-        values = self.pso_current_parameter_data.get(param, [])
+        """Enhanced violin plot similar to GA version"""
+        values = self.pso_current_parameter_data.get(param)
         if values is None or len(values) == 0:
             return
-        fig = Figure(figsize=(6,4), tight_layout=True)
+
+        fig = Figure(figsize=(8, 6), dpi=100, tight_layout=True)
         ax = fig.add_subplot(111)
-        sns.violinplot(y=values, ax=ax, color="skyblue")
-        ax.set_ylabel(param)
+
+        parts = ax.violinplot([values], positions=[0], showmeans=True,
+                              showmedians=True, showextrema=True)
+        for pc in parts['bodies']:
+            pc.set_facecolor('#3498db')
+            pc.set_alpha(0.7)
+            pc.set_edgecolor('black')
+            pc.set_linewidth(1.2)
+
+        boxprops = dict(facecolor='white', alpha=0.8, edgecolor='black', linewidth=1.5)
+        ax.boxplot([values], positions=[0], widths=0.15, patch_artist=True,
+                   boxprops=boxprops, medianprops=dict(color='red', linewidth=2))
+
+        mean_val = np.mean(values)
+        median_val = np.median(values)
+        std_val = np.std(values)
+        min_val = np.min(values)
+        max_val = np.max(values)
+
+        stats_text = (f"Count: {len(values)}\n"
+                      f"Mean: {mean_val:.4f}\n"
+                      f"Median: {median_val:.4f}\n"
+                      f"Std Dev: {std_val:.4f}\n"
+                      f"Range: {max_val - min_val:.4f}")
+
+        ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgray', alpha=0.9,
+                           edgecolor='black'))
+
+        ax.set_title(param, fontsize=14, fontweight='bold')
+        ax.set_ylabel('Parameter Value')
+        ax.set_xticks([])
+        ax.grid(True, alpha=0.3)
+
         canvas = FigureCanvasQTAgg(fig)
         self.pso_param_plot_widget.layout().addWidget(canvas)
+        toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+        self.pso_param_plot_widget.layout().addWidget(toolbar)
+        self.pso_add_plot_buttons(fig, 'Violin Plot', param)
 
     def pso_create_distribution_plot(self, param):
-        values = self.pso_current_parameter_data.get(param, [])
+        """Distribution plot with KDE"""
+        values = self.pso_current_parameter_data.get(param)
         if values is None or len(values) == 0:
             return
-        fig = Figure(figsize=(6,4), tight_layout=True)
+
+        fig = Figure(figsize=(8, 6), dpi=100, tight_layout=True)
         ax = fig.add_subplot(111)
-        sns.histplot(values, kde=True, ax=ax, color="skyblue")
+
+        n_bins = max(20, min(50, len(values) // 10))
+        ax.hist(values, bins=n_bins, density=True, alpha=0.7,
+                color='#2ecc71', edgecolor='black')
+
+        try:
+            from scipy import stats
+            kde = stats.gaussian_kde(values)
+            x_range = np.linspace(values.min(), values.max(), 200)
+            ax.plot(x_range, kde(x_range), 'darkred', linewidth=2, label='KDE')
+        except Exception:
+            pass
+
         ax.set_xlabel(param)
+        ax.set_ylabel('Density')
+        ax.set_title(f'{param} Distribution', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc='upper right', fontsize=9)
+
         canvas = FigureCanvasQTAgg(fig)
         self.pso_param_plot_widget.layout().addWidget(canvas)
+        toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+        self.pso_param_plot_widget.layout().addWidget(toolbar)
+        self.pso_add_plot_buttons(fig, 'Distribution Plot', param)
 
     def pso_create_scatter_plot(self, param, comp_param):
-        if comp_param == "None" or comp_param == param:
-            return
-        values_x = self.pso_current_parameter_data.get(param, [])
-        values_y = self.pso_current_parameter_data.get(comp_param, [])
-        if len(values_x) == 0 or len(values_y) == 0:
-            return
-        fig = Figure(figsize=(6,4), tight_layout=True)
-        ax = fig.add_subplot(111)
-        ax.scatter(values_x, values_y, alpha=0.7)
-        ax.set_xlabel(param)
-        ax.set_ylabel(comp_param)
-        canvas = FigureCanvasQTAgg(fig)
-        self.pso_param_plot_widget.layout().addWidget(canvas)
+        """Scatter plot handling single or pair parameters"""
+        if comp_param == 'None' or comp_param == param:
+            self.pso_create_parameter_vs_run_scatter(param)
+        else:
+            self.pso_create_two_parameter_scatter(param, comp_param)
 
-    def pso_create_qq_plot(self, param):
-        values = self.pso_current_parameter_data.get(param, [])
+    def pso_create_parameter_vs_run_scatter(self, param_name):
+        values = self.pso_current_parameter_data.get(param_name)
         if values is None or len(values) == 0:
             return
-        from scipy import stats
-        fig = Figure(figsize=(6,4), tight_layout=True)
+
+        fig = Figure(figsize=(10, 7), dpi=100, tight_layout=True)
         ax = fig.add_subplot(111)
-        (osm, osr), (slope, intercept, _) = stats.probplot(values, dist="norm")
-        ax.scatter(osm, osr)
-        ax.plot(osm, slope*osm + intercept, color='red')
-        ax.set_xlabel("Theoretical Quantiles")
-        ax.set_ylabel("Sample Quantiles")
+
+        run_numbers = range(1, len(values) + 1)
+        scatter = ax.scatter(run_numbers, values, alpha=0.7, s=60,
+                             c=values, cmap='viridis', edgecolors='black', linewidth=0.5)
+        fig.colorbar(scatter, ax=ax, shrink=0.8, aspect=20,
+                     label=f'{param_name} Value')
+
+        z = np.polyfit(run_numbers, values, 1)
+        p = np.poly1d(z)
+        trend_line = p(run_numbers)
+        ax.plot(run_numbers, trend_line, 'r--', linewidth=2,
+                label=f'Trend: y={z[0]:.6f}x+{z[1]:.6f}')
+
+        ax.set_xlabel('Run Number')
+        ax.set_ylabel(f'{param_name} Value')
+        ax.set_title(f'{param_name} vs Run Number', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc='upper right', fontsize=9)
+
         canvas = FigureCanvasQTAgg(fig)
         self.pso_param_plot_widget.layout().addWidget(canvas)
+        toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+        self.pso_param_plot_widget.layout().addWidget(toolbar)
+        self.pso_add_plot_buttons(fig, 'Scatter Plot', param_name)
+
+    def pso_create_two_parameter_scatter(self, param_x, param_y):
+        values_x = self.pso_current_parameter_data.get(param_x)
+        values_y = self.pso_current_parameter_data.get(param_y)
+        if values_x is None or values_y is None:
+            return
+
+        fig = Figure(figsize=(12, 8), dpi=100)
+        gs = fig.add_gridspec(3, 3, height_ratios=[1, 4, 4], width_ratios=[4, 4, 1],
+                              hspace=0.4, wspace=0.4)
+
+        ax_main = fig.add_subplot(gs[1:, :-1])
+        ax_top = fig.add_subplot(gs[0, :-1], sharex=ax_main)
+        ax_right = fig.add_subplot(gs[1:, -1], sharey=ax_main)
+
+        scatter = ax_main.scatter(values_x, values_y, alpha=0.7, s=80,
+                                  c=np.arange(len(values_x)), cmap='viridis',
+                                  edgecolors='white', linewidth=0.8)
+        fig.colorbar(scatter, ax=[ax_main, ax_right], shrink=0.8, aspect=30,
+                     pad=0.02, label='Run Order')
+
+        z = np.polyfit(values_x, values_y, 1)
+        p = np.poly1d(z)
+        x_trend = np.linspace(values_x.min(), values_x.max(), 100)
+        y_trend = p(x_trend)
+        ax_main.plot(x_trend, y_trend, 'r--', linewidth=2, alpha=0.8,
+                     label='Trend Line')
+
+        ax_top.hist(values_x, bins=30, density=True, alpha=0.6,
+                    color='#3498db', edgecolor='black', linewidth=1)
+        ax_right.hist(values_y, bins=30, density=True, alpha=0.6,
+                      color='#e74c3c', edgecolor='black', linewidth=1,
+                      orientation='horizontal')
+
+        ax_top.set_title(f'{param_x} Distribution')
+        ax_right.set_title(f'{param_y} Distribution', rotation=270, pad=15)
+        ax_top.set_xlabel('')
+        ax_right.set_ylabel('')
+        ax_top.tick_params(labelbottom=False)
+        ax_right.tick_params(labelleft=False)
+
+        ax_main.set_xlabel(param_x)
+        ax_main.set_ylabel(param_y)
+        ax_main.grid(True, alpha=0.3)
+
+        fig.suptitle('Parameter Correlation Analysis', fontsize=14, fontweight='bold', y=0.95)
+
+        canvas = FigureCanvasQTAgg(fig)
+        self.pso_param_plot_widget.layout().addWidget(canvas)
+        toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+        self.pso_param_plot_widget.layout().addWidget(toolbar)
+        self.pso_add_plot_buttons(fig, 'Parameter Correlation', param_x, param_y)
+
+    def pso_create_qq_plot(self, param):
+        """Normal Q-Q plot"""
+        values = self.pso_current_parameter_data.get(param)
+        if values is None or len(values) == 0:
+            return
+
+        from scipy import stats
+
+        fig = Figure(figsize=(8, 6), dpi=100, tight_layout=True)
+        ax = fig.add_subplot(111)
+
+        (osm, osr), (slope, intercept, _) = stats.probplot(values, dist='norm')
+        ax.scatter(osm, osr, alpha=0.7, s=50, edgecolors='black')
+        ax.plot(osm, slope * osm + intercept, 'r--', linewidth=2)
+
+        ax.set_xlabel('Theoretical Quantiles')
+        ax.set_ylabel('Sample Quantiles')
+        ax.set_title(f'{param} Q-Q Plot', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+
+        canvas = FigureCanvasQTAgg(fig)
+        self.pso_param_plot_widget.layout().addWidget(canvas)
+        toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+        self.pso_param_plot_widget.layout().addWidget(toolbar)
+        self.pso_add_plot_buttons(fig, 'Q-Q Plot', param)
+
+    def pso_add_plot_buttons(self, fig, plot_type, param, comparison_param=None):
+        """Add save and open buttons"""
+        container = QWidget()
+        container.setFixedHeight(50)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(10, 5, 10, 5)
+
+        save_button = QPushButton('💾 Save Plot')
+        save_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+
+        if comparison_param and comparison_param != 'None':
+            plot_name = f"{plot_type.lower().replace(' ', '_')}_{param}_vs_{comparison_param}"
+            window_title = f"{plot_type} - {param} vs {comparison_param}"
+        else:
+            plot_name = f"{plot_type.lower().replace(' ', '_')}_{param}"
+            window_title = f"{plot_type} - {param}"
+
+        save_button.clicked.connect(lambda: self.save_plot(fig, plot_name))
+
+        external_button = QPushButton('🔍 Open in New Window')
+        external_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+        external_button.clicked.connect(lambda: self._open_plot_window(fig, window_title))
+
+        layout.addWidget(save_button)
+        layout.addWidget(external_button)
+        layout.addStretch()
+
+        self.pso_param_plot_widget.layout().addWidget(container)
         
     def create_de_tab(self):
         pass
