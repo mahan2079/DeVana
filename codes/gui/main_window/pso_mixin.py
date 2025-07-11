@@ -280,7 +280,57 @@ class PSOMixin:
         pso_heatmap_layout = QVBoxLayout(pso_heatmap_tab)
         self.pso_heatmap_plot_widget = QWidget()
         pso_heatmap_layout.addWidget(self.pso_heatmap_plot_widget)
-        
+
+        # Parameter visualization tab similar to GA
+        pso_param_viz_tab = QWidget()
+        pso_param_viz_layout = QVBoxLayout(pso_param_viz_tab)
+
+        # Control panel for parameter selection
+        pso_control_panel = QGroupBox("Parameter Selection & Visualization Controls")
+        pso_control_layout = QGridLayout(pso_control_panel)
+
+        self.pso_param_selection_combo = QComboBox()
+        self.pso_param_selection_combo.setMaxVisibleItems(5)
+        self.pso_param_selection_combo.setMinimumWidth(150)
+        self.pso_param_selection_combo.setMaximumWidth(200)
+        self.pso_param_selection_combo.currentTextChanged.connect(self.pso_on_parameter_selection_changed)
+
+        self.pso_plot_type_combo = QComboBox()
+        self.pso_plot_type_combo.addItems(["Violin Plot", "Distribution Plot", "Scatter Plot", "Q-Q Plot"])
+        self.pso_plot_type_combo.currentTextChanged.connect(self.pso_on_plot_type_changed)
+
+        self.pso_comparison_param_combo = QComboBox()
+        self.pso_comparison_param_combo.addItem("None")
+        self.pso_comparison_param_combo.setMaxVisibleItems(5)
+        self.pso_comparison_param_combo.setMinimumWidth(150)
+        self.pso_comparison_param_combo.setMaximumWidth(200)
+        self.pso_comparison_param_combo.setEnabled(False)
+        self.pso_comparison_param_combo.currentTextChanged.connect(self.pso_on_comparison_parameter_changed)
+
+        self.pso_update_plots_button = QPushButton("Update Plots")
+        self.pso_update_plots_button.clicked.connect(self.pso_update_parameter_plots)
+
+        pso_control_layout.addWidget(QLabel("Select Parameter:"), 0, 0)
+        pso_control_layout.addWidget(self.pso_param_selection_combo, 0, 1)
+        pso_control_layout.addWidget(QLabel("Plot Type:"), 0, 2)
+        pso_control_layout.addWidget(self.pso_plot_type_combo, 0, 3)
+        pso_control_layout.addWidget(QLabel("Compare With:"), 1, 0)
+        pso_control_layout.addWidget(self.pso_comparison_param_combo, 1, 1)
+        pso_control_layout.addWidget(self.pso_update_plots_button, 1, 2)
+
+        pso_param_viz_layout.addWidget(pso_control_panel)
+
+        self.pso_param_plot_scroll = QScrollArea()
+        self.pso_param_plot_scroll.setWidgetResizable(True)
+        self.pso_param_plot_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.pso_param_plot_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.pso_param_plot_scroll.setMinimumHeight(400)
+        self.pso_param_plot_widget = QWidget()
+        self.pso_param_plot_widget.setLayout(QVBoxLayout())
+        self.pso_param_plot_widget.setMinimumHeight(500)
+        self.pso_param_plot_scroll.setWidget(self.pso_param_plot_widget)
+        pso_param_viz_layout.addWidget(self.pso_param_plot_scroll)
+
         # Add Q-Q plot tab
         pso_qq_tab = QWidget()
         pso_qq_layout = QVBoxLayout(pso_qq_tab)
@@ -343,6 +393,7 @@ class PSOMixin:
         self.pso_benchmark_viz_tabs.addTab(pso_dist_tab, "Distribution")
         self.pso_benchmark_viz_tabs.addTab(pso_scatter_tab, "Scatter Plot")
         self.pso_benchmark_viz_tabs.addTab(pso_heatmap_tab, "Parameter Correlations")
+        self.pso_benchmark_viz_tabs.addTab(pso_param_viz_tab, "Parameter Visualizations")
         self.pso_benchmark_viz_tabs.addTab(pso_qq_tab, "Q-Q Plot")
         self.pso_benchmark_viz_tabs.addTab(pso_stats_tab, "Statistics")
         
@@ -767,7 +818,13 @@ class PSOMixin:
         
         # Convert benchmark data to DataFrame for easier analysis
         df = pd.DataFrame(self.pso_benchmark_data)
-        
+
+        # Prepare parameter data for interactive visualizations
+        self.pso_current_parameter_data = self.pso_extract_parameter_data_from_runs(df)
+        if self.pso_current_parameter_data:
+            self.pso_update_parameter_dropdowns(self.pso_current_parameter_data)
+            self.pso_update_parameter_plots()
+
         # Visualize computational metrics
         widgets_dict = {
             'ga_ops_plot_widget': self.pso_ops_plot_widget
@@ -1715,9 +1772,118 @@ class PSOMixin:
         self.pso_worker.error.connect(self.handle_pso_error)
         self.pso_worker.update.connect(self.handle_pso_update)
         self.pso_worker.convergence_signal.connect(self.handle_pso_convergence)
-        
+
         # Start the worker
         self.pso_worker.start()
+
+    # -------- Parameter Visualization Helpers --------
+    def pso_on_parameter_selection_changed(self):
+        self.pso_update_parameter_plots()
+
+    def pso_on_plot_type_changed(self):
+        plot_type = self.pso_plot_type_combo.currentText()
+        if plot_type == "Scatter Plot":
+            self.pso_comparison_param_combo.setEnabled(True)
+        else:
+            self.pso_comparison_param_combo.setEnabled(False)
+        self.pso_update_parameter_plots()
+
+    def pso_on_comparison_parameter_changed(self):
+        self.pso_update_parameter_plots()
+
+    def pso_extract_parameter_data_from_runs(self, df):
+        parameter_data = {}
+        for _, row in df.iterrows():
+            sol = row.get('best_solution')
+            names = row.get('parameter_names')
+            if isinstance(sol, list) and isinstance(names, list) and len(sol) == len(names):
+                for name, val in zip(names, sol):
+                    parameter_data.setdefault(name, []).append(val)
+        for key in parameter_data:
+            parameter_data[key] = np.array(parameter_data[key])
+        return parameter_data
+
+    def pso_update_parameter_dropdowns(self, parameter_data):
+        names = list(parameter_data.keys())
+        self.pso_param_selection_combo.clear()
+        self.pso_param_selection_combo.addItems(names)
+        self.pso_comparison_param_combo.clear()
+        self.pso_comparison_param_combo.addItem("None")
+        self.pso_comparison_param_combo.addItems(names)
+
+    def pso_update_parameter_plots(self):
+        if not hasattr(self, 'pso_current_parameter_data') or not self.pso_current_parameter_data:
+            return
+        param = self.pso_param_selection_combo.currentText()
+        plot_type = self.pso_plot_type_combo.currentText()
+        comp_param = self.pso_comparison_param_combo.currentText()
+
+        if self.pso_param_plot_widget.layout():
+            while self.pso_param_plot_widget.layout().count():
+                child = self.pso_param_plot_widget.layout().takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+
+        if plot_type == "Violin Plot":
+            self.pso_create_violin_plot(param)
+        elif plot_type == "Distribution Plot":
+            self.pso_create_distribution_plot(param)
+        elif plot_type == "Scatter Plot":
+            self.pso_create_scatter_plot(param, comp_param)
+        elif plot_type == "Q-Q Plot":
+            self.pso_create_qq_plot(param)
+
+    def pso_create_violin_plot(self, param):
+        values = self.pso_current_parameter_data.get(param, [])
+        if values is None or len(values) == 0:
+            return
+        fig = Figure(figsize=(6,4), tight_layout=True)
+        ax = fig.add_subplot(111)
+        sns.violinplot(y=values, ax=ax, color="skyblue")
+        ax.set_ylabel(param)
+        canvas = FigureCanvasQTAgg(fig)
+        self.pso_param_plot_widget.layout().addWidget(canvas)
+
+    def pso_create_distribution_plot(self, param):
+        values = self.pso_current_parameter_data.get(param, [])
+        if values is None or len(values) == 0:
+            return
+        fig = Figure(figsize=(6,4), tight_layout=True)
+        ax = fig.add_subplot(111)
+        sns.histplot(values, kde=True, ax=ax, color="skyblue")
+        ax.set_xlabel(param)
+        canvas = FigureCanvasQTAgg(fig)
+        self.pso_param_plot_widget.layout().addWidget(canvas)
+
+    def pso_create_scatter_plot(self, param, comp_param):
+        if comp_param == "None" or comp_param == param:
+            return
+        values_x = self.pso_current_parameter_data.get(param, [])
+        values_y = self.pso_current_parameter_data.get(comp_param, [])
+        if len(values_x) == 0 or len(values_y) == 0:
+            return
+        fig = Figure(figsize=(6,4), tight_layout=True)
+        ax = fig.add_subplot(111)
+        ax.scatter(values_x, values_y, alpha=0.7)
+        ax.set_xlabel(param)
+        ax.set_ylabel(comp_param)
+        canvas = FigureCanvasQTAgg(fig)
+        self.pso_param_plot_widget.layout().addWidget(canvas)
+
+    def pso_create_qq_plot(self, param):
+        values = self.pso_current_parameter_data.get(param, [])
+        if values is None or len(values) == 0:
+            return
+        from scipy import stats
+        fig = Figure(figsize=(6,4), tight_layout=True)
+        ax = fig.add_subplot(111)
+        (osm, osr), (slope, intercept, _) = stats.probplot(values, dist="norm")
+        ax.scatter(osm, osr)
+        ax.plot(osm, slope*osm + intercept, color='red')
+        ax.set_xlabel("Theoretical Quantiles")
+        ax.set_ylabel("Sample Quantiles")
+        canvas = FigureCanvasQTAgg(fig)
+        self.pso_param_plot_widget.layout().addWidget(canvas)
         
     def create_de_tab(self):
         pass
