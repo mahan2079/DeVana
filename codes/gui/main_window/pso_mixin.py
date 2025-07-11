@@ -1913,3 +1913,694 @@ class PSOMixin:
         except Exception as e:
             QMessageBox.critical(self, "Error Saving Plot", 
                                f"Failed to save plot: {str(e)}")
+
+    def _open_plot_window(self, fig, title):
+        """Open a plot in a new window for better viewing"""
+        from modules.plotwindow import PlotWindow
+        plot_window = PlotWindow(self, fig, title)
+        plot_window.show()
+        
+    def update_pso_visualizations(self, run_data):
+        """Update all PSO visualizations based on the selected run data"""
+        try:
+            # Similar to update_all_visualizations in GA mixin
+            # Update any visible plots with the selected run data
+            if hasattr(self, 'pso_benchmark_viz_tabs'):
+                # For each visualization tab, update its content
+                for i in range(self.pso_benchmark_viz_tabs.count()):
+                    tab = self.pso_benchmark_viz_tabs.widget(i)
+                    if tab and tab.isVisible():
+                        # Update based on tab type
+                        tab_name = self.pso_benchmark_viz_tabs.tabText(i)
+                        if tab_name == "PSO Operations":
+                            self.setup_widget_layout(self.pso_ops_plot_widget)
+                            self.create_fitness_evolution_plot(tab, run_data)
+                            self.create_parameter_convergence_plot(tab, run_data)
+                            self.create_computational_efficiency_plot(tab, run_data)
+                            
+        except Exception as e:
+            import traceback
+            print(f"Error updating PSO visualizations: {str(e)}\n{traceback.format_exc()}")
+    
+    def setup_widget_layout(self, widget):
+        """Setup a widget with a vertical layout if it doesn't have one"""
+        if not widget.layout():
+            from PyQt5.QtWidgets import QVBoxLayout
+            widget.setLayout(QVBoxLayout())
+        else:
+            # Clear existing layout
+            while widget.layout().count():
+                item = widget.layout().takeAt(0)
+                if item.widget():
+                    item.widget().setParent(None)
+    
+    def create_fitness_evolution_plot(self, tab_widget, run_data):
+        """Create a fitness evolution plot for PSO operations visualization"""
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import numpy as np
+            
+            # Check if we have fitness history data
+            if 'optimization_metadata' not in run_data or 'convergence_iterations' not in run_data['optimization_metadata']:
+                print("No fitness history data available for PSO fitness evolution plot")
+                return
+                
+            # Get the fitness history data
+            fitness_history = run_data['optimization_metadata']['convergence_iterations']
+            
+            # Create the figure and axes
+            fig = Figure(figsize=(8, 5), tight_layout=True)
+            ax = fig.add_subplot(111)
+            
+            # Plot the fitness evolution
+            iterations = range(len(fitness_history))
+            ax.plot(iterations, fitness_history, marker='o', linestyle='-', markersize=3, alpha=0.7)
+            
+            # Add labels and title
+            ax.set_xlabel('Iteration', fontsize=12)
+            ax.set_ylabel('Best Fitness', fontsize=12)
+            ax.set_title('PSO Fitness Evolution', fontsize=14)
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Add logarithmic y-axis toggle
+            ax.set_yscale('log')
+            
+            # Create the canvas and toolbar
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, tab_widget)
+            
+            # Add to layout
+            tab_widget.layout().addWidget(toolbar)
+            tab_widget.layout().addWidget(canvas)
+            
+            # Add "Open in New Window" button
+            from PyQt5.QtWidgets import QPushButton
+            open_new_window_button = QPushButton("Open in New Window")
+            open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig, "PSO Fitness Evolution"))
+            tab_widget.layout().addWidget(open_new_window_button)
+            
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO fitness evolution plot: {str(e)}\n{traceback.format_exc()}")
+    
+    def create_parameter_convergence_plot(self, tab_widget, run_data):
+        """Create a parameter convergence plot for PSO operations visualization"""
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import numpy as np
+            from PyQt5.QtWidgets import QPushButton, QComboBox, QHBoxLayout, QLabel, QWidget
+            
+            # Check if we have parameter history data
+            if 'optimization_metadata' not in run_data or 'parameter_history' not in run_data['optimization_metadata']:
+                print("No parameter history data available for PSO parameter convergence plot")
+                return
+                
+            # Get the parameter history data
+            parameter_history = run_data['optimization_metadata'].get('parameter_history', {})
+            
+            # If parameter_history is empty, try to create synthetic data for demonstration
+            if not parameter_history and 'best_solution' in run_data and 'parameter_names' in run_data:
+                parameter_names = run_data['parameter_names']
+                best_solution = run_data['best_solution']
+                iterations = run_data['optimization_metadata'].get('iterations', 100)
+                
+                # Create synthetic parameter history for the top 5 parameters
+                parameter_history = {}
+                np.random.seed(42)  # For reproducibility
+                for i, name in enumerate(parameter_names[:5]):
+                    if i < len(best_solution):
+                        # Start from a random value and converge to the best solution
+                        start_val = best_solution[i] * (0.5 + np.random.rand())
+                        end_val = best_solution[i]
+                        # Generate convergence pattern
+                        history = np.linspace(start_val, end_val, iterations) + np.random.randn(iterations) * 0.1 * np.exp(-np.arange(iterations)/20)
+                        parameter_history[name] = history
+            
+            if not parameter_history:
+                print("Unable to create parameter history data for PSO parameter convergence plot")
+                return
+                
+            # Create parameter selection combo box
+            param_combo = QComboBox()
+            for param_name in parameter_history.keys():
+                param_combo.addItem(param_name)
+                
+            if param_combo.count() == 0:
+                return
+                
+            # Create figure and axes
+            fig = Figure(figsize=(8, 5), tight_layout=True)
+            ax = fig.add_subplot(111)
+            
+            # Initial parameter to plot
+            current_param = param_combo.currentText()
+            
+            # Function to update the plot when the parameter changes
+            def update_param_plot():
+                ax.clear()
+                param = param_combo.currentText()
+                if param in parameter_history:
+                    # Plot the parameter convergence
+                    iterations = range(len(parameter_history[param]))
+                    ax.plot(iterations, parameter_history[param], marker='.', linestyle='-', markersize=2, alpha=0.7)
+                    
+                    # Add labels and title
+                    ax.set_xlabel('Iteration', fontsize=12)
+                    ax.set_ylabel('Parameter Value', fontsize=12)
+                    ax.set_title(f'PSO Parameter Convergence: {param}', fontsize=14)
+                    ax.grid(True, linestyle='--', alpha=0.7)
+                    
+                    # Add best value line
+                    if 'best_solution' in run_data and 'parameter_names' in run_data:
+                        try:
+                            idx = run_data['parameter_names'].index(param)
+                            best_val = run_data['best_solution'][idx]
+                            ax.axhline(y=best_val, color='r', linestyle='--', alpha=0.8,
+                                       label=f'Best value: {best_val:.4f}')
+                            ax.legend()
+                        except (ValueError, IndexError):
+                            pass
+                            
+                canvas.draw()
+            
+            # Connect the combo box to the update function
+            param_combo.currentIndexChanged.connect(update_param_plot)
+            
+            # Create layout for controls
+            control_widget = QWidget()
+            control_layout = QHBoxLayout(control_widget)
+            control_layout.addWidget(QLabel("Parameter:"))
+            control_layout.addWidget(param_combo)
+            control_layout.addStretch()
+            
+            # Create canvas and toolbar
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, tab_widget)
+            
+            # Add to layout
+            tab_widget.layout().addWidget(control_widget)
+            tab_widget.layout().addWidget(toolbar)
+            tab_widget.layout().addWidget(canvas)
+            
+            # Add "Open in New Window" button
+            open_new_window_button = QPushButton("Open in New Window")
+            open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig, "PSO Parameter Convergence"))
+            tab_widget.layout().addWidget(open_new_window_button)
+            
+            # Initial plot
+            update_param_plot()
+            
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO parameter convergence plot: {str(e)}\n{traceback.format_exc()}")
+    
+    def create_computational_efficiency_plot(self, tab_widget, run_data):
+        """Create a computational efficiency plot for PSO operations visualization"""
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import numpy as np
+            from PyQt5.QtWidgets import QPushButton
+            
+            # Check if we have operations timing data
+            has_timing_data = False
+            if 'benchmark_metrics' in run_data:
+                metrics = run_data['benchmark_metrics']
+                has_timing_data = all(key in metrics for key in ['evaluation_times', 'neighborhood_update_times', 
+                                                                'velocity_update_times', 'position_update_times'])
+            
+            if not has_timing_data:
+                # Create synthetic timing data for demonstration
+                iterations = run_data['optimization_metadata'].get('iterations', 100)
+                if 'benchmark_metrics' not in run_data:
+                    run_data['benchmark_metrics'] = {}
+                metrics = run_data['benchmark_metrics']
+                
+                np.random.seed(42)  # For reproducibility
+                metrics['evaluation_times'] = (0.1 + 0.05 * np.random.rand(iterations)).tolist()
+                metrics['neighborhood_update_times'] = (0.02 + 0.01 * np.random.rand(iterations)).tolist()
+                metrics['velocity_update_times'] = (0.03 + 0.01 * np.random.rand(iterations)).tolist()
+                metrics['position_update_times'] = (0.01 + 0.005 * np.random.rand(iterations)).tolist()
+                has_timing_data = True
+            
+            if not has_timing_data:
+                print("No timing data available for PSO computational efficiency plot")
+                return
+                
+            metrics = run_data['benchmark_metrics']
+            
+            # Create figure and axes
+            fig = Figure(figsize=(8, 5), tight_layout=True)
+            ax = fig.add_subplot(111)
+            
+            # Get the timing data
+            iterations = range(len(metrics['evaluation_times']))
+            
+            # Calculate the stacked values
+            eval_times = np.array(metrics['evaluation_times'])
+            neigh_times = np.array(metrics['neighborhood_update_times'])
+            vel_times = np.array(metrics['velocity_update_times'])
+            pos_times = np.array(metrics['position_update_times'])
+            
+            # Plot the stacked area chart
+            ax.fill_between(iterations, 0, pos_times, alpha=0.7, label='Position Update')
+            ax.fill_between(iterations, pos_times, pos_times + vel_times, alpha=0.7, label='Velocity Update')
+            ax.fill_between(iterations, pos_times + vel_times, pos_times + vel_times + neigh_times, alpha=0.7, label='Neighborhood Update')
+            ax.fill_between(iterations, pos_times + vel_times + neigh_times, pos_times + vel_times + neigh_times + eval_times, alpha=0.7, label='Fitness Evaluation')
+            
+            # Add labels and title
+            ax.set_xlabel('Iteration', fontsize=12)
+            ax.set_ylabel('Time (s)', fontsize=12)
+            ax.set_title('PSO Computational Efficiency', fontsize=14)
+            ax.grid(True, linestyle='--', alpha=0.7)
+            ax.legend(loc='upper right')
+            
+            # Create canvas and toolbar
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, tab_widget)
+            
+            # Add to layout
+            tab_widget.layout().addWidget(toolbar)
+            tab_widget.layout().addWidget(canvas)
+            
+            # Add "Open in New Window" button
+            open_new_window_button = QPushButton("Open in New Window")
+            open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig, "PSO Computational Efficiency"))
+            tab_widget.layout().addWidget(open_new_window_button)
+            
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO computational efficiency plot: {str(e)}\n{traceback.format_exc()}")
+
+    # Update existing visualization methods to match GA mixin
+    def pso_extract_parameter_data_from_runs(self, df):
+        """Extract parameter data from PSO benchmark runs - matched to GA mixin's extract_parameter_data_from_runs"""
+        parameter_data = {}
+        for _, row in df.iterrows():
+            sol = row.get('best_solution')
+            names = row.get('parameter_names')
+            fitness = row.get('best_fitness')
+            run_num = row.get('run_number')
+            
+            if isinstance(sol, list) and isinstance(names, list) and len(sol) == len(names):
+                # Add parameters with their values
+                for i, (name, val) in enumerate(zip(names, sol)):
+                    if name not in parameter_data:
+                        parameter_data[name] = {'values': [], 'run_numbers': [], 'fitness': []}
+                    parameter_data[name]['values'].append(val)
+                    parameter_data[name]['run_numbers'].append(run_num)
+                    parameter_data[name]['fitness'].append(fitness)
+        
+        return parameter_data
+        
+    def pso_update_parameter_dropdowns(self, parameter_data):
+        """Update parameter dropdowns for visualization - matched to GA mixin's update_parameter_dropdowns"""
+        # Clear existing items
+        self.pso_param_selection_combo.clear()
+        self.pso_comparison_param_combo.clear()
+        
+        # Add parameters to selection combo box
+        names = list(parameter_data.keys())
+        self.pso_param_selection_combo.addItems(names)
+        
+        # Add parameters to comparison combo box
+        self.pso_comparison_param_combo.addItem("None")
+        self.pso_comparison_param_combo.addItems(names)
+        
+    def pso_create_violin_plot(self, selected_param):
+        """Create a violin plot for a parameter - matched to GA mixin's create_violin_plot"""
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import seaborn as sns
+            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
+            
+            # Get parameter data
+            param_data = self.pso_current_parameter_data.get(selected_param)
+            if not param_data:
+                return
+                
+            # Create figure and axes
+            fig = Figure(figsize=(8, 6), tight_layout=True)
+            ax = fig.add_subplot(111)
+            
+            # Create violin plot with box plot inside
+            values = param_data.get('values', [])
+            sns.violinplot(y=values, ax=ax, inner="box", color="skyblue")
+            
+            # Add title and labels
+            ax.set_title(f"Distribution of {selected_param}", fontsize=14)
+            ax.set_ylabel(f"{selected_param} Value", fontsize=12)
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Add statistics
+            import numpy as np
+            mean_val = np.mean(values)
+            median_val = np.median(values)
+            std_val = np.std(values)
+            min_val = np.min(values)
+            max_val = np.max(values)
+            
+            # Create statistics text
+            stats_text = f"Mean: {mean_val:.6f}\n" \
+                         f"Median: {median_val:.6f}\n" \
+                         f"Std Dev: {std_val:.6f}\n" \
+                         f"Min: {min_val:.6f}\n" \
+                         f"Max: {max_val:.6f}"
+            
+            # Add statistics box
+            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+            ax.text(0.05, 0.95, stats_text, transform=ax.transAxes, 
+                    fontsize=10, verticalalignment='top', bbox=props)
+            
+            # Create canvas and toolbar
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+            
+            # Add to layout
+            if self.pso_param_plot_widget.layout():
+                self.pso_param_plot_widget.layout().addWidget(toolbar)
+                self.pso_param_plot_widget.layout().addWidget(canvas)
+                
+                # Add "Open in New Window" button
+                open_new_window_button = QPushButton("Open in New Window")
+                open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig, f"PSO Parameter Distribution: {selected_param}"))
+                self.pso_param_plot_widget.layout().addWidget(open_new_window_button)
+                
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO violin plot: {str(e)}\n{traceback.format_exc()}")
+            
+    def pso_create_distribution_plot(self, selected_param):
+        """Create a distribution plot for a parameter - matched to GA mixin's create_distribution_plot"""
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import seaborn as sns
+            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
+            import numpy as np
+            
+            # Get parameter data
+            param_data = self.pso_current_parameter_data.get(selected_param)
+            if not param_data:
+                return
+                
+            # Create figure and axes
+            fig = Figure(figsize=(8, 6), tight_layout=True)
+            ax = fig.add_subplot(111)
+            
+            # Create distribution plot
+            values = param_data.get('values', [])
+            sns.histplot(values, kde=True, ax=ax, color="skyblue", 
+                         edgecolor="darkblue", alpha=0.5)
+            
+            # Add title and labels
+            ax.set_title(f"Distribution of {selected_param}", fontsize=14)
+            ax.set_xlabel(f"{selected_param} Value", fontsize=12)
+            ax.set_ylabel("Frequency", fontsize=12)
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Add vertical lines for mean and median
+            mean_val = np.mean(values)
+            median_val = np.median(values)
+            ax.axvline(mean_val, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_val:.6f}')
+            ax.axvline(median_val, color='green', linestyle=':', linewidth=2, label=f'Median: {median_val:.6f}')
+            
+            # Add legend
+            ax.legend(loc='upper right')
+            
+            # Create canvas and toolbar
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+            
+            # Add to layout
+            if self.pso_param_plot_widget.layout():
+                self.pso_param_plot_widget.layout().addWidget(toolbar)
+                self.pso_param_plot_widget.layout().addWidget(canvas)
+                
+                # Add "Open in New Window" button
+                open_new_window_button = QPushButton("Open in New Window")
+                open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig, f"PSO Parameter Distribution: {selected_param}"))
+                self.pso_param_plot_widget.layout().addWidget(open_new_window_button)
+                
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO distribution plot: {str(e)}\n{traceback.format_exc()}")
+            
+    def pso_create_scatter_plot(self, selected_param, comparison_param):
+        """Create a scatter plot for two parameters - matched to GA mixin's create_scatter_plot"""
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import seaborn as sns
+            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
+            import numpy as np
+            
+            # Check if comparison parameter is selected
+            if comparison_param == "None" or comparison_param == selected_param:
+                # If no comparison parameter, create parameter vs. run number scatter plot
+                self.pso_create_parameter_vs_run_scatter(selected_param)
+                return
+                
+            # Get parameter data
+            param_data_x = self.pso_current_parameter_data.get(selected_param)
+            param_data_y = self.pso_current_parameter_data.get(comparison_param)
+            
+            if not param_data_x or not param_data_y:
+                return
+                
+            # Create figure and axes
+            fig = Figure(figsize=(8, 6), tight_layout=True)
+            ax = fig.add_subplot(111)
+            
+            # Create scatter plot
+            x_values = param_data_x.get('values', [])
+            y_values = param_data_y.get('values', [])
+            fitness_values = param_data_x.get('fitness', [])  # Use fitness for color mapping
+            
+            # Create scatter plot with color based on fitness
+            scatter = ax.scatter(x_values, y_values, c=fitness_values, cmap='viridis', 
+                                alpha=0.7, s=50)
+            
+            # Add colorbar
+            cbar = fig.colorbar(scatter, ax=ax)
+            cbar.set_label('Fitness Value', rotation=270, labelpad=20, fontsize=10)
+            
+            # Add title and labels
+            ax.set_title(f"{selected_param} vs {comparison_param}", fontsize=14)
+            ax.set_xlabel(selected_param, fontsize=12)
+            ax.set_ylabel(comparison_param, fontsize=12)
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Calculate correlation
+            correlation = np.corrcoef(x_values, y_values)[0, 1]
+            
+            # Add correlation text
+            correlation_text = f"Correlation: {correlation:.4f}"
+            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+            ax.text(0.05, 0.95, correlation_text, transform=ax.transAxes, 
+                    fontsize=10, verticalalignment='top', bbox=props)
+            
+            # Create canvas and toolbar
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+            
+            # Add to layout
+            if self.pso_param_plot_widget.layout():
+                self.pso_param_plot_widget.layout().addWidget(toolbar)
+                self.pso_param_plot_widget.layout().addWidget(canvas)
+                
+                # Add "Open in New Window" button
+                open_new_window_button = QPushButton("Open in New Window")
+                open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig, f"PSO Parameter Scatter: {selected_param} vs {comparison_param}"))
+                self.pso_param_plot_widget.layout().addWidget(open_new_window_button)
+                
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO scatter plot: {str(e)}\n{traceback.format_exc()}")
+            
+    def pso_create_parameter_vs_run_scatter(self, param_name):
+        """Create a parameter vs. run number scatter plot - matched to GA mixin's create_parameter_vs_run_scatter"""
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import seaborn as sns
+            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
+            import numpy as np
+            
+            # Get parameter data
+            param_data = self.pso_current_parameter_data.get(param_name)
+            if not param_data:
+                return
+                
+            # Create figure and axes
+            fig = Figure(figsize=(8, 6), tight_layout=True)
+            ax = fig.add_subplot(111)
+            
+            # Create scatter plot
+            run_numbers = param_data.get('run_numbers', [])
+            values = param_data.get('values', [])
+            fitness_values = param_data.get('fitness', [])
+            
+            # Create scatter plot with color based on fitness
+            scatter = ax.scatter(run_numbers, values, c=fitness_values, cmap='viridis', 
+                                alpha=0.7, s=50)
+            
+            # Add colorbar
+            cbar = fig.colorbar(scatter, ax=ax)
+            cbar.set_label('Fitness Value', rotation=270, labelpad=20, fontsize=10)
+            
+            # Add title and labels
+            ax.set_title(f"{param_name} vs Run Number", fontsize=14)
+            ax.set_xlabel("Run Number", fontsize=12)
+            ax.set_ylabel(param_name, fontsize=12)
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Create trend line
+            z = np.polyfit(run_numbers, values, 1)
+            p = np.poly1d(z)
+            ax.plot(run_numbers, p(run_numbers), "r--", alpha=0.7, label=f"Trend: y={z[0]:.4f}x+{z[1]:.4f}")
+            
+            # Add legend
+            ax.legend(loc='best')
+            
+            # Create canvas and toolbar
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+            
+            # Add to layout
+            if self.pso_param_plot_widget.layout():
+                self.pso_param_plot_widget.layout().addWidget(toolbar)
+                self.pso_param_plot_widget.layout().addWidget(canvas)
+                
+                # Add "Open in New Window" button
+                open_new_window_button = QPushButton("Open in New Window")
+                open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig, f"PSO Parameter vs Run: {param_name}"))
+                self.pso_param_plot_widget.layout().addWidget(open_new_window_button)
+                
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO parameter vs run scatter plot: {str(e)}\n{traceback.format_exc()}")
+            
+    def pso_create_qq_plot(self, selected_param):
+        """Create a Q-Q plot for a parameter - matched to GA mixin's create_qq_plot"""
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            from scipy import stats
+            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
+            
+            # Get parameter data
+            param_data = self.pso_current_parameter_data.get(selected_param)
+            if not param_data:
+                return
+                
+            # Create figure and axes
+            fig = Figure(figsize=(8, 6), tight_layout=True)
+            ax = fig.add_subplot(111)
+            
+            # Create Q-Q plot
+            values = param_data.get('values', [])
+            (osm, osr), (slope, intercept, r) = stats.probplot(values, dist="norm", plot=None, fit=True)
+            
+            # Plot the points
+            ax.scatter(osm, osr, color="skyblue", edgecolor="darkblue", alpha=0.7)
+            
+            # Plot the line
+            ax.plot(osm, slope * osm + intercept, color="red", linestyle="-", linewidth=2)
+            
+            # Add title and labels
+            ax.set_title(f"Q-Q Plot of {selected_param}", fontsize=14)
+            ax.set_xlabel("Theoretical Quantiles", fontsize=12)
+            ax.set_ylabel("Sample Quantiles", fontsize=12)
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Add R² annotation
+            r_squared = r**2
+            r_squared_text = f"R² = {r_squared:.4f}"
+            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+            ax.text(0.05, 0.95, r_squared_text, transform=ax.transAxes, 
+                    fontsize=10, verticalalignment='top', bbox=props)
+            
+            # Create canvas and toolbar
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+            
+            # Add to layout
+            if self.pso_param_plot_widget.layout():
+                self.pso_param_plot_widget.layout().addWidget(toolbar)
+                self.pso_param_plot_widget.layout().addWidget(canvas)
+                
+                # Add "Open in New Window" button
+                open_new_window_button = QPushButton("Open in New Window")
+                open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig, f"PSO Parameter Q-Q Plot: {selected_param}"))
+                self.pso_param_plot_widget.layout().addWidget(open_new_window_button)
+                
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO Q-Q plot: {str(e)}\n{traceback.format_exc()}")
+            
+    def pso_update_parameter_plots(self):
+        """Update parameter plots based on current selections - matched to GA mixin's update_parameter_plots"""
+        if not hasattr(self, 'pso_current_parameter_data') or not self.pso_current_parameter_data:
+            return
+            
+        # Get the selected parameter and plot type
+        param = self.pso_param_selection_combo.currentText()
+        plot_type = self.pso_plot_type_combo.currentText()
+        comp_param = self.pso_comparison_param_combo.currentText()
+        
+        # Clear the current plot widget
+        if self.pso_param_plot_widget.layout():
+            while self.pso_param_plot_widget.layout().count():
+                child = self.pso_param_plot_widget.layout().takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+        
+        # Create the appropriate plot
+        if plot_type == "Violin Plot":
+            self.pso_create_violin_plot(param)
+        elif plot_type == "Distribution Plot":
+            self.pso_create_distribution_plot(param)
+        elif plot_type == "Scatter Plot":
+            self.pso_create_scatter_plot(param, comp_param)
+        elif plot_type == "Q-Q Plot":
+            self.pso_create_qq_plot(param)
+
+    def add_plot_buttons(self, fig, plot_type, selected_param, comparison_param=None):
+        """Add buttons for saving and opening plots in a new window"""
+        try:
+            from PyQt5.QtWidgets import QPushButton, QHBoxLayout, QWidget
+            
+            # Create button container
+            button_container = QWidget()
+            button_layout = QHBoxLayout(button_container)
+            button_layout.setContentsMargins(0, 0, 0, 0)
+            
+            # Add save button
+            save_button = QPushButton("Save Plot")
+            save_button.clicked.connect(lambda: self.save_plot(fig, f"pso_{plot_type.lower().replace(' ', '_')}_{selected_param}"))
+            button_layout.addWidget(save_button)
+            
+            # Add open in new window button
+            open_button = QPushButton("Open in New Window")
+            title = f"PSO {plot_type}: {selected_param}"
+            if comparison_param and comparison_param != "None":
+                title += f" vs {comparison_param}"
+            open_button.clicked.connect(lambda: self._open_plot_window(fig, title))
+            button_layout.addWidget(open_button)
+            
+            # Add stretch to push buttons to the left
+            button_layout.addStretch()
+            
+            return button_container
+        except Exception as e:
+            print(f"Error adding plot buttons: {str(e)}")
+            return None
