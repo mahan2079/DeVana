@@ -194,7 +194,7 @@ class WelcomePage(QWidget):
             }
             QProgressBar::chunk {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #64B5F6, stop:0.5 #42A5F5, stop:1 #1E88E5);
+                    stop:0 #4DB6AC, stop:0.5 #26A69A, stop:1 #009688);
                 border-radius: 2px;
             }
         """)
@@ -373,7 +373,7 @@ class WelcomePage(QWidget):
             gradient = QLinearGradient(0, 0, self.width(), self.height())
             
             # Create more sophisticated shifting colors
-            base_hue = 240 + (self.gradient_phase * 80)  # Blue to purple to pink
+            base_hue = 170 + (self.gradient_phase * 40)  # Teal to blue
             
             # More elegant color palette
             color1 = QColor.fromHsv(int(base_hue) % 360, 85, 25)          # Deep rich base
@@ -446,8 +446,8 @@ class SplashScreen(QSplashScreen):
         # Create gradient background
         self.painter = QPainter(pixmap)
         gradient = QLinearGradient(0, 0, 0, 400)
-        gradient.setColorAt(0.0, QColor(40, 40, 80))
-        gradient.setColorAt(1.0, QColor(20, 20, 40))
+        gradient.setColorAt(0.0, QColor(0, 120, 110))
+        gradient.setColorAt(1.0, QColor(0, 60, 55))
         self.painter.setBrush(QBrush(gradient))
         self.painter.setPen(Qt.NoPen)
         self.painter.drawRect(0, 0, 600, 400)
@@ -489,8 +489,9 @@ def main():
         # Install the exception hook for the Qt message handler
         sys._excepthook = sys.excepthook
         
-        # Set application style
+        # Set application style and global font
         app.setStyle("Fusion")
+        app.setFont(QFont("Arial", 10))
         
         # Create and show welcome page
         welcome = WelcomePage()

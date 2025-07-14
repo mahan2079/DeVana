@@ -32,21 +32,21 @@ class ThemeMixin:
         dark_palette = QPalette()
         
         # Enhanced base colors with depth
-        dark_color = QColor(15, 15, 20)          # Deep dark blue-black
-        darker_color = QColor(8, 8, 12)          # Even deeper background
-        medium_color = QColor(35, 35, 45)        # Medium dark with blue tint
-        light_color = QColor(55, 55, 70)         # Lighter dark with blue tint
-        text_color = QColor(245, 245, 250)       # Almost white with slight blue tint
-        disabled_text_color = QColor(120, 120, 135)
+        dark_color = QColor(32, 34, 37)          # Modern dark gray
+        darker_color = QColor(25, 27, 30)        # Deeper background
+        medium_color = QColor(44, 47, 51)        # Medium dark gray
+        light_color = QColor(58, 61, 66)         # Lighter dark gray
+        text_color = QColor(235, 235, 235)       # Light text
+        disabled_text_color = QColor(130, 130, 130)
         
         # Vibrant accent colors for elegance
-        primary_color = QColor(94, 129, 255)     # Vibrant blue
-        secondary_color = QColor(138, 43, 226)   # Blue violet
-        tertiary_color = QColor(255, 64, 129)    # Pink accent
-        success_color = QColor(76, 217, 100)     # Vibrant green
-        warning_color = QColor(255, 193, 7)      # Amber
-        danger_color = QColor(255, 87, 87)       # Coral red
-        info_color = QColor(41, 182, 246)        # Cyan
+        primary_color = QColor(0, 150, 136)      # Teal
+        secondary_color = QColor(3, 169, 244)    # Cyan blue
+        tertiary_color = QColor(240, 98, 146)    # Pink accent
+        success_color = QColor(102, 187, 106)    # Green
+        warning_color = QColor(255, 167, 38)     # Orange
+        danger_color = QColor(239, 83, 80)       # Red
+        info_color = QColor(38, 198, 218)        # Light cyan
         
         # Set up the palette
         dark_palette.setColor(QPalette.Window, dark_color)
@@ -478,21 +478,21 @@ class ThemeMixin:
         light_palette = QPalette()
         
         # Enhanced base colors with warmth
-        light_color = QColor(252, 252, 255)       # Slightly blue-tinted white
+        light_color = QColor(245, 245, 245)       # Light gray
         lighter_color = QColor(255, 255, 255)     # Pure white
-        medium_color = QColor(245, 245, 250)      # Light blue-gray
-        dark_color = QColor(220, 220, 230)        # Soft gray
-        text_color = QColor(30, 30, 40)           # Dark blue-gray
-        disabled_text_color = QColor(140, 140, 150)
+        medium_color = QColor(240, 240, 240)      # Very light gray
+        dark_color = QColor(220, 220, 220)        # Soft gray
+        text_color = QColor(45, 45, 45)           # Dark text
+        disabled_text_color = QColor(150, 150, 150)
         
         # Enhanced accent colors
-        primary_color = QColor(79, 122, 255)      # Vibrant blue
-        secondary_color = QColor(138, 43, 226)    # Blue violet
-        tertiary_color = QColor(255, 64, 129)     # Pink accent
-        success_color = QColor(76, 217, 100)      # Vibrant green
-        warning_color = QColor(255, 152, 0)       # Orange
-        danger_color = QColor(244, 67, 54)        # Red
-        info_color = QColor(33, 150, 243)         # Light Blue
+        primary_color = QColor(0, 150, 136)       # Teal
+        secondary_color = QColor(3, 169, 244)     # Cyan blue
+        tertiary_color = QColor(240, 98, 146)     # Pink accent
+        success_color = QColor(102, 187, 106)     # Green
+        warning_color = QColor(255, 167, 38)      # Orange
+        danger_color = QColor(239, 83, 80)        # Red
+        info_color = QColor(38, 198, 218)         # Light cyan
         
         # Set up the palette
         light_palette.setColor(QPalette.Window, light_color)
