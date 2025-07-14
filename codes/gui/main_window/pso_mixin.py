@@ -2352,77 +2352,109 @@ class PSOMixin:
             print(f"Error creating PSO distribution plot: {str(e)}\n{traceback.format_exc()}")
             
     def pso_create_scatter_plot(self, selected_param, comparison_param):
-        """Create a scatter plot for two parameters - matched to GA mixin's create_scatter_plot"""
+        """Create a scatter plot for two parameters - mirrors GA mixin behaviour"""
         try:
-            import matplotlib.pyplot as plt
-            from matplotlib.figure import Figure
-            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
-            import seaborn as sns
-            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
-            import numpy as np
-            
-            # Check if comparison parameter is selected
+            # If no comparison parameter selected, show parameter vs run number
             if comparison_param == "None" or comparison_param == selected_param:
-                # If no comparison parameter, create parameter vs. run number scatter plot
                 self.pso_create_parameter_vs_run_scatter(selected_param)
                 return
-                
-            # Get parameter data
-            param_data_x = self.pso_current_parameter_data.get(selected_param)
-            param_data_y = self.pso_current_parameter_data.get(comparison_param)
-            
-            if not param_data_x or not param_data_y:
-                return
-                
-            # Create figure and axes
-            fig = Figure(figsize=(8, 6), tight_layout=True)
-            ax = fig.add_subplot(111)
-            
-            # Create scatter plot
-            x_values = param_data_x.get('values', [])
-            y_values = param_data_y.get('values', [])
-            fitness_values = param_data_x.get('fitness', [])  # Use fitness for color mapping
-            
-            # Create scatter plot with color based on fitness
-            scatter = ax.scatter(x_values, y_values, c=fitness_values, cmap='viridis', 
-                                alpha=0.7, s=50)
-            
-            # Add colorbar
-            cbar = fig.colorbar(scatter, ax=ax)
-            cbar.set_label('Fitness Value', rotation=270, labelpad=20, fontsize=10)
-            
-            # Add title and labels
-            ax.set_title(f"{selected_param} vs {comparison_param}", fontsize=14)
-            ax.set_xlabel(selected_param, fontsize=12)
-            ax.set_ylabel(comparison_param, fontsize=12)
-            ax.grid(True, linestyle='--', alpha=0.7)
-            
-            # Calculate correlation
-            correlation = np.corrcoef(x_values, y_values)[0, 1]
-            
-            # Add correlation text
-            correlation_text = f"Correlation: {correlation:.4f}"
-            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-            ax.text(0.05, 0.95, correlation_text, transform=ax.transAxes, 
-                    fontsize=10, verticalalignment='top', bbox=props)
-            
-            # Create canvas and toolbar
-            canvas = FigureCanvasQTAgg(fig)
-            toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
-            
-            # Add to layout
-            if self.pso_param_plot_widget.layout():
-                self.pso_param_plot_widget.layout().addWidget(toolbar)
-                self.pso_param_plot_widget.layout().addWidget(canvas)
-                
-                # Add "Open in New Window" button
-                open_new_window_button = QPushButton("Open in New Window")
-                open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig, f"PSO Parameter Scatter: {selected_param} vs {comparison_param}"))
-                self.pso_param_plot_widget.layout().addWidget(open_new_window_button)
-                
+
+            # Otherwise show two-parameter scatter
+            self.pso_create_two_parameter_scatter(selected_param, comparison_param)
+
         except Exception as e:
             import traceback
             print(f"Error creating PSO scatter plot: {str(e)}\n{traceback.format_exc()}")
+
+    def pso_create_two_parameter_scatter(self, param_x, param_y):
+        """Create enhanced scatter plot between two specific parameters"""
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import numpy as np
+            import seaborn as sns
+            from PyQt5.QtWidgets import QPushButton
+
+            data_x = self.pso_current_parameter_data.get(param_x)
+            data_y = self.pso_current_parameter_data.get(param_y)
+            if not data_x or not data_y:
+                return
+
+            values_x = data_x.get('values', [])
+            values_y = data_y.get('values', [])
+            run_order = np.arange(len(values_x))
+
+            fig = Figure(figsize=(12, 8), tight_layout=True)
+            gs = fig.add_gridspec(3, 3, height_ratios=[1, 4, 4], width_ratios=[4, 4, 1],
+                                 hspace=0.4, wspace=0.4)
+            ax_main = fig.add_subplot(gs[1:, :-1])
+            ax_top = fig.add_subplot(gs[0, :-1], sharex=ax_main)
+            ax_right = fig.add_subplot(gs[1:, -1], sharey=ax_main)
+
+            scatter = ax_main.scatter(values_x, values_y, c=run_order, cmap='viridis',
+                                     edgecolors='white', linewidth=0.8, s=80, alpha=0.7)
+            cbar = fig.colorbar(scatter, ax=[ax_main, ax_right], shrink=0.8, aspect=30, pad=0.02)
+            cbar.set_label('Run Order', fontsize=10)
+
+            z = np.polyfit(values_x, values_y, 1)
+            p = np.poly1d(z)
+            x_trend = np.linspace(min(values_x), max(values_x), 100)
+            y_trend = p(x_trend)
+            ax_main.plot(x_trend, y_trend, "r--", linewidth=2, alpha=0.8, label='Trend Line')
+
+            try:
+                from scipy import stats
+                residuals = values_y - p(values_x)
+                mse = np.mean(residuals ** 2)
+                std_err = np.sqrt(mse)
+                y_upper = y_trend + 1.96 * std_err
+                y_lower = y_trend - 1.96 * std_err
+                ax_main.fill_between(x_trend, y_lower, y_upper, alpha=0.2, color='red', label='95% Confidence')
+                pearson_corr, pearson_p = stats.pearsonr(values_x, values_y)
+                corr_text = f"Pearson r={pearson_corr:.3f}\np={pearson_p:.3e}"
+            except Exception:
+                pearson_corr = np.corrcoef(values_x, values_y)[0, 1]
+                corr_text = f"Correlation: {pearson_corr:.3f}"
+
+            ss_res = np.sum((values_y - p(values_x)) ** 2)
+            ss_tot = np.sum((values_y - np.mean(values_y)) ** 2)
+            r_squared = 1 - (ss_res / ss_tot)
+            eq_text = f"y = {z[0]:.3e}x + {z[1]:.3e}\nR² = {r_squared:.3f}"
+
+            ax_main.text(0.02, 0.98, corr_text, transform=ax_main.transAxes,
+                        fontsize=10, verticalalignment='top',
+                        bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.9))
+            ax_main.text(0.02, 0.02, eq_text, transform=ax_main.transAxes,
+                        fontsize=10, verticalalignment='bottom',
+                        bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.9))
+
+            sns.histplot(values_x, ax=ax_top, bins=30, stat='density', alpha=0.6,
+                         color='#3498db', edgecolor='black', linewidth=1)
+            sns.histplot(values_y, ax=ax_right, bins=30, stat='density', alpha=0.6,
+                         color='#e74c3c', edgecolor='black', linewidth=1, orientation='horizontal')
+
+            ax_main.set_xlabel(param_x, fontsize=12)
+            ax_main.set_ylabel(param_y, fontsize=12)
+            ax_top.set_ylabel('Density')
+            ax_right.set_xlabel('Density')
+            ax_main.grid(True, linestyle='--', alpha=0.7)
+            ax_top.grid(True, linestyle='--', alpha=0.7)
+            ax_right.grid(True, linestyle='--', alpha=0.7)
+
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, self.pso_param_plot_widget)
+
+            if self.pso_param_plot_widget.layout():
+                self.pso_param_plot_widget.layout().addWidget(toolbar)
+                self.pso_param_plot_widget.layout().addWidget(canvas)
+
+                open_btn = QPushButton("Open in New Window")
+                open_btn.clicked.connect(lambda: self._open_plot_window(fig, f"PSO Parameter Scatter: {param_x} vs {param_y}"))
+                self.pso_param_plot_widget.layout().addWidget(open_btn)
+
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO two-parameter scatter: {str(e)}\n{traceback.format_exc()}")
             
     def pso_create_parameter_vs_run_scatter(self, param_name):
         """Create a parameter vs. run number scatter plot - matched to GA mixin's create_parameter_vs_run_scatter"""
