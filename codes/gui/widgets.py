@@ -25,7 +25,7 @@ class SidebarButton(QWidget):
             layout.addWidget(icon)
 
         label = QLabel(text)
-        label.setFont(QFont("Segoe UI", 11, QFont.Medium))
+        label.setFont(QFont("Arial", 11, QFont.Medium))
         layout.addWidget(label)
         layout.addStretch()
 
@@ -35,8 +35,8 @@ class SidebarButton(QWidget):
         # Set initial style
         self.setStyleSheet("""
             SidebarButton {
-                border-radius: 8px;
-                padding: 8px 15px;
+                border-radius: 6px;
+                padding: 6px 12px;
                 margin: 2px 8px;
                 transition: all 0.2s ease;
             }
@@ -45,11 +45,10 @@ class SidebarButton(QWidget):
     def enterEvent(self, event):
         self.setStyleSheet("""
             SidebarButton {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                    stop: 0 rgba(94, 129, 255, 0.15), stop: 1 rgba(138, 43, 226, 0.15));
-                border: 1px solid rgba(94, 129, 255, 0.3);
-                border-radius: 10px;
-                padding: 8px 15px;
+                background-color: rgba(0, 150, 136, 0.15);
+                border: 1px solid rgba(0, 150, 136, 0.4);
+                border-radius: 6px;
+                padding: 6px 12px;
                 margin: 2px 8px;
             }
         """)
@@ -60,8 +59,8 @@ class SidebarButton(QWidget):
             SidebarButton {
                 background: transparent;
                 border: 1px solid transparent;
-                border-radius: 8px;
-                padding: 8px 15px;
+                border-radius: 6px;
+                padding: 6px 12px;
                 margin: 2px 8px;
             }
         """)
