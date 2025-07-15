@@ -517,14 +517,38 @@ class InputTabsMixin:
         self.rel_change_no_data_label.setStyleSheet("color: #888; font-style: italic; font-size: 14px;")
         rel_change_layout.addWidget(self.rel_change_no_data_label)
         
+        # --------- COMBINED VIEW TAB ---------
+        combined_tab = QWidget()
+        combined_layout = QVBoxLayout(combined_tab)
+
+        self.combined_fig = Figure(figsize=(10, 6))
+        self.combined_canvas = FigureCanvas(self.combined_fig)
+        self.combined_canvas.setMinimumHeight(450)
+        self.combined_toolbar = NavigationToolbar(self.combined_canvas, combined_tab)
+
+        combined_layout.addWidget(self.combined_canvas)
+        combined_layout.addWidget(self.combined_toolbar)
+
+        # No data label for combined view
+        self.combined_no_data_label = QLabel("Run the sensitivity analysis to generate visualization")
+        self.combined_no_data_label.setAlignment(Qt.AlignCenter)
+        self.combined_no_data_label.setStyleSheet("color: #888; font-style: italic; font-size: 14px;")
+        combined_layout.addWidget(self.combined_no_data_label)
+
         # Add tabs to the visualization tabs widget
         self.vis_tabs.addTab(convergence_tab, "Slope Convergence")
         self.vis_tabs.addTab(rel_change_tab, "Relative Change")
-        
+        self.vis_tabs.addTab(combined_tab, "Combined View")
+
         # Create main visualization container tab
         vis_tab = QWidget()
         vis_layout = QVBoxLayout(vis_tab)
         vis_layout.addWidget(self.vis_tabs)
+
+        # Add parameter and visualization tabs to the main widget
+        self.sensitivity_tabs.addTab(params_tab, "Parameters")
+        self.sensitivity_tabs.addTab(vis_tab, "Visualization")
+        self.sensitivity_tabs.setCurrentIndex(0)
 
     def get_main_system_params(self):
         """Get the main system parameters in a tuple format"""
@@ -838,6 +862,37 @@ class InputTabsMixin:
                 ax.tick_params(axis='both', which='major', labelsize=10)
                 
                 self.rel_change_canvas.draw()
+
+            else:  # Combined view
+                self.combined_fig.clear()
+                ax1 = self.combined_fig.add_subplot(111)
+                ax2 = ax1.twinx()
+
+                ax1.plot(omega_points, max_slopes, 'o-', color='#1f77b4', label='Maximum Slope')
+
+                if len(relative_changes) > 0:
+                    valid_indices = [i for i, val in enumerate(relative_changes) if not np.isnan(val)]
+                    valid_points = [omega_points[i] for i in valid_indices]
+                    valid_changes = [relative_changes[i] for i in valid_indices]
+                    if valid_points:
+                        ax2.semilogy(valid_points, valid_changes, 's-', color='#ff7f0e', label='Relative Change')
+                        convergence_threshold = self.sensitivity_threshold.value()
+                        ax2.axhline(y=convergence_threshold, color='red', linestyle='--', linewidth=2,
+                                    label=f'Threshold {convergence_threshold}')
+
+                ax1.set_xlabel('Number of Omega Points', fontsize=12)
+                ax1.set_ylabel('Maximum Slope', fontsize=12, color='#1f77b4')
+                ax2.set_ylabel('Relative Change (log scale)', fontsize=12, color='#ff7f0e')
+                ax1.grid(True, alpha=0.3)
+
+                ax1.tick_params(axis='y', labelcolor='#1f77b4')
+                ax2.tick_params(axis='y', labelcolor='#ff7f0e')
+
+                lines, labels = ax1.get_legend_handles_labels()
+                lines2, labels2 = ax2.get_legend_handles_labels()
+                ax1.legend(lines + lines2, labels + labels2)
+
+                self.combined_canvas.draw()
             
             # Enable save button
             self.sensitivity_save_plot_btn.setEnabled(True)
@@ -845,6 +900,7 @@ class InputTabsMixin:
             # Hide no data labels
             self.convergence_no_data_label.setVisible(False)
             self.rel_change_no_data_label.setVisible(False)
+            self.combined_no_data_label.setVisible(False)
             
         except Exception as e:
             import traceback
