@@ -120,11 +120,12 @@ class ThemeMixin:
                 border-bottom: none;
                 border-top-left-radius: 8px;
                 border-top-right-radius: 8px;
-                padding: 10px 20px;
+                padding: 6px 14px;
                 margin-right: 3px;
                 font-weight: 500;
-                min-width: 120px;
-                min-height: 30px;
+                min-width: 100px;
+                min-height: 28px;
+                icon-size: 20px;
             }}
             QTabBar::tab:selected {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -132,15 +133,17 @@ class ThemeMixin:
                 color: #FFFFFF;
                 border-bottom: 3px solid {tertiary_color.name()};
                 font-weight: bold;
-                min-width: 120px;
-                min-height: 30px;
+                min-width: 100px;
+                min-height: 28px;
+                icon-size: 20px;
             }}
             QTabBar::tab:hover {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                     stop: 0 #2D2D3D, stop: 1 #252530);
                 color: #FFFFFF;
-                min-width: 120px;
-                min-height: 30px;
+                min-width: 100px;
+                min-height: 28px;
+                icon-size: 20px;
             }}
             QScrollArea, QScrollBar {{
                 border: none;
@@ -566,11 +569,12 @@ class ThemeMixin:
                 border-bottom: none;
                 border-top-left-radius: 8px;
                 border-top-right-radius: 8px;
-                padding: 10px 20px;
+                padding: 6px 14px;
                 margin-right: 3px;
                 font-weight: 500;
-                min-width: 120px;
-                min-height: 30px;
+                min-width: 100px;
+                min-height: 28px;
+                icon-size: 20px;
             }}
             QTabBar::tab:selected {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -578,15 +582,17 @@ class ThemeMixin:
                 color: #FFFFFF;
                 border-bottom: 3px solid {tertiary_color.name()};
                 font-weight: bold;
-                min-width: 120px;
-                min-height: 30px;
+                min-width: 100px;
+                min-height: 28px;
+                icon-size: 20px;
             }}
             QTabBar::tab:hover {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                     stop: 0 #EEEEEE, stop: 1 #E5E5EA);
                 color: {text_color.name()};
-                min-width: 120px;
-                min-height: 30px;
+                min-width: 100px;
+                min-height: 28px;
+                icon-size: 20px;
             }}
             QScrollArea, QScrollBar {{
                 border: none;
