@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QTabWidget, QWidget, QHBoxLayout, QLabel
 from PyQt5.QtGui import QPixmap, QFont, QCursor
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSize
 
 class ModernQTabWidget(QTabWidget):
     """Custom TabWidget with modern styling"""
@@ -9,6 +9,10 @@ class ModernQTabWidget(QTabWidget):
         self.setDocumentMode(True)
         self.setTabPosition(QTabWidget.North)
         self.setMovable(True)
+        # Ensure tabs adapt nicely on smaller screens
+        self.tabBar().setElideMode(Qt.ElideRight)
+        self.tabBar().setUsesScrollButtons(True)
+        self.tabBar().setIconSize(QSize(20, 20))
 
 class SidebarButton(QWidget):
     """Elegant sidebar button with modern styling and animations"""
@@ -21,7 +25,8 @@ class SidebarButton(QWidget):
         if icon_path:
             icon = QLabel()
             pixmap = QPixmap(icon_path)
-            icon.setPixmap(pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            # Scale sidebar icons to a reasonable size
+            icon.setPixmap(pixmap.scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
             layout.addWidget(icon)
 
         label = QLabel(text)
