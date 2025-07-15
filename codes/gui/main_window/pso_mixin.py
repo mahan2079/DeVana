@@ -696,8 +696,11 @@ class PSOMixin:
             # Add optimization metadata if available
             if isinstance(results, dict) and 'optimization_metadata' in results:
                 run_data['optimization_metadata'] = results['optimization_metadata']
-            
+
             self.pso_benchmark_data = [run_data]
+            # Immediately visualize results for single runs so parameter
+            # plots are populated just like in the GA workflow
+            self.visualize_pso_benchmark_results()
             
         # Re-enable both run PSO buttons when completely done
         self.hyper_run_pso_button.setEnabled(True)
