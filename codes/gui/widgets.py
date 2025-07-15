@@ -14,6 +14,10 @@ class ModernQTabWidget(QTabWidget):
         self.tabBar().setElideMode(Qt.ElideNone)
         self.tabBar().setUsesScrollButtons(True)
         self.tabBar().setIconSize(QSize(20, 20))
+        # Ensure tabs auto-resize to fit their labels and do not expand
+        self.tabBar().setExpanding(False)
+        # Remove minimum width to allow tabs to shrink to label size
+        self.setStyleSheet(self.styleSheet() + "\nQTabBar::tab { min-width: 0px; }")
 
 class SidebarButton(QWidget):
     """Elegant sidebar button with modern styling and animations"""

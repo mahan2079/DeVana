@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QDoubleSpinBox
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QColor, QPalette
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -17,20 +17,28 @@ class StochasticDesignMixin:
         """Create the stochastic design page with all existing tabs"""
         stochastic_page = QWidget()
         page_layout = QVBoxLayout(stochastic_page)
-        page_layout.setContentsMargins(20, 20, 20, 20)
+        page_layout.setContentsMargins(20, 20, 20, 20) # Add top margin for the page, and general padding
+        page_layout.setSpacing(15) # Add space between banner and content
 
-        header = QWidget()
-        header_layout = QVBoxLayout(header)
-        title = QLabel("Stochastic Design")
-        title.setFont(QFont("Segoe UI", 20, QFont.Bold))
-        header_layout.addWidget(title)
+        # Create a short banner for the title
+        self.stochastic_design_banner = QWidget() # Make banner an instance variable
+        self.stochastic_design_banner.setFixedHeight(70)
+        banner_layout = QHBoxLayout(self.stochastic_design_banner)
+        banner_layout.setContentsMargins(20, 5, 20, 5) # Add vertical padding within the banner
+        
+        # Set banner background color
+        banner_palette = self.stochastic_design_banner.palette()
+        banner_palette.setColor(QPalette.Background, QColor("#3A004C")) # A new color, e.g., deep purple
+        self.stochastic_design_banner.setAutoFillBackground(True)
+        self.stochastic_design_banner.setPalette(banner_palette)
 
-        description = QLabel("Design and optimize stochastic vibration systems with advanced algorithms")
-        description.setFont(QFont("Segoe UI", 11))
-        header_layout.addWidget(description)
-
-        page_layout.addWidget(header)
-
+        self.stochastic_design_title_label = QLabel("Stochastic Design") # Make title an instance variable
+        self.stochastic_design_title_label.setFont(QFont("Segoe UI", 28, QFont.Bold)) # Increase font size for better appearance
+        self.stochastic_design_title_label.setStyleSheet("color: white;") # Ensure title text is visible on dark background
+        banner_layout.addWidget(self.stochastic_design_title_label, alignment=Qt.AlignLeft | Qt.AlignVCenter)
+        
+        page_layout.addWidget(self.stochastic_design_banner)
+        
         content_splitter = QSplitter(Qt.Horizontal)
 
         left_panel = QWidget()
