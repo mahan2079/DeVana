@@ -242,7 +242,14 @@ class OmegaSensitivityMixin:
             if not hasattr(self, 'rel_change_fig') or self.rel_change_fig is None:
                 QMessageBox.warning(self, "Error", "No relative change plot to save.")
                 return
-                
+
             self.save_plot(self.rel_change_fig, "Relative_Change_Analysis")
+
+        else:  # Combined view
+            if not hasattr(self, 'combined_fig') or self.combined_fig is None:
+                QMessageBox.warning(self, "Error", "No combined plot to save.")
+                return
+
+            self.save_plot(self.combined_fig, "Combined_Analysis")
     
 
