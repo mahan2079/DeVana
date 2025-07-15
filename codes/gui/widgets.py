@@ -10,7 +10,8 @@ class ModernQTabWidget(QTabWidget):
         self.setTabPosition(QTabWidget.North)
         self.setMovable(True)
         # Ensure tabs adapt nicely on smaller screens
-        self.tabBar().setElideMode(Qt.ElideRight)
+        # Show full tab titles and allow scrolling when they don't fit
+        self.tabBar().setElideMode(Qt.ElideNone)
         self.tabBar().setUsesScrollButtons(True)
         self.tabBar().setIconSize(QSize(20, 20))
 
