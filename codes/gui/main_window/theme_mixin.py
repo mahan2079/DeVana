@@ -69,6 +69,18 @@ class ThemeMixin:
         
         self.setPalette(dark_palette)
         
+        # Update banner color if it exists
+        if hasattr(self, 'stochastic_design_banner') and self.stochastic_design_banner is not None:
+            banner_palette = self.stochastic_design_banner.palette()
+            banner_palette.setColor(QPalette.Background, QColor("#3A004C")) # Deep purple for dark theme
+            self.stochastic_design_banner.setPalette(banner_palette)
+            self.stochastic_design_banner.update()
+
+        # Update banner title color if it exists
+        if hasattr(self, 'stochastic_design_title_label') and self.stochastic_design_title_label is not None:
+            self.stochastic_design_title_label.setStyleSheet("color: white;")
+            self.stochastic_design_title_label.update()
+
         # Enhanced dark theme stylesheet with gradients and elegant styling
         dark_stylesheet = f"""
             QMainWindow {{
@@ -107,7 +119,7 @@ class ThemeMixin:
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                     stop: 0 #1A1A25, stop: 1 #161620);
                 top: -2px;
-                padding: 10px;
+                padding: 1px;
             }}
             QTabWidget::tab-bar {{
                 alignment: left;
@@ -120,12 +132,13 @@ class ThemeMixin:
                 border-bottom: none;
                 border-top-left-radius: 8px;
                 border-top-right-radius: 8px;
-                padding: 6px 14px;
+                padding: 6px 22px;
                 margin-right: 3px;
                 font-weight: 500;
-                min-width: 100px;
+                min-width: 0px;
                 min-height: 28px;
                 icon-size: 20px;
+                font-size: 14px;
             }}
             QTabBar::tab:selected {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -133,17 +146,19 @@ class ThemeMixin:
                 color: #FFFFFF;
                 border-bottom: 3px solid {tertiary_color.name()};
                 font-weight: bold;
-                min-width: 100px;
+                min-width: 0px;
                 min-height: 28px;
                 icon-size: 20px;
+                font-size: 14px;
             }}
             QTabBar::tab:hover {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                     stop: 0 #2D2D3D, stop: 1 #252530);
                 color: #FFFFFF;
-                min-width: 100px;
+                min-width: 0px;
                 min-height: 28px;
                 icon-size: 20px;
+                font-size: 14px;
             }}
             QScrollArea, QScrollBar {{
                 border: none;
@@ -518,6 +533,18 @@ class ThemeMixin:
         
         self.setPalette(light_palette)
         
+        # Update banner color if it exists
+        if hasattr(self, 'stochastic_design_banner') and self.stochastic_design_banner is not None:
+            banner_palette = self.stochastic_design_banner.palette()
+            banner_palette.setColor(QPalette.Background, QColor("#A8DADC")) # Light blue/cyan for light theme
+            self.stochastic_design_banner.setPalette(banner_palette)
+            self.stochastic_design_banner.update()
+
+        # Update banner title color if it exists
+        if hasattr(self, 'stochastic_design_title_label') and self.stochastic_design_title_label is not None:
+            self.stochastic_design_title_label.setStyleSheet("color: black;")
+            self.stochastic_design_title_label.update()
+
         # Enhanced light theme stylesheet with gradients
         light_stylesheet = f"""
             QMainWindow {{
@@ -556,7 +583,7 @@ class ThemeMixin:
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                     stop: 0 #FFFFFF, stop: 1 #F5F5FA);
                 top: -2px;
-                padding: 10px;
+                padding: 5px;
             }}
             QTabWidget::tab-bar {{
                 alignment: left;
@@ -569,12 +596,13 @@ class ThemeMixin:
                 border-bottom: none;
                 border-top-left-radius: 8px;
                 border-top-right-radius: 8px;
-                padding: 6px 14px;
+                padding: 6px 22px;
                 margin-right: 3px;
                 font-weight: 500;
-                min-width: 100px;
+                min-width: 0px;
                 min-height: 28px;
                 icon-size: 20px;
+                font-size: 14px;
             }}
             QTabBar::tab:selected {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -582,17 +610,19 @@ class ThemeMixin:
                 color: #FFFFFF;
                 border-bottom: 3px solid {tertiary_color.name()};
                 font-weight: bold;
-                min-width: 100px;
+                min-width: 0px;
                 min-height: 28px;
                 icon-size: 20px;
+                font-size: 14px;
             }}
             QTabBar::tab:hover {{
                 background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                     stop: 0 #EEEEEE, stop: 1 #E5E5EA);
                 color: {text_color.name()};
-                min-width: 100px;
+                min-width: 0px;
                 min-height: 28px;
                 icon-size: 20px;
+                font-size: 14px;
             }}
             QScrollArea, QScrollBar {{
                 border: none;
