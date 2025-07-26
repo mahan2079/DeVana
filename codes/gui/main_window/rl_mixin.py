@@ -1,44 +1,63 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from RL.RLWorker import RLWorker
+
 
 class RLOptimizationMixin:
     def create_rl_tab(self):
-        """Create the reinforcement learning optimization tab"""
+        """Create the reinforcement learning optimization tab with subtabs"""
         self.rl_tab = QWidget()
         layout = QVBoxLayout(self.rl_tab)
 
+        self.rl_sub_tabs = QTabWidget()
+        layout.addWidget(self.rl_sub_tabs)
+
+        # ------------------- Sub-tab 1: Hyperparameters -------------------
+        rl_hyper_tab = QWidget()
+        hyper_layout = QVBoxLayout(rl_hyper_tab)
+
         hyper_group = QGroupBox("RL Hyperparameters")
         hyper_form = QFormLayout(hyper_group)
+
         self.rl_num_episodes_box = QSpinBox()
         self.rl_num_episodes_box.setRange(1, 10000)
         self.rl_num_episodes_box.setValue(100)
+
         self.rl_max_steps_box = QSpinBox()
         self.rl_max_steps_box.setRange(1, 10000)
         self.rl_max_steps_box.setValue(50)
+
         self.rl_alpha_box = QDoubleSpinBox()
         self.rl_alpha_box.setRange(0.0, 1.0)
         self.rl_alpha_box.setDecimals(4)
         self.rl_alpha_box.setValue(0.1)
+
         self.rl_gamma_box = QDoubleSpinBox()
         self.rl_gamma_box.setRange(0.0, 1.0)
         self.rl_gamma_box.setDecimals(4)
         self.rl_gamma_box.setValue(0.95)
+
         self.rl_epsilon_box = QDoubleSpinBox()
         self.rl_epsilon_box.setRange(0.0, 1.0)
         self.rl_epsilon_box.setDecimals(4)
         self.rl_epsilon_box.setValue(1.0)
+
         self.rl_epsilon_min_box = QDoubleSpinBox()
         self.rl_epsilon_min_box.setRange(0.0, 1.0)
         self.rl_epsilon_min_box.setDecimals(4)
         self.rl_epsilon_min_box.setValue(0.05)
+
         self.rl_epsilon_decay_box = QDoubleSpinBox()
         self.rl_epsilon_decay_box.setRange(0.0, 1.0)
         self.rl_epsilon_decay_box.setDecimals(4)
         self.rl_epsilon_decay_box.setValue(0.99)
+
         self.rl_epsilon_decay_type_combo = QComboBox()
         self.rl_epsilon_decay_type_combo.addItems(["exponential", "linear"])
+
         hyper_form.addRow("Episodes:", self.rl_num_episodes_box)
         hyper_form.addRow("Max Steps:", self.rl_max_steps_box)
         hyper_form.addRow("Learning Rate (alpha):", self.rl_alpha_box)
@@ -47,59 +66,146 @@ class RLOptimizationMixin:
         hyper_form.addRow("Min Epsilon:", self.rl_epsilon_min_box)
         hyper_form.addRow("Epsilon Decay:", self.rl_epsilon_decay_box)
         hyper_form.addRow("Decay Type:", self.rl_epsilon_decay_type_combo)
-        layout.addWidget(hyper_group)
+
+        hyper_layout.addWidget(hyper_group)
 
         reward_group = QGroupBox("Reward Settings")
         reward_form = QFormLayout(reward_group)
+
         self.rl_reward_system_combo = QComboBox()
         self.rl_reward_system_combo.addItems([
             "1 - Absolute Error",
             "2 - Error + Cost",
             "3 - Error + Sparsity Count",
             "4 - Error + Sparsity Sum",
-            "5 - Error + Extended Cost"
+            "5 - Error + Extended Cost",
         ])
+
         self.rl_cost_box = QDoubleSpinBox()
         self.rl_cost_box.setRange(0.0, 1000.0)
         self.rl_cost_box.setDecimals(4)
         self.rl_cost_box.setValue(0.0)
+
         self.rl_sparsity_box = QDoubleSpinBox()
         self.rl_sparsity_box.setRange(0.0, 1.0)
         self.rl_sparsity_box.setDecimals(4)
         self.rl_sparsity_box.setValue(0.01)
+
         self.rl_time_penalty_box = QDoubleSpinBox()
         self.rl_time_penalty_box.setRange(0.0, 10.0)
         self.rl_time_penalty_box.setDecimals(4)
         self.rl_time_penalty_box.setValue(0.0)
+
         reward_form.addRow("Reward System:", self.rl_reward_system_combo)
         reward_form.addRow("Cost Coefficient:", self.rl_cost_box)
         reward_form.addRow("Sparsity Penalty:", self.rl_sparsity_box)
         reward_form.addRow("Time Penalty:", self.rl_time_penalty_box)
-        layout.addWidget(reward_group)
 
-        self.run_rl_button = QPushButton("Run RL Optimization")
+        hyper_layout.addWidget(reward_group)
+
+        self.run_rl_button = QPushButton("Run RL")
         self.run_rl_button.clicked.connect(self.run_rl_optimization)
-        layout.addWidget(self.run_rl_button)
+        hyper_layout.addWidget(self.run_rl_button)
+
+        self.rl_sub_tabs.addTab(rl_hyper_tab, "Hyperparameters")
+
+        # ------------------- Sub-tab 2: Parameters -------------------
+        param_tab = QWidget()
+        param_layout = QVBoxLayout(param_tab)
+
+        self.rl_param_table = QTableWidget()
+        dva_parameters = [
+            *[f"beta_{i}" for i in range(1, 16)],
+            *[f"lambda_{i}" for i in range(1, 16)],
+            *[f"mu_{i}" for i in range(1, 4)],
+            *[f"nu_{i}" for i in range(1, 16)],
+        ]
+
+        self.rl_param_table.setRowCount(len(dva_parameters))
+        self.rl_param_table.setColumnCount(6)
+        self.rl_param_table.setHorizontalHeaderLabels([
+            "Parameter",
+            "Fixed",
+            "Fixed Value",
+            "Lower Bound",
+            "Upper Bound",
+            "Cost",
+        ])
+        self.rl_param_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.rl_param_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+
+        for row, param in enumerate(dva_parameters):
+            param_item = QTableWidgetItem(param)
+            param_item.setFlags(Qt.ItemIsEnabled)
+            self.rl_param_table.setItem(row, 0, param_item)
+
+            fixed_checkbox = QCheckBox()
+            fixed_checkbox.setChecked(True)
+            fixed_checkbox.stateChanged.connect(lambda state, r=row: self.toggle_rl_fixed(state, r))
+            self.rl_param_table.setCellWidget(row, 1, fixed_checkbox)
+
+            fixed_value_spin = QDoubleSpinBox()
+            fixed_value_spin.setRange(0, 1e10)
+            fixed_value_spin.setDecimals(6)
+            fixed_value_spin.setValue(0.0)
+            fixed_value_spin.setEnabled(True)
+            self.rl_param_table.setCellWidget(row, 2, fixed_value_spin)
+
+            lower_spin = QDoubleSpinBox()
+            lower_spin.setRange(0, 1e10)
+            lower_spin.setDecimals(6)
+            lower_spin.setValue(0.0)
+            lower_spin.setEnabled(False)
+            self.rl_param_table.setCellWidget(row, 3, lower_spin)
+
+            upper_spin = QDoubleSpinBox()
+            upper_spin.setRange(0, 1e10)
+            upper_spin.setDecimals(6)
+            upper_spin.setValue(1.0)
+            upper_spin.setEnabled(False)
+            self.rl_param_table.setCellWidget(row, 4, upper_spin)
+
+            cost_spin = QDoubleSpinBox()
+            cost_spin.setRange(0.0, 1000.0)
+            cost_spin.setDecimals(4)
+            cost_spin.setValue(1.0)
+            self.rl_param_table.setCellWidget(row, 5, cost_spin)
+
+        param_layout.addWidget(self.rl_param_table)
+
+        self.rl_sub_tabs.addTab(param_tab, "Parameters")
+
+        # ------------------- Sub-tab 3: Results -------------------
+        results_tab = QWidget()
+        results_layout = QVBoxLayout(results_tab)
 
         self.rl_results_text = QTextEdit()
         self.rl_results_text.setReadOnly(True)
-        layout.addWidget(self.rl_results_text)
+        results_layout.addWidget(self.rl_results_text)
+
+        # Plot for episode rewards
+        self.rl_reward_fig = Figure(figsize=(5, 3))
+        self.rl_reward_canvas = FigureCanvas(self.rl_reward_fig)
+        results_layout.addWidget(self.rl_reward_canvas)
+
+        self.rl_sub_tabs.addTab(results_tab, "Results")
 
     def run_rl_optimization(self):
         try:
             main_params = self.get_main_system_params()
             target_values, weights = self.get_target_values_weights()
+            self.rl_reward_history = []
             dva_bounds = {}
             EPSILON = 1e-6
-            for row in range(self.ga_param_table.rowCount()):
-                param_name = self.ga_param_table.item(row, 0).text()
-                fixed = self.ga_param_table.cellWidget(row, 1).isChecked()
+            for row in range(self.rl_param_table.rowCount()):
+                param_name = self.rl_param_table.item(row, 0).text()
+                fixed = self.rl_param_table.cellWidget(row, 1).isChecked()
                 if fixed:
-                    fixed_value = self.ga_param_table.cellWidget(row, 2).value()
+                    fixed_value = self.rl_param_table.cellWidget(row, 2).value()
                     dva_bounds[param_name] = (fixed_value, fixed_value + EPSILON)
                 else:
-                    lower = self.ga_param_table.cellWidget(row, 3).value()
-                    upper = self.ga_param_table.cellWidget(row, 4).value()
+                    lower = self.rl_param_table.cellWidget(row, 3).value()
+                    upper = self.rl_param_table.cellWidget(row, 4).value()
                     if lower > upper:
                         QMessageBox.warning(self, "Input Error",
                             f"For parameter {param_name}, lower bound is greater than upper bound.")
@@ -119,7 +225,13 @@ class RLOptimizationMixin:
                     rl_parameter_data.append((name, low, high, fixed))
 
             cost_coeff = self.rl_cost_box.value()
-            cost_values = [cost_coeff] * len(rl_parameter_data)
+            cost_values = []
+            for row in range(self.rl_param_table.rowCount()):
+                cost_spin = self.rl_param_table.cellWidget(row, 5)
+                if cost_spin is not None:
+                    cost_values.append(cost_coeff * cost_spin.value())
+                else:
+                    cost_values.append(cost_coeff)
 
             self.rl_worker = RLWorker(
                 main_params=main_params,
@@ -147,6 +259,7 @@ class RLOptimizationMixin:
             self.rl_worker.finished.connect(self.handle_rl_finished)
             self.rl_worker.error.connect(self.handle_rl_error)
             self.rl_worker.update.connect(self.handle_rl_update)
+            self.rl_worker.episode_metrics.connect(self.handle_rl_metrics)
 
             self.run_rl_button.setEnabled(False)
             self.rl_results_text.clear()
@@ -175,3 +288,38 @@ class RLOptimizationMixin:
 
     def handle_rl_update(self, msg):
         self.rl_results_text.append(msg)
+
+    def handle_rl_metrics(self, metrics):
+        """Update reward plot based on episode metrics"""
+        episode = metrics.get('episode')
+        reward = metrics.get('best_reward')
+        if not hasattr(self, 'rl_reward_history'):
+            self.rl_reward_history = []
+        self.rl_reward_history.append((episode, reward))
+
+        self.rl_reward_fig.clear()
+        ax = self.rl_reward_fig.add_subplot(111)
+        episodes = [e for e, _ in self.rl_reward_history]
+        rewards = [r for _, r in self.rl_reward_history]
+        ax.plot(episodes, rewards, marker='o')
+        ax.set_xlabel('Episode')
+        ax.set_ylabel('Best Reward')
+        ax.grid(True)
+        self.rl_reward_canvas.draw()
+
+    def toggle_rl_fixed(self, state, row):
+        fixed = (state == Qt.Checked)
+        fixed_value_spin = self.rl_param_table.cellWidget(row, 2)
+        lower_spin = self.rl_param_table.cellWidget(row, 3)
+        upper_spin = self.rl_param_table.cellWidget(row, 4)
+
+        fixed_value_spin.setEnabled(fixed)
+        lower_spin.setEnabled(not fixed)
+        upper_spin.setEnabled(not fixed)
+
+        if fixed:
+            fixed_value_spin.setValue(lower_spin.value())
+        else:
+            if lower_spin.value() > upper_spin.value():
+                upper_spin.setValue(lower_spin.value())
+

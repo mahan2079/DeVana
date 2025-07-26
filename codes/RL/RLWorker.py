@@ -63,6 +63,7 @@ class RLWorker(QThread):
     finished = pyqtSignal(dict, list, list, float)
     error = pyqtSignal(str)
     update = pyqtSignal(str)
+    episode_metrics = pyqtSignal(dict)
 
     def __init__(
         self,
@@ -189,6 +190,7 @@ class RLWorker(QThread):
         # Track best solution
         self.best_reward = -np.inf
         self.best_solution = None
+        self.episode_rewards = []
 
     # ---------------------------------------------------------------------
     # Build Actions, Load & Save Q-Table
@@ -424,11 +426,13 @@ class RLWorker(QThread):
 
             self.best_reward = -np.inf
             self.best_solution = None
+            self.episode_rewards = []
 
             for episode in range(1, self.rl_num_episodes + 1):
                 self.update.emit(f"--- RL Episode {episode}/{self.rl_num_episodes} ---")
                 state_indices = self._random_initial_state()
                 state_key = self._get_state_key(state_indices)
+                episode_best = -np.inf
 
                 for step in range(self.rl_max_steps):
                     action_idx = self._select_action(state_key)
@@ -444,6 +448,8 @@ class RLWorker(QThread):
                     if reward > self.best_reward:
                         self.best_reward = reward
                         self.best_solution = self._indices_to_parameters(new_state_indices)
+                    if reward > episode_best:
+                        episode_best = reward
 
                     state_indices = new_state_indices
                     state_key = new_state_key
@@ -453,8 +459,10 @@ class RLWorker(QThread):
                         break
 
                 self.update_epsilon(episode)
+                self.episode_rewards.append(episode_best)
                 self.update.emit(f"End of episode {episode}, current best reward: {self.best_reward:.6f}")
                 self.update.emit(f"Epsilon after decay: {self.rl_epsilon:.4f}")
+                self.episode_metrics.emit({'episode': episode, 'best_reward': episode_best, 'epsilon': self.rl_epsilon})
 
             if self.best_solution is not None:
                 try:
