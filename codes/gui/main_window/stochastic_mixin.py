@@ -62,6 +62,8 @@ class StochasticDesignMixin:
         self.create_pso_tab()
         self.create_sa_tab()
         self.create_cmaes_tab()
+        if hasattr(self, 'create_rl_tab'):
+            self.create_rl_tab()
         
         # Don't create DE tab here - it will be created by integrate_de_functionality method
         # if DEOptimizationMixin is available
@@ -84,6 +86,8 @@ class StochasticDesignMixin:
         self.optimization_tabs.addTab(self.pso_tab, "PSO Optimization")
         self.optimization_tabs.addTab(self.sa_tab, "SA Optimization")
         self.optimization_tabs.addTab(self.cmaes_tab, "CMA-ES Optimization")
+        if hasattr(self, 'rl_tab'):
+            self.optimization_tabs.addTab(self.rl_tab, "RL Optimization")
         
         # Don't add DE tab here - it will be handled by integrate_de_functionality method
         # Create a placeholder for now to avoid errors
