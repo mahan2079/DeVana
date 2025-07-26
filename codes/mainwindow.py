@@ -37,7 +37,7 @@ from workers.PSOWorker import PSOWorker, TopologyType
 from workers.DEWorker import DEWorker
 from workers.SAWorker import SAWorker
 from workers.CMAESWorker import CMAESWorker
-# RL module import removed
+# RL functionality is provided through RLOptimizationMixin
 
 from gui.menu_mixin import MenuMixin
 from gui.beam_mixin import ContinuousBeamMixin
@@ -162,6 +162,8 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
 
         # Initialize other optimization results holders if they follow a similar pattern
         self.current_pso_best_params = None
+        self.current_rl_best_params = None
+        self.current_rl_best_reward = None
 
     def integrate_de_functionality(self):
         """Manually integrate DE functionality from DEOptimizationMixin"""
@@ -343,6 +345,8 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
             self.current_ga_full_results = None
             self.current_ga_settings = None
             self.current_pso_best_params = None
+            self.current_rl_best_params = None
+            self.current_rl_best_reward = None
             
             self.status_bar.showMessage("All values reset to defaults", 3000)
             
