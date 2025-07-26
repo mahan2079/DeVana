@@ -411,6 +411,7 @@ class GAOptimizationMixin:
         
         # Summary statistics tabs (create subtabs for better organization)
         stats_tab = QWidget()
+        stats_tab.setObjectName("stats_tab")
         stats_layout = QVBoxLayout(stats_tab)
         
         # Create a tabbed widget for the statistics section
@@ -3384,12 +3385,10 @@ class GAOptimizationMixin:
             # Make sure all tabs in the main tab widget are preserved and properly displayed
             if hasattr(self, 'benchmark_viz_tabs'):
                 # First, switch to the Statistics tab to make the details visible
-                stats_tab_index = self.benchmark_viz_tabs.indexOf(self.benchmark_viz_tabs.findChild(QWidget, "stats_tab"))
-                if stats_tab_index == -1:  # If not found by name, try finding by index
-                    stats_tab_index = 5  # Statistics tab is typically the 6th tab (index 5)
-                
-                # Switch to the stats tab
-                self.benchmark_viz_tabs.setCurrentIndex(stats_tab_index)
+                stats_tab = self.benchmark_viz_tabs.findChild(QWidget, "stats_tab")
+                stats_tab_index = self.benchmark_viz_tabs.indexOf(stats_tab)
+                if stats_tab_index != -1:
+                    self.benchmark_viz_tabs.setCurrentIndex(stats_tab_index)
                 
                 # Make sure all tabs and their contents are visible
                 for i in range(self.benchmark_viz_tabs.count()):
