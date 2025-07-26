@@ -339,6 +339,7 @@ class PSOMixin:
         
         # Summary statistics tabs (create subtabs for better organization)
         pso_stats_tab = QWidget()
+        pso_stats_tab.setObjectName("pso_stats_tab")
         pso_stats_layout = QVBoxLayout(pso_stats_tab)
         
         # Create a tabbed widget for the statistics section
@@ -1683,12 +1684,10 @@ class PSOMixin:
             # Make sure all tabs in the main tab widget are preserved and properly displayed
             if hasattr(self, 'pso_benchmark_viz_tabs'):
                 # First, switch to the Statistics tab to make the details visible
-                stats_tab_index = self.pso_benchmark_viz_tabs.indexOf(self.pso_benchmark_viz_tabs.findChild(QWidget, "pso_stats_tab"))
-                if stats_tab_index == -1:  # If not found by name, try finding by index
-                    stats_tab_index = 5  # Statistics tab is typically the 6th tab (index 5)
-                
-                # Switch to the stats tab
-                self.pso_benchmark_viz_tabs.setCurrentIndex(stats_tab_index)
+                stats_tab = self.pso_benchmark_viz_tabs.findChild(QWidget, "pso_stats_tab")
+                stats_tab_index = self.pso_benchmark_viz_tabs.indexOf(stats_tab)
+                if stats_tab_index != -1:
+                    self.pso_benchmark_viz_tabs.setCurrentIndex(stats_tab_index)
                 
                 # Make sure all tabs and their contents are visible
                 for i in range(self.pso_benchmark_viz_tabs.count()):
