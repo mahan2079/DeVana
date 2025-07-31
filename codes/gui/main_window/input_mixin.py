@@ -824,7 +824,7 @@ class InputTabsMixin:
                 
                 self.convergence_canvas.draw()
                 
-            else:  # Relative change plot
+            elif current_tab == 1:  # Relative change plot
                 self.rel_change_fig.clear()
                 ax = self.rel_change_fig.add_subplot(111)
                 
@@ -863,7 +863,7 @@ class InputTabsMixin:
                 
                 self.rel_change_canvas.draw()
 
-            else:  # Combined view
+            else:  # Combined view (current_tab == 2)
                 self.combined_fig.clear()
                 ax1 = self.combined_fig.add_subplot(111)
                 ax2 = ax1.twinx()
