@@ -90,7 +90,7 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
                  SidebarMixin, StochasticDesignMixin, SobolAnalysisMixin, OmegaSensitivityMixin):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("DeVana - V0.2.2")
+        self.setWindowTitle("DeVana - V0.3.0")
         self.resize(1600, 900)
         self.setMinimumSize(1200, 800)  # Set minimum window size
         

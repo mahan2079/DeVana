@@ -48,6 +48,24 @@ def closeEvent(self, event):
             except Exception as e:
                 print(f"Error terminating GA worker: {str(e)}")
     
+    # Clean up RL worker
+    if hasattr(self, 'rl_worker') and self.rl_worker is not None:
+        if self.rl_worker.isRunning():
+            print("Terminating RL worker thread...")
+            try:
+                # Use our custom terminate method if available
+                if hasattr(self.rl_worker, 'terminate'):
+                    self.rl_worker.terminate()
+                
+                # Wait for a short time to let the thread finish
+                if not self.rl_worker.wait(1000):  # 1 second timeout
+                    print("RL worker did not finish in time, forcing termination...")
+                    # Use QThread's terminate as a last resort
+                    self.rl_worker.terminate()
+                    self.rl_worker.wait()
+            except Exception as e:
+                print(f"Error terminating RL worker: {str(e)}")
+    
     # Allow the close event to proceed
     event.accept()
 
@@ -111,7 +129,7 @@ def exception_hook(exctype, value, tb):
 # Set the exception hook
 sys.excepthook = exception_hook
 
-# DeVana v0.2.2
+# DeVana v0.3.0
 
 class WelcomePage(QWidget):
     def __init__(self):
@@ -143,7 +161,7 @@ class WelcomePage(QWidget):
             padding: 20px;
         """)
         
-        self.version_label = QLabel("Version V0.2.2")
+        self.version_label = QLabel("Version V0.3.0")
         self.version_label.setFont(QFont("Segoe UI", 18, QFont.Normal))
         self.version_label.setAlignment(Qt.AlignCenter)
         self.version_label.setStyleSheet("""
@@ -460,7 +478,7 @@ class SplashScreen(QSplashScreen):
         
         font.setPointSize(14)
         self.painter.setFont(font)
-        self.painter.drawText(50, 200, "Version V0.2.2")
+        self.painter.drawText(50, 200, "Version V0.3.0")
         
         font.setPointSize(12)
         font.setBold(False)
