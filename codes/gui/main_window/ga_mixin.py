@@ -4926,7 +4926,7 @@ class GAOptimizationMixin:
         generation_times = metrics.get('generation_times', [])
         if generation_times and len(generation_times) > 0:
             generations = range(1, len(generation_times) + 1)
-            bars = ax3.bar(generations, generation_times, alpha=0.7, color='orange')
+            bars = ax3.bar(generations, generation_times, alpha=0.7, color='purple')
             ax3.set_title('Time Per Generation')
             ax3.set_xlabel('Generation')
             ax3.set_ylabel('Time (seconds)')
