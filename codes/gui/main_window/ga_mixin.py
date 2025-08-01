@@ -736,7 +736,11 @@ class GAOptimizationMixin:
                 fixed = abs(low - high) < EPSILON
                 ga_parameter_data.append((param_name, low, high, fixed))
                 
+        # Store parameter configuration for later analysis
+        self.ga_parameter_data = ga_parameter_data
+        self.ga_active_parameters = [name for name, _, _, fixed in ga_parameter_data if not fixed]
         # If there's an existing worker, make sure it's properly cleaned up
+
         if hasattr(self, 'ga_worker'):
             try:
                 self.ga_worker.finished.disconnect()
@@ -830,7 +834,7 @@ class GAOptimizationMixin:
                 'run_number': self.current_benchmark_run,
                 'best_fitness': best_fitness,
                 'best_solution': list(best_ind),
-                'parameter_names': parameter_names
+                'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', [])
             }
             
             # Add any additional metrics from results
@@ -871,7 +875,7 @@ class GAOptimizationMixin:
                 'run_number': 1,
                 'best_fitness': best_fitness,
                 'best_solution': list(best_ind),
-                'parameter_names': parameter_names
+                'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', [])
             }
             
             # Add benchmark metrics if available
@@ -6228,27 +6232,31 @@ All parameters remain constant during optimization.''',
         # Best solution parameters
         if best_solution and 'parameter_names' in run_data:
             param_names = run_data['parameter_names']
-            # Only show non-zero parameters
-            non_zero_params = [(name, val) for name, val in zip(param_names, best_solution) if abs(val) > 1e-6]
-            
-            if non_zero_params:
-                names, values = zip(*non_zero_params)
+            active_names = run_data.get('active_parameters', [])
+            if active_names:
+                index_map = {name: idx for idx, name in enumerate(param_names)}
+                param_pairs = [(name, best_solution[index_map[name]]) for name in active_names if name in index_map]
+            else:
+                param_pairs = [(name, val) for name, val in zip(param_names, best_solution) if abs(val) > 1e-6]
+
+            if param_pairs:
+                names, values = zip(*param_pairs)
                 y_pos = range(len(names))
-                
+
                 bars = ax2.barh(y_pos, values, alpha=0.7, color='green')
                 ax2.set_yticks(y_pos)
                 ax2.set_yticklabels(names)
                 ax2.set_xlabel('Parameter Value')
                 ax2.set_title('Active Parameters in Best Solution')
-                
-                # Add value labels
+
                 for i, (bar, val) in enumerate(zip(bars, values)):
-                    ax2.text(val + 0.01 * max(values) if val >= 0 else val - 0.01 * max(values), 
+                    ax2.text(val + 0.01 * max(values) if val >= 0 else val - 0.01 * max(values),
                             i, f'{val:.4f}', va='center', ha='left' if val >= 0 else 'right')
             else:
                 ax2.text(0.5, 0.5, 'No active parameters found', ha='center', va='center', transform=ax2.transAxes)
         else:
             ax2.text(0.5, 0.5, 'No parameter data available', ha='center', va='center', transform=ax2.transAxes)
+
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
