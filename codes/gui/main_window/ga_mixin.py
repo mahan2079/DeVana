@@ -6240,6 +6240,8 @@ All parameters remain constant during optimization.''',
                 param_pairs = [(name, val) for name, val in zip(param_names, best_solution) if abs(val) > 1e-6]
 
             if param_pairs:
+                fig_height = max(6, 0.4 * len(param_pairs))
+                fig.set_size_inches(12, fig_height)
                 names, values = zip(*param_pairs)
                 y_pos = range(len(names))
 
