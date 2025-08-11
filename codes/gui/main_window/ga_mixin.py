@@ -35,9 +35,27 @@ class GAOptimizationMixin:
         ga_hyper_tab = QWidget()
         ga_hyper_layout = QFormLayout(ga_hyper_tab)
 
+        # Population range controls (min/max) to support dynamic resizing
+        self.ga_pop_min_box = QSpinBox()
+        self.ga_pop_min_box.setRange(1, 100000)
+        self.ga_pop_min_box.setValue(400)
+        self.ga_pop_min_box.setToolTip("Minimum population size when dynamic resizing is enabled")
+        self.ga_pop_max_box = QSpinBox()
+        self.ga_pop_max_box.setRange(1, 100000)
+        self.ga_pop_max_box.setValue(1600)
+        self.ga_pop_max_box.setToolTip("Maximum population size when dynamic resizing is enabled")
+        pop_range_widget = QWidget()
+        pop_range_layout = QHBoxLayout(pop_range_widget)
+        pop_range_layout.setContentsMargins(0,0,0,0)
+        pop_range_layout.addWidget(QLabel("Min:"))
+        pop_range_layout.addWidget(self.ga_pop_min_box)
+        pop_range_layout.addWidget(QLabel("Max:"))
+        pop_range_layout.addWidget(self.ga_pop_max_box)
+
         self.ga_pop_size_box = QSpinBox()
-        self.ga_pop_size_box.setRange(1, 10000)
+        self.ga_pop_size_box.setRange(1, 100000)
         self.ga_pop_size_box.setValue(800)
+        self.ga_pop_size_box.setToolTip("Initial population size (used if resizing disabled or as starting point)")
 
         self.ga_num_generations_box = QSpinBox()
         self.ga_num_generations_box.setRange(1, 10000)
@@ -70,11 +88,25 @@ class GAOptimizationMixin:
         self.ga_benchmark_runs_box.setValue(1)
         self.ga_benchmark_runs_box.setToolTip("Number of times to run the GA for benchmarking (1 = single run)")
         
+        # Controller selection (mutually exclusive): None, Adaptive, ML Bandit
+        controller_group = QGroupBox("Controller (choose one)")
+        controller_layout = QHBoxLayout(controller_group)
+        self.controller_none_radio = QRadioButton("Fixed")
+        self.controller_adaptive_radio = QRadioButton("Adaptive Rates")
+        self.controller_ml_radio = QRadioButton("ML Bandit")
+        self.controller_none_radio.setChecked(True)
+        controller_layout.addWidget(self.controller_none_radio)
+        controller_layout.addWidget(self.controller_adaptive_radio)
+        controller_layout.addWidget(self.controller_ml_radio)
+        ga_hyper_layout.addRow(controller_group)
+        
         # Add adaptive rates checkbox
         self.adaptive_rates_checkbox = QCheckBox("Use Adaptive Rates")
         self.adaptive_rates_checkbox.setChecked(False)
         self.adaptive_rates_checkbox.setToolTip("Automatically adjust crossover and mutation rates during optimization")
         self.adaptive_rates_checkbox.stateChanged.connect(self.toggle_adaptive_rates_options)
+        # Tie checkbox to radio for backward compatibility
+        self.controller_adaptive_radio.toggled.connect(lambda checked: self.adaptive_rates_checkbox.setChecked(checked))
         
         # Create a widget to hold adaptive rate options
         self.adaptive_rates_options = QWidget()
@@ -143,7 +175,8 @@ class GAOptimizationMixin:
         # Initially hide adaptive options
         self.adaptive_rates_options.setVisible(False)
 
-        ga_hyper_layout.addRow("Population Size:", self.ga_pop_size_box)
+        ga_hyper_layout.addRow("Population Size (initial):", self.ga_pop_size_box)
+        ga_hyper_layout.addRow("Population Range:", pop_range_widget)
         ga_hyper_layout.addRow("Number of Generations:", self.ga_num_generations_box)
         ga_hyper_layout.addRow("Crossover Probability (cxpb):", self.ga_cxpb_box)
         ga_hyper_layout.addRow("Mutation Probability (mutpb):", self.ga_mutpb_box)
@@ -152,6 +185,69 @@ class GAOptimizationMixin:
         ga_hyper_layout.addRow("Benchmark Runs:", self.ga_benchmark_runs_box)
         ga_hyper_layout.addRow("", self.adaptive_rates_checkbox)
         ga_hyper_layout.addRow("", self.adaptive_rates_options)
+
+        # ML Bandit controller (rates + optional population)
+        self.ml_controller_checkbox = QCheckBox("Use ML Bandit (rates + population)")
+        self.ml_controller_checkbox.setChecked(False)
+        self.ml_controller_checkbox.setToolTip("Use a UCB bandit controller to adapt crossover, mutation, and optionally population size per generation")
+        # Tie checkbox to radio for backward compatibility
+        self.controller_ml_radio.toggled.connect(lambda checked: self.ml_controller_checkbox.setChecked(checked))
+        ga_hyper_layout.addRow("", self.ml_controller_checkbox)
+        self.ml_pop_adapt_checkbox = QCheckBox("Allow population resizing")
+        self.ml_pop_adapt_checkbox.setChecked(True)
+        self.ml_pop_adapt_checkbox.setToolTip("If enabled, ML controller can increase/decrease population size within bounds")
+        ga_hyper_layout.addRow("ML Population:", self.ml_pop_adapt_checkbox)
+
+        self.ml_diversity_weight_box = QDoubleSpinBox()
+        self.ml_diversity_weight_box.setRange(0.0, 1.0)
+        self.ml_diversity_weight_box.setDecimals(3)
+        self.ml_diversity_weight_box.setSingleStep(0.005)
+        self.ml_diversity_weight_box.setValue(0.02)
+        self.ml_diversity_weight_box.setToolTip("Weight for diversity penalty in reward")
+        ga_hyper_layout.addRow("ML Diversity Weight:", self.ml_diversity_weight_box)
+
+        self.ml_diversity_target_box = QDoubleSpinBox()
+        self.ml_diversity_target_box.setRange(0.0, 1.0)
+        self.ml_diversity_target_box.setDecimals(2)
+        self.ml_diversity_target_box.setSingleStep(0.05)
+        self.ml_diversity_target_box.setValue(0.20)
+        self.ml_diversity_target_box.setToolTip("Target normalized diversity (std/mean)")
+        ga_hyper_layout.addRow("ML Diversity Target:", self.ml_diversity_target_box)
+
+        self.ml_ucb_c_box = QDoubleSpinBox()
+        self.ml_ucb_c_box.setRange(0.1, 3.0)
+        self.ml_ucb_c_box.setDecimals(2)
+        self.ml_ucb_c_box.setSingleStep(0.05)
+        self.ml_ucb_c_box.setValue(0.60)
+        self.ml_ucb_c_box.setToolTip("Exploration strength for UCB (higher explores more)")
+        ga_hyper_layout.addRow("ML UCB c:", self.ml_ucb_c_box)
+
+        # Surrogate-assisted screening controls
+        self.surrogate_checkbox = QCheckBox("Use Surrogate-Assisted Screening")
+        self.surrogate_checkbox.setToolTip("Train a fast predictor to pre-screen candidates and evaluate only the most promising with FRF")
+        ga_hyper_layout.addRow("", self.surrogate_checkbox)
+
+        self.surr_pool_factor_box = QDoubleSpinBox()
+        self.surr_pool_factor_box.setRange(1.0, 10.0)
+        self.surr_pool_factor_box.setDecimals(1)
+        self.surr_pool_factor_box.setSingleStep(0.5)
+        self.surr_pool_factor_box.setValue(2.0)
+        self.surr_pool_factor_box.setToolTip("Pool size multiplier relative to FRF eval budget per generation")
+        ga_hyper_layout.addRow("Surrogate Pool Factor:", self.surr_pool_factor_box)
+
+        self.surr_k_box = QSpinBox()
+        self.surr_k_box.setRange(1, 25)
+        self.surr_k_box.setValue(5)
+        self.surr_k_box.setToolTip("k for KNN surrogate predictions")
+        ga_hyper_layout.addRow("Surrogate k (KNN):", self.surr_k_box)
+
+        self.surr_explore_frac_box = QDoubleSpinBox()
+        self.surr_explore_frac_box.setRange(0.0, 0.5)
+        self.surr_explore_frac_box.setDecimals(2)
+        self.surr_explore_frac_box.setSingleStep(0.05)
+        self.surr_explore_frac_box.setValue(0.15)
+        self.surr_explore_frac_box.setToolTip("Fraction of FRF budget reserved for exploratory/uncertain candidates")
+        ga_hyper_layout.addRow("Surrogate Explore Fraction:", self.surr_explore_frac_box)
 
         # Add a small Run GA button in the hyperparameters sub-tab
         self.hyper_run_ga_button = QPushButton("Run GA")
@@ -751,6 +847,14 @@ class GAOptimizationMixin:
                 pass
                 
         # Create a new worker
+        # Determine controller mode (mutually exclusive)
+        use_ml = self.controller_ml_radio.isChecked()
+        use_adaptive = self.controller_adaptive_radio.isChecked()
+
+        # Determine controller mode (mutually exclusive)
+        use_ml = self.controller_ml_radio.isChecked()
+        use_adaptive = self.controller_adaptive_radio.isChecked()
+
         self.ga_worker = GAWorker(
             main_params=main_params,
             target_values_dict=target_values,
@@ -766,12 +870,25 @@ class GAOptimizationMixin:
             ga_parameter_data=ga_parameter_data,
             alpha=alpha,
             track_metrics=True,  # Enable metrics tracking for visualization
-            adaptive_rates=self.adaptive_rates_checkbox.isChecked(),  # Pass the adaptive rates setting
+            adaptive_rates=bool(use_adaptive and not use_ml),  # ensure mutual exclusivity
             stagnation_limit=self.stagnation_limit_box.value(),  # Get stagnation limit from UI
             cxpb_min=self.cxpb_min_box.value(),  # Get min crossover probability
             cxpb_max=self.cxpb_max_box.value(),  # Get max crossover probability
             mutpb_min=self.mutpb_min_box.value(),  # Get min mutation probability
-            mutpb_max=self.mutpb_max_box.value()  # Get max mutation probability
+            mutpb_max=self.mutpb_max_box.value(),  # Get max mutation probability
+            # ML/Bandit controller params
+            use_ml_adaptive=bool(use_ml and not use_adaptive),  # ensure mutual exclusivity
+            pop_min=int(max(10, self.ga_pop_min_box.value())),
+            pop_max=int(max(self.ga_pop_min_box.value(), self.ga_pop_max_box.value())),
+            ml_ucb_c=self.ml_ucb_c_box.value(),
+            ml_adapt_population=self.ml_pop_adapt_checkbox.isChecked(),
+            ml_diversity_weight=self.ml_diversity_weight_box.value(),
+            ml_diversity_target=self.ml_diversity_target_box.value(),
+            # Surrogate
+            use_surrogate=self.surrogate_checkbox.isChecked(),
+            surrogate_pool_factor=self.surr_pool_factor_box.value(),
+            surrogate_k=self.surr_k_box.value(),
+            surrogate_explore_frac=self.surr_explore_frac_box.value()
         )
         
         # Connect signals using strong references to avoid premature garbage collection
@@ -1045,6 +1162,8 @@ class GAOptimizationMixin:
                 ga_parameter_data.append((param_name, low, high, fixed))
         
         # Create a new worker
+        use_ml = self.controller_ml_radio.isChecked()
+        use_adaptive = self.controller_adaptive_radio.isChecked()
         self.ga_worker = GAWorker(
             main_params=main_params,
             target_values_dict=target_values,
@@ -1060,12 +1179,25 @@ class GAOptimizationMixin:
             ga_parameter_data=ga_parameter_data,
             alpha=alpha,
             track_metrics=True,  # Enable metrics tracking for visualization
-            adaptive_rates=self.adaptive_rates_checkbox.isChecked(),  # Pass the adaptive rates setting
+            adaptive_rates=bool(use_adaptive and not use_ml),  # ensure mutual exclusivity
             stagnation_limit=self.stagnation_limit_box.value(),  # Get stagnation limit from UI
             cxpb_min=self.cxpb_min_box.value(),  # Get min crossover probability
             cxpb_max=self.cxpb_max_box.value(),  # Get max crossover probability
             mutpb_min=self.mutpb_min_box.value(),  # Get min mutation probability
-            mutpb_max=self.mutpb_max_box.value()  # Get max mutation probability
+            mutpb_max=self.mutpb_max_box.value(),  # Get max mutation probability
+            # ML/Bandit controller params
+            use_ml_adaptive=bool(use_ml and not use_adaptive),  # ensure mutual exclusivity
+            pop_min=int(max(10, self.ga_pop_min_box.value())),
+            pop_max=int(max(self.ga_pop_min_box.value(), self.ga_pop_max_box.value())),
+            ml_ucb_c=self.ml_ucb_c_box.value(),
+            ml_adapt_population=self.ml_pop_adapt_checkbox.isChecked(),
+            ml_diversity_weight=self.ml_diversity_weight_box.value(),
+            ml_diversity_target=self.ml_diversity_target_box.value(),
+            # Surrogate
+            use_surrogate=self.surrogate_checkbox.isChecked(),
+            surrogate_pool_factor=self.surr_pool_factor_box.value(),
+            surrogate_k=self.surr_k_box.value(),
+            surrogate_explore_frac=self.surr_explore_frac_box.value()
         )
         
         # Connect signals using strong references to avoid premature garbage collection
@@ -4073,13 +4205,27 @@ class GAOptimizationMixin:
                 self.create_run_adaptive_rates_plot(rates_layout, run_data, metrics)
                 run_analysis_tabs.addTab(rates_tab, "Adaptive Rates")
             
-            # 6. Generation Performance Breakdown
+            # 6. ML Bandit Controller (if available)
+            if metrics.get('ml_controller_history') or metrics.get('pop_size_history') or metrics.get('rates_history'):
+                ml_tab = QWidget()
+                ml_layout = QVBoxLayout(ml_tab)
+                self.create_run_ml_bandit_plots(ml_layout, run_data, metrics)
+                run_analysis_tabs.addTab(ml_tab, "ML Controller")
+
+            # Surrogate tab (if available)
+            if metrics.get('surrogate_info') or run_data.get('benchmark_metrics', {}).get('surrogate_enabled'):
+                surr_tab = QWidget()
+                surr_layout = QVBoxLayout(surr_tab)
+                self.create_run_surrogate_plots(surr_layout, run_data, metrics)
+                run_analysis_tabs.addTab(surr_tab, "Surrogate Screening")
+
+            # 7. Generation Performance Breakdown
             breakdown_tab = QWidget()
             breakdown_layout = QVBoxLayout(breakdown_tab)
             self.create_run_generation_breakdown_plot(breakdown_layout, run_data, metrics)
             run_analysis_tabs.addTab(breakdown_tab, "Generation Analysis")
             
-            # 7. Fitness Components Analysis
+            # 8. Fitness Components Analysis
             components_tab = QWidget()
             components_layout = QVBoxLayout(components_tab)
             self.create_run_fitness_components_plot(components_layout, run_data, metrics)
@@ -5043,6 +5189,119 @@ class GAOptimizationMixin:
                 ax2.legend()
         else:
             ax2.text(0.5, 0.5, 'No generation timing data', ha='center', va='center', transform=ax2.transAxes)
+        
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar(canvas, None)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+    
+    def create_run_ml_bandit_plots(self, layout, run_data, metrics):
+        """Create ML bandit controller specific plots: reward, rates, population."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import (
+            FigureCanvasQTAgg,
+            NavigationToolbar2QT as NavigationToolbar
+        )
+        import numpy as np
+
+        fig = Figure(figsize=(12, 8), tight_layout=True)
+        ax1 = fig.add_subplot(2, 2, 1)  # Reward per generation
+        ax2 = fig.add_subplot(2, 2, 2)  # Rates per generation
+        ax3 = fig.add_subplot(2, 1, 2)  # Population size per generation (wide)
+
+        ml_hist = metrics.get('ml_controller_history', []) or []
+        rates_hist = metrics.get('rates_history', []) or []
+        pop_hist = metrics.get('pop_size_history', []) or []
+
+        # Reward plot
+        if ml_hist:
+            gens = [r.get('generation', i+1) for i, r in enumerate(ml_hist)]
+            rewards = [r.get('reward', 0.0) for r in ml_hist]
+            ax1.plot(gens, rewards, 'm-', marker='o', linewidth=2)
+            ax1.set_title('Bandit Reward per Generation')
+            ax1.set_xlabel('Generation')
+            ax1.set_ylabel('Reward (improvement/time)')
+            ax1.grid(True, alpha=0.3)
+            # Moving average
+            if len(rewards) >= 5:
+                k = 5
+                ma = np.convolve(rewards, np.ones(k)/k, mode='valid')
+                ax1.plot(gens[k-1:], ma, 'k--', alpha=0.7, label='MA(5)')
+                ax1.legend()
+        else:
+            ax1.text(0.5, 0.5, 'No ML reward history', ha='center', va='center', transform=ax1.transAxes)
+
+        # Rates plot
+        if rates_hist:
+            gens_r = [r.get('generation', i+1) for i, r in enumerate(rates_hist)]
+            cx = [r.get('cxpb', np.nan) for r in rates_hist]
+            mu = [r.get('mutpb', np.nan) for r in rates_hist]
+            ax2.plot(gens_r, cx, 'b-', marker='o', linewidth=2, label='cxpb')
+            ax2.plot(gens_r, mu, 'r-', marker='s', linewidth=2, label='mutpb')
+            ax2.set_title('Rates Chosen per Generation')
+            ax2.set_xlabel('Generation')
+            ax2.set_ylabel('Rate')
+            ax2.grid(True, alpha=0.3)
+            ax2.legend()
+        else:
+            ax2.text(0.5, 0.5, 'No rates history', ha='center', va='center', transform=ax2.transAxes)
+
+        # Population plot
+        if pop_hist:
+            gens_p = range(1, len(pop_hist)+1)
+            ax3.step(list(gens_p), pop_hist, where='mid', color='g')
+            ax3.set_title('Population Size per Generation')
+            ax3.set_xlabel('Generation')
+            ax3.set_ylabel('Population Size')
+            ax3.grid(True, alpha=0.3)
+        else:
+            ax3.text(0.5, 0.5, 'No population history', ha='center', va='center', transform=ax3.transAxes)
+        
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar(canvas, None)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+
+    def create_run_surrogate_plots(self, layout, run_data, metrics):
+        """Create visualizations for surrogate-assisted screening metrics."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import (
+            FigureCanvasQTAgg,
+            NavigationToolbar2QT as NavigationToolbar
+        )
+        import numpy as np
+
+        fig = Figure(figsize=(12, 6), tight_layout=True)
+        ax1 = fig.add_subplot(1, 2, 1)  # Evaluations vs Pool
+        ax2 = fig.add_subplot(1, 2, 2)  # Explore vs Exploit breakdown (approx)
+
+        surr_info = metrics.get('surrogate_info', []) or []
+        if surr_info:
+            gens = [d.get('generation', i+1) for i, d in enumerate(surr_info)]
+            pools = [d.get('pool_size', np.nan) for d in surr_info]
+            evals = [d.get('evaluated_count', np.nan) for d in surr_info]
+            ax1.plot(gens, pools, 'c-', marker='o', label='Pool Size')
+            ax1.plot(gens, evals, 'm-', marker='s', label='Evaluated (FRF)')
+            ax1.set_title('Surrogate Pool vs FRF Evaluations')
+            ax1.set_xlabel('Generation')
+            ax1.set_ylabel('Count')
+            ax1.grid(True, alpha=0.3)
+            ax1.legend()
+
+            # Approximate exploit vs explore from configured fraction
+            explore_frac = run_data.get('benchmark_metrics', {}).get('surrogate_explore_frac', 0.15)
+            exploit = [max(0, int((1.0 - explore_frac) * e)) if e == e else 0 for e in evals]
+            explore = [max(0, int(explore_frac * e)) if e == e else 0 for e in evals]
+            ax2.plot(gens, exploit, 'g-', marker='o', label='Exploit')
+            ax2.plot(gens, explore, 'r-', marker='^', label='Explore')
+            ax2.set_title('Exploit vs Explore (approx)')
+            ax2.set_xlabel('Generation')
+            ax2.set_ylabel('FRF Evaluations')
+            ax2.grid(True, alpha=0.3)
+            ax2.legend()
+        else:
+            ax1.text(0.5, 0.5, 'No surrogate info available', ha='center', va='center', transform=ax1.transAxes)
+            ax2.text(0.5, 0.5, 'No surrogate info available', ha='center', va='center', transform=ax2.transAxes)
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)

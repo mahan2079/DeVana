@@ -134,6 +134,7 @@ import time
 import platform
 import json
 from datetime import datetime
+from math import sqrt, log
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QDoubleSpinBox, QSpinBox,
     QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QFormLayout, QGroupBox,
@@ -249,7 +250,20 @@ class GAWorker(QThread):
                  cxpb_min=0.1,          # Minimum crossover probability
                  cxpb_max=0.9,          # Maximum crossover probability
                  mutpb_min=0.05,        # Minimum mutation probability
-                 mutpb_max=0.5):        # Maximum mutation probability
+                 mutpb_max=0.5,
+                 # ML/Bandit-based adaptive controller for rates + population
+                 use_ml_adaptive=False,
+                 pop_min=None,
+                 pop_max=None,
+                 ml_ucb_c=0.6,         # Exploration strength for UCB
+                 ml_adapt_population=True,  # Whether ML controller can resize population
+                 ml_diversity_weight=0.02,  # Penalty weight for diversity deviation
+                 ml_diversity_target=0.2,
+                 # Surrogate-assisted screening
+                 use_surrogate=False,
+                 surrogate_pool_factor=2.0,
+                 surrogate_k=5,
+                 surrogate_explore_frac=0.15):  # fraction evaluated for exploration
         """
         Initialize the Genetic Algorithm Worker
         
@@ -361,6 +375,24 @@ class GAWorker(QThread):
         self.current_mutpb = ga_mutpb               # Current mutation probability (starts with initial value)
         self.rate_adaptation_history = []           # Track how rates change over time
         
+        # ML/Bandit controller configuration
+        self.use_ml_adaptive = use_ml_adaptive
+        # Guardrail population bounds
+        self.pop_min = pop_min if pop_min is not None else max(10, int(0.5 * self.ga_pop_size))
+        self.pop_max = pop_max if pop_max is not None else int(2.0 * self.ga_pop_size)
+        self.ml_ucb_c = ml_ucb_c
+        self.ml_adapt_population = ml_adapt_population
+        self.ml_diversity_weight = ml_diversity_weight
+        self.ml_diversity_target = ml_diversity_target
+
+        # Surrogate configuration
+        self.use_surrogate = use_surrogate
+        self.surrogate_pool_factor = max(1.0, float(surrogate_pool_factor))
+        self.surrogate_k = max(1, int(surrogate_k))
+        self.surrogate_explore_frac = max(0.0, min(0.5, float(surrogate_explore_frac)))
+        self._surrogate_X = []  # raw parameter vectors
+        self._surrogate_y = []  # corresponding fitness values
+        
         # Thread safety mechanisms - these prevent crashes when multiple parts of the program try to use the same data
         # Think of it like traffic lights controlling access to a busy intersection
         self.mutex = QMutex()                   # A lock that only one part of the program can hold at a time
@@ -404,7 +436,18 @@ class GAWorker(QThread):
             'mutation_times': [],
             'selection_times': [],
             'time_per_generation_breakdown': [],
-            'adaptive_rates_history': []  # Track how rates change if adaptive rates are used
+            'adaptive_rates_history': [],  # Track how rates change if adaptive rates are used
+            # ML/Bandit controller histories
+            'ml_controller_history': [],   # Per-generation records of decisions and rewards
+            'pop_size_history': [],        # Track population size across generations
+            'rates_history': [],           # Track cxpb/mutpb chosen each generation
+            'controller': None,            # Which controller was used: 'fixed' | 'adaptive' | 'ml_bandit'
+            # Surrogate metrics
+            'surrogate_enabled': bool(use_surrogate),
+            'surrogate_pool_factor': float(self.surrogate_pool_factor),
+            'surrogate_k': int(self.surrogate_k),
+            'surrogate_explore_frac': float(self.surrogate_explore_frac),
+            'surrogate_info': []           # List of dicts per generation with pool/eval counts and error
         }
         
         # Create metrics tracking timer
@@ -480,14 +523,30 @@ class GAWorker(QThread):
         # This is like having a safety net - if the algorithm runs too long, it will stop
         self.watchdog_timer.start(600000)  # 600,000 milliseconds = 10 minutes
         
-        # Debug output for adaptive rates setting
+        # Debug output for adaptive rates / ML controller settings
         self.update.emit(f"DEBUG: adaptive_rates parameter is set to: {self.adaptive_rates}")
+        self.update.emit(f"DEBUG: ML bandit controller is set to: {self.use_ml_adaptive}")
         self.update.emit(f"DEBUG: GA parameters: crossover={self.ga_cxpb:.4f}, mutation={self.ga_mutpb:.4f}")
+        # Record which controller is active for this run
+        try:
+            if self.use_ml_adaptive:
+                self.metrics['controller'] = 'ml_bandit'
+            elif self.adaptive_rates:
+                self.metrics['controller'] = 'adaptive'
+            else:
+                self.metrics['controller'] = 'fixed'
+        except Exception:
+            pass
+
         if self.adaptive_rates:
             self.update.emit(f"DEBUG: Adaptive rate parameters:")
             self.update.emit(f"DEBUG: - Stagnation limit: {self.stagnation_limit}")
             self.update.emit(f"DEBUG: - Crossover range: {self.cxpb_min:.2f} - {self.cxpb_max:.2f}")
             self.update.emit(f"DEBUG: - Mutation range: {self.mutpb_min:.2f} - {self.mutpb_max:.2f}")
+        if self.use_ml_adaptive:
+            self.update.emit(f"DEBUG: ML params: UCB c={self.ml_ucb_c:.2f}, pop_adapt={self.ml_adapt_population}, div_weight={self.ml_diversity_weight:.3f}, div_target={self.ml_diversity_target:.2f}")
+        if self.use_surrogate:
+            self.update.emit(f"DEBUG: Surrogate screening enabled → pool_factor={self.surrogate_pool_factor:.2f}, k={self.surrogate_k}, explore_frac={self.surrogate_explore_frac:.2f}")
         
         # Start metrics tracking if enabled
         if self.track_metrics:
@@ -823,6 +882,9 @@ class GAWorker(QThread):
             # Create our first generation of solutions
             self.update.emit("Initializing population...")
             population = toolbox.population(n=self.ga_pop_size)  # Create population of specified size
+            # Track initial population size
+            if self.track_metrics:
+                self.metrics['pop_size_history'].append(len(population))
             
             # Score each solution in our initial population
             self.update.emit("Evaluating initial population...")
@@ -838,6 +900,51 @@ class GAWorker(QThread):
             best_fitness_overall = float('inf')  # Track the best solution we've found
             best_ind_overall = None  # Store the best solution
             
+            # --- ML Bandit Controller setup ---
+            if self.use_ml_adaptive:
+                # Define a simple UCB-based controller over discrete action space
+                # Actions are relative multipliers for cxpb/mutpb and a population multiplier
+                deltas = [-0.25, -0.1, 0.0, 0.1, 0.25]
+                pop_multipliers = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+                ml_actions = [(dcx, dmu, pm) for dcx in deltas for dmu in deltas for pm in pop_multipliers]
+                ml_counts = [0 for _ in ml_actions]
+                ml_sums = [0.0 for _ in ml_actions]
+                ml_t = 0
+
+                def ml_select_action(current_cx, current_mu, current_pop):
+                    nonlocal ml_t
+                    ml_t += 1
+                    # UCB score
+                    scores = []
+                    for i, _ in enumerate(ml_actions):
+                        if ml_counts[i] == 0:
+                            scores.append((float('inf'), i))
+                        else:
+                            avg = ml_sums[i] / ml_counts[i]
+                            bonus = self.ml_ucb_c * sqrt(log(max(ml_t, 1)) / ml_counts[i])
+                            scores.append((avg + bonus, i))
+                    scores.sort(key=lambda t: t[0], reverse=True)
+                    _, idx = scores[0]
+                    dcx, dmu, pm = ml_actions[idx]
+                    new_cx = min(self.cxpb_max, max(self.cxpb_min, current_cx * (1.0 + dcx)))
+                    new_mu = min(self.mutpb_max, max(self.mutpb_min, current_mu * (1.0 + dmu)))
+                    new_pop = int(min(self.pop_max, max(self.pop_min, round(current_pop * pm))))
+                    return idx, new_cx, new_mu, new_pop
+
+                def ml_update(idx, reward):
+                    ml_counts[idx] += 1
+                    ml_sums[idx] += float(reward)
+
+                def resize_population(pop, new_size):
+                    # Shrink: keep best
+                    if new_size < len(pop):
+                        return tools.selBest(pop, new_size)
+                    # Grow: add random individuals
+                    extra = new_size - len(pop)
+                    for _ in range(extra):
+                        pop.append(toolbox.individual())
+                    return pop
+
             # Run for the specified number of generations
             for gen in range(1, self.ga_num_generations + 1):
                 # Check if we should stop
@@ -866,14 +973,43 @@ class GAWorker(QThread):
                     self.watchdog_timer.stop()
                 self.watchdog_timer.start(600000)  # 10 minutes
                 
-                # Use current adaptive rates if enabled
-                current_cxpb = self.current_cxpb if self.adaptive_rates else self.ga_cxpb
-                current_mutpb = self.current_mutpb if self.adaptive_rates else self.ga_mutpb
-
-                # Display current rates prominently at the beginning of each generation
-                self.update.emit(f"  Rates type: {'Adaptive' if self.adaptive_rates else 'Fixed'}")
-                self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
-                self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
+                # Determine current rates and optionally adjust using ML bandit
+                evals_this_gen = 0
+                if self.use_ml_adaptive:
+                    # Initial defaults are the current values
+                    old_cxpb = self.current_cxpb
+                    old_mutpb = self.current_mutpb
+                    old_pop_size = len(population)
+                    idx, new_cx, new_mu, new_pop = ml_select_action(self.current_cxpb, self.current_mutpb, len(population))
+                    self.current_cxpb = new_cx
+                    self.current_mutpb = new_mu
+                    if self.ml_adapt_population and new_pop != len(population):
+                        population = resize_population(population, new_pop)
+                        # Evaluate any individuals missing fitness (new ones)
+                        need_eval = [ind for ind in population if not ind.fitness.valid]
+                        if need_eval:
+                            self.update.emit(f"  ML ctrl: evaluating {len(need_eval)} new individuals after resize...")
+                            eval_start = time.time()
+                            fits_new = list(map(toolbox.evaluate, need_eval))
+                            for ind, fit in zip(need_eval, fits_new):
+                                ind.fitness.values = fit
+                            if self.track_metrics:
+                                self.metrics['evaluation_times'].append(time.time() - eval_start)
+                            evals_this_gen += len(need_eval)
+                    current_cxpb = self.current_cxpb
+                    current_mutpb = self.current_mutpb
+                    # Log
+                    self.update.emit("  Rates type: ML-Bandit")
+                    self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
+                    self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
+                    self.update.emit(f"  - Population: {len(population)}")
+                else:
+                    # Use current adaptive rates if enabled (legacy heuristic)
+                    current_cxpb = self.current_cxpb if self.adaptive_rates else self.ga_cxpb
+                    current_mutpb = self.current_mutpb if self.adaptive_rates else self.ga_mutpb
+                    self.update.emit(f"  Rates type: {'Adaptive' if self.adaptive_rates else 'Fixed'}")
+                    self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
+                    self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
                 
                 if self.adaptive_rates:
                     # Calculate change from previous rates if not first generation
@@ -894,12 +1030,12 @@ class GAWorker(QThread):
                 # 1. SELECTION: Choose which solutions get to reproduce
                 offspring = toolbox.select(population, len(population))
                 offspring = list(map(toolbox.clone, offspring))
-                
+
                 if self.track_metrics:
                     selection_time = time.time() - selection_start
                     self.metrics['selection_times'].append(selection_time)
                     generation_time_breakdown['selection'] = selection_time
-                    
+
                     # Track crossover time
                     crossover_start = time.time()
                 
@@ -941,13 +1077,123 @@ class GAWorker(QThread):
                     # Track evaluation time
                     evaluation_start = time.time()
                 
-                # 4. EVALUATION: Score the new solutions
+                # 4. EVALUATION: Score the new solutions (with optional surrogate screening)
                 invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
                 if invalid_ind:
-                    self.update.emit(f"  Evaluating {len(invalid_ind)} individuals...")
-                    fitnesses = map(toolbox.evaluate, invalid_ind)
-                    for ind, fit in zip(invalid_ind, fitnesses):
-                        ind.fitness.values = fit
+                    if self.use_surrogate and len(self._surrogate_X) >= max(20, self.surrogate_k * 3):
+                        # Build candidate pool by cloning invalid_ind to a larger pool for screening
+                        target_eval_count = len(invalid_ind)
+                        pool_size = int(max(target_eval_count, self.surrogate_pool_factor * target_eval_count))
+                        # Generate additional candidates from current population (pairwise ops) to reach pool size
+                        pool = list(map(toolbox.clone, invalid_ind))
+                        # Simple pool generation: crossover/mutate random pairs
+                        while len(pool) < pool_size:
+                            p1, p2 = random.sample(population, 2)
+                            c1, c2 = toolbox.clone(p1), toolbox.clone(p2)
+                            if random.random() < current_cxpb:
+                                toolbox.mate(c1, c2)
+                            if random.random() < current_mutpb:
+                                toolbox.mutate(c1)
+                            if random.random() < current_mutpb:
+                                toolbox.mutate(c2)
+                            for ch in (c1, c2):
+                                for i in range(len(ch)):
+                                    if i in fixed_parameters:
+                                        ch[i] = fixed_parameters[i]
+                                    else:
+                                        lo, hi = parameter_bounds[i]
+                                        ch[i] = max(lo, min(ch[i], hi))
+                                if len(pool) < pool_size:
+                                    pool.append(ch)
+                                else:
+                                    break
+
+                        # Normalize helper
+                        def _norm_vec(vec):
+                            out = []
+                            for i, val in enumerate(vec):
+                                lo, hi = parameter_bounds[i]
+                                if hi == lo:
+                                    out.append(0.0)
+                                else:
+                                    out.append((val - lo) / (hi - lo))
+                            return out
+
+                        # KNN surrogate prediction
+                        Xn = [_norm_vec(x) for x in self._surrogate_X]
+                        def _predict_fitness(v):
+                            vz = _norm_vec(v)
+                            dists = []
+                            for Xrow, y in zip(Xn, self._surrogate_y):
+                                d = 0.0
+                                for a, b in zip(vz, Xrow):
+                                    d += (a - b) * (a - b)
+                                d = d ** 0.5
+                                dists.append((d, y))
+                            dists.sort(key=lambda t: t[0])
+                            k = min(self.surrogate_k, len(dists))
+                            return sum(y for _, y in dists[:k]) / max(1, k)
+
+                        # Score pool by surrogate (lower is better)
+                        scored = [(_predict_fitness(list(ind)), ind) for ind in pool]
+                        scored.sort(key=lambda t: t[0])
+                        # Exploit top-q and explore a fraction with highest distance (novel)
+                        q = target_eval_count
+                        exploit_n = max(1, int((1.0 - self.surrogate_explore_frac) * q))
+                        explore_n = max(0, q - exploit_n)
+                        chosen = [ind for _, ind in scored[:exploit_n]]
+
+                        if explore_n > 0:
+                            # pick explore_n most novel relative to training set (by distance)
+                            def _novelty(ind):
+                                vz = _norm_vec(list(ind))
+                                # min distance to seen
+                                mind = float('inf')
+                                for Xrow in Xn:
+                                    d = 0.0
+                                    for a, b in zip(vz, Xrow):
+                                        d += (a - b) * (a - b)
+                                    d = d ** 0.5
+                                    if d < mind:
+                                        mind = d
+                                return mind
+                            remain = [ind for _, ind in scored[exploit_n:]]
+                            remain.sort(key=lambda ind: _novelty(ind), reverse=True)
+                            chosen.extend(remain[:explore_n])
+
+                        # Evaluate chosen only
+                        self.update.emit(f"  Surrogate: pool={len(pool)} eval={len(chosen)} (exploit={exploit_n}, explore={len(chosen)-exploit_n})")
+                        evaluation_start = time.time()
+                        fits = list(map(toolbox.evaluate, chosen))
+                        for ind, fit in zip(chosen, fits):
+                            ind.fitness.values = fit
+                        if self.track_metrics:
+                            self.metrics['evaluation_times'].append(time.time() - evaluation_start)
+                        evals_this_gen += len(chosen)
+
+                        # Replace offspring invalids by chosen (truncate if needed)
+                        # Ensure all offspring are valid by filling from chosen first, then best others
+                        new_offspring = []
+                        # keep already valid
+                        new_offspring.extend([ind for ind in offspring if ind.fitness.valid])
+                        # add chosen evaluated
+                        new_offspring.extend(chosen)
+                        # if size mismatch, trim or pad with best evaluated
+                        if len(new_offspring) > len(offspring):
+                            new_offspring = new_offspring[:len(offspring)]
+                        elif len(new_offspring) < len(offspring):
+                            # pad with best among chosen by fitness
+                            chosen_sorted = sorted(chosen, key=lambda ind: ind.fitness.values[0])
+                            while len(new_offspring) < len(offspring) and chosen_sorted:
+                                new_offspring.append(chosen_sorted.pop(0))
+                        offspring = new_offspring
+                    else:
+                        # Fallback: evaluate all invalids
+                        self.update.emit(f"  Evaluating {len(invalid_ind)} individuals...")
+                        fitnesses = map(toolbox.evaluate, invalid_ind)
+                        for ind, fit in zip(invalid_ind, fitnesses):
+                            ind.fitness.values = fit
+                        evals_this_gen += len(invalid_ind)
                 
                 if self.track_metrics:
                     evaluation_time = time.time() - evaluation_start
@@ -1136,6 +1382,9 @@ class GAWorker(QThread):
                     self.metrics['fitness_history'].append(fits)
                     self.metrics['mean_fitness_history'].append(mean)
                     self.metrics['std_fitness_history'].append(std)
+                    # Record population size and rates for this generation
+                    self.metrics['pop_size_history'].append(len(population))
+                    self.metrics['rates_history'].append({'generation': gen, 'cxpb': current_cxpb, 'mutpb': current_mutpb})
                     
                     # Track best individual in this generation
                     best_gen_idx = fits.index(min_fit)
@@ -1151,6 +1400,38 @@ class GAWorker(QThread):
                             self.metrics['convergence_rate'].append(improvement)
                         else:
                             self.metrics['convergence_rate'].append(0.0)
+
+                    # If ML controller is active, compute and record reward and controller choice
+                    if self.use_ml_adaptive:
+                        # Reward: improvement per second with diversity shaping
+                        last_best = self.metrics['best_fitness_per_gen'][-2] if len(self.metrics['best_fitness_per_gen']) > 1 else None
+                        imp = (last_best - min_fit) if (last_best is not None and last_best > min_fit) else 0.0
+                        cv = std / (abs(mean) + 1e-12)
+                        effort = max(1.0, evals_this_gen)
+                        reward = (imp / max(gen_time, 1e-6)) / effort - self.ml_diversity_weight * abs(cv - self.ml_diversity_target)
+                        try:
+                            ml_update(idx, reward)
+                        except Exception:
+                            pass
+                        self.metrics['ml_controller_history'].append({
+                            'generation': gen,
+                            'cxpb': current_cxpb,
+                            'mutpb': current_mutpb,
+                            'pop': len(population),
+                            'best_fitness': min_fit,
+                            'mean_fitness': mean,
+                            'std_fitness': std,
+                            'reward': reward
+                        })
+
+                    # Record surrogate info
+                    if self.use_surrogate:
+                        self.metrics['surrogate_info'].append({
+                            'generation': gen,
+                            'pool_factor': self.surrogate_pool_factor,
+                            'pool_size': int(self.surrogate_pool_factor * len(invalid_ind)) if 'invalid_ind' in locals() else 0,
+                            'evaluated_count': evals_this_gen
+                        })
 
                 # Check if we've found a good enough solution
                 if min_fit <= self.ga_tol:
