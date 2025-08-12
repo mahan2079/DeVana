@@ -944,7 +944,7 @@ class GAWorker(QThread):
                     for _ in range(extra):
                         pop.append(toolbox.individual())
                     return pop
-
+            
             # Run for the specified number of generations
             for gen in range(1, self.ga_num_generations + 1):
                 # Check if we should stop
@@ -1005,11 +1005,11 @@ class GAWorker(QThread):
                     self.update.emit(f"  - Population: {len(population)}")
                 else:
                     # Use current adaptive rates if enabled (legacy heuristic)
-                    current_cxpb = self.current_cxpb if self.adaptive_rates else self.ga_cxpb
-                    current_mutpb = self.current_mutpb if self.adaptive_rates else self.ga_mutpb
-                    self.update.emit(f"  Rates type: {'Adaptive' if self.adaptive_rates else 'Fixed'}")
-                    self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
-                    self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
+                current_cxpb = self.current_cxpb if self.adaptive_rates else self.ga_cxpb
+                current_mutpb = self.current_mutpb if self.adaptive_rates else self.ga_mutpb
+                self.update.emit(f"  Rates type: {'Adaptive' if self.adaptive_rates else 'Fixed'}")
+                self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
+                self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
                 
                 if self.adaptive_rates:
                     # Calculate change from previous rates if not first generation
@@ -1030,12 +1030,12 @@ class GAWorker(QThread):
                 # 1. SELECTION: Choose which solutions get to reproduce
                 offspring = toolbox.select(population, len(population))
                 offspring = list(map(toolbox.clone, offspring))
-
+                
                 if self.track_metrics:
                     selection_time = time.time() - selection_start
                     self.metrics['selection_times'].append(selection_time)
                     generation_time_breakdown['selection'] = selection_time
-
+                    
                     # Track crossover time
                     crossover_start = time.time()
                 
@@ -1189,10 +1189,10 @@ class GAWorker(QThread):
                         offspring = new_offspring
                     else:
                         # Fallback: evaluate all invalids
-                        self.update.emit(f"  Evaluating {len(invalid_ind)} individuals...")
-                        fitnesses = map(toolbox.evaluate, invalid_ind)
-                        for ind, fit in zip(invalid_ind, fitnesses):
-                            ind.fitness.values = fit
+                    self.update.emit(f"  Evaluating {len(invalid_ind)} individuals...")
+                    fitnesses = map(toolbox.evaluate, invalid_ind)
+                    for ind, fit in zip(invalid_ind, fitnesses):
+                        ind.fitness.values = fit
                         evals_this_gen += len(invalid_ind)
                 
                 if self.track_metrics:
