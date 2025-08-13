@@ -324,7 +324,7 @@ class GAOptimizationMixin:
         self.export_ga_results_button.setObjectName("secondary-button") # Use existing styling if desired
         self.export_ga_results_button.setToolTip("Export the GA optimization results to a JSON file")
         self.export_ga_results_button.setEnabled(False)  # Initially disabled
-        # self.export_ga_results_button.clicked.connect(self.export_ga_results_to_file) # Will connect this later
+        self.export_ga_results_button.clicked.connect(self.export_ga_results_to_file)
         header_layout.addWidget(self.export_ga_results_button)
         
         ga_results_layout.addWidget(header_container) # Add the header with label and button
@@ -855,6 +855,8 @@ class GAOptimizationMixin:
         use_ml = self.controller_ml_radio.isChecked()
         use_adaptive = self.controller_adaptive_radio.isChecked()
 
+        # Store alpha used for this run for later reporting
+        self._alpha_used_for_run = alpha
         self.ga_worker = GAWorker(
             main_params=main_params,
             target_values_dict=target_values,
@@ -951,7 +953,8 @@ class GAOptimizationMixin:
                 'run_number': self.current_benchmark_run,
                 'best_fitness': best_fitness,
                 'best_solution': list(best_ind),
-                'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', [])
+                'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', []),
+                'alpha': getattr(self, '_alpha_used_for_run', None)
             }
             
             # Add any additional metrics from results
@@ -992,7 +995,8 @@ class GAOptimizationMixin:
                 'run_number': 1,
                 'best_fitness': best_fitness,
                 'best_solution': list(best_ind),
-                'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', [])
+                'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', []),
+                'alpha': getattr(self, '_alpha_used_for_run', None)
             }
             
             # Add benchmark metrics if available
@@ -1002,6 +1006,10 @@ class GAOptimizationMixin:
             self.ga_benchmark_data = [run_data]
             self.visualize_ga_benchmark_results()
                 
+        # Enable export of GA results
+        if hasattr(self, 'export_ga_results_button'):
+            self.export_ga_results_button.setEnabled(True)
+
         # Re-enable buttons when completely done
         self.run_frf_button.setEnabled(True)
         self.run_sobol_button.setEnabled(True)
@@ -1164,6 +1172,8 @@ class GAOptimizationMixin:
         # Create a new worker
         use_ml = self.controller_ml_radio.isChecked()
         use_adaptive = self.controller_adaptive_radio.isChecked()
+        # Store alpha used for this run for later reporting
+        self._alpha_used_for_run = alpha
         self.ga_worker = GAWorker(
             main_params=main_params,
             target_values_dict=target_values,
@@ -4087,6 +4097,72 @@ class GAOptimizationMixin:
             import traceback
             print(f"Import error details: {traceback.format_exc()}")
             
+    def export_ga_results_to_file(self):
+        """Export single-run GA results (best solution, fitness, and available metrics) to JSON."""
+        try:
+            import json
+            from datetime import datetime
+            from PyQt5.QtWidgets import QFileDialog
+
+            # Ensure there are results to export
+            if not hasattr(self, 'current_ga_best_params') or not self.current_ga_best_params:
+                QMessageBox.warning(self, "No Results", "No GA results available to export. Please run the GA first.")
+                return
+
+            # Build export payload from latest run
+            export_payload = {
+                'best_fitness': float(getattr(self, 'current_ga_best_fitness', 0.0) or 0.0),
+                'best_parameters': getattr(self, 'current_ga_best_params', {}),
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+
+            # Add additional results if available
+            if isinstance(getattr(self, 'current_ga_full_results', None), dict):
+                export_payload['results'] = self.current_ga_full_results
+
+            # Include alpha used for the run if stored
+            if hasattr(self, '_alpha_used_for_run'):
+                export_payload['alpha'] = float(self._alpha_used_for_run)
+
+            # Suggest default filename
+            default_name = f"ga_results_{QDateTime.currentDateTime().toString('yyyyMMdd_hhmmss')}.json"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export GA Results",
+                default_name,
+                "JSON Files (*.json);;All Files (*)"
+            )
+
+            if not file_path:
+                return
+
+            if not file_path.lower().endswith('.json'):
+                file_path += '.json'
+
+            # Encoder to handle numpy types
+            class NumpyEncoder(json.JSONEncoder):
+                def default(self, obj):
+                    try:
+                        import numpy as np
+                        if isinstance(obj, np.ndarray):
+                            return obj.tolist()
+                        if isinstance(obj, np.integer):
+                            return int(obj)
+                        if isinstance(obj, np.floating):
+                            return float(obj)
+                    except Exception:
+                        pass
+                    return json.JSONEncoder.default(self, obj)
+
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(export_payload, f, indent=2, cls=NumpyEncoder)
+
+            self.status_bar.showMessage(f"GA results exported to {file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Error exporting GA results: {str(e)}")
+            import traceback
+            print(f"GA results export error details: {traceback.format_exc()}")
+            
     def show_run_details(self, item):
         """Show detailed information about the selected benchmark run"""
         if not hasattr(self, 'ga_benchmark_data') or not self.ga_benchmark_data:
@@ -5406,9 +5482,13 @@ class GAOptimizationMixin:
                     trend_line = np.poly1d(z)
                     ax_main.plot(generations, trend_line(generations), 'r--', 
                                alpha=0.7, linewidth=2, label=f'Trend (slope: {z[0]:.6f})')
-                    leg = ax_main.legend(framealpha=0.95, fancybox=True, edgecolor='black', fontsize=10)
+                    leg = ax_main.legend(framealpha=0.95, fancybox=True, fontsize=10)
                     if leg is not None:
                         leg.set_zorder(10)
+                        try:
+                            leg.get_frame().set_edgecolor('black')
+                        except Exception:
+                            pass
                 
                 ax_main.set_title(f'Parameter Convergence Analysis: {selected_param}', 
                                 fontsize=16, fontweight='bold', pad=20)
@@ -6112,9 +6192,13 @@ Volatility: {volatility}'''
                         
                         # Add legend for trend line if it exists
                         if len(param_values) > 1:
-                            leg = ax.legend(fontsize=7, loc='upper right', framealpha=0.95, fancybox=True, edgecolor='black')
+                            leg = ax.legend(fontsize=7, loc='upper right', framealpha=0.95, fancybox=True)
                             if leg is not None:
                                 leg.set_zorder(10)
+                                try:
+                                    leg.get_frame().set_edgecolor('black')
+                                except Exception:
+                                    pass
                     
                     # Remove empty subplots
                     for i in range(num_active, rows * cols):
@@ -6465,29 +6549,88 @@ All parameters remain constant during optimization.''',
         ax1 = fig.add_subplot(1, 2, 1)  # Pie chart of final fitness components
         ax2 = fig.add_subplot(1, 2, 2)  # Best solution parameters
         
-        # Fitness components (if available from the best individual)
+        # Fitness components breakdown as percentage contributions to final fitness
         best_solution = run_data.get('best_solution', [])
-        best_fitness = run_data.get('best_fitness', 0)
-        
-        # Create a mock fitness breakdown (since actual components may not be stored)
-        # This would ideally come from the fitness evaluation
-        if best_solution:
-            # Calculate approximate components based on the fitness function from GAWorker
-            alpha = 0.01  # Default alpha value
-            sparsity_penalty = alpha * sum(abs(param) for param in best_solution)
-            primary_objective = max(0, best_fitness - sparsity_penalty)  # Approximate
-            
-            components = ['Primary Objective', 'Sparsity Penalty']
-            values = [primary_objective, sparsity_penalty]
-            colors = ['lightblue', 'lightcoral']
-            
-            # Only show non-zero components
-            non_zero_components = [(comp, val, col) for comp, val, col in zip(components, values, colors) if val > 0]
-            
-            if non_zero_components:
-                comps, vals, cols = zip(*non_zero_components)
-                wedges, texts, autotexts = ax1.pie(vals, labels=comps, colors=cols, autopct='%1.1f%%', startangle=90)
-                ax1.set_title('Fitness Components Breakdown')
+        best_fitness = float(run_data.get('best_fitness', 0.0) or 0.0)
+
+        # Prefer alpha from stored run data; fallback to current UI value; then to default
+        try:
+            alpha_value = float(run_data.get('alpha', None)) if run_data.get('alpha', None) is not None else (
+                float(self.ga_alpha_box.value()) if hasattr(self, 'ga_alpha_box') else 0.01
+            )
+        except Exception:
+            alpha_value = 0.01
+
+        # Try to get singular_response
+        singular_response = run_data.get('singular_response', None)
+        if singular_response is None and isinstance(getattr(self, 'current_ga_full_results', None), dict):
+            singular_response = self.current_ga_full_results.get('singular_response', None)
+
+        if best_solution and best_fitness >= 0:
+            # Compute components based on GAWorker's fitness function
+            sparsity_penalty = alpha_value * sum(abs(param) for param in best_solution)
+
+            # Primary objective = |singular_response - 1.0| if available
+            primary_objective = None
+            if singular_response is not None:
+                try:
+                    primary_objective = abs(float(singular_response) - 1.0)
+                except Exception:
+                    primary_objective = None
+
+            # Percentage error term value in fitness (the term added to fitness)
+            # Prefer back-calculation to ensure components sum to final fitness for the selected run
+            percentage_error_term = None
+            # If we know primary, compute remainder as percentage term
+            if primary_objective is not None:
+                percentage_error_term = max(0.0, best_fitness - primary_objective - sparsity_penalty)
+            else:
+                # If primary unknown, assume remainder (after sparsity) is primary, percentage term 0
+                primary_objective = max(0.0, best_fitness - sparsity_penalty)
+                percentage_error_term = 0.0
+
+            # Ensure non-negative and consistent totals
+            components = ['Primary Objective', 'Sparsity Penalty', 'Percentage Error']
+            raw_values = [primary_objective, sparsity_penalty, percentage_error_term]
+            values = [max(0.0, float(v)) for v in raw_values]
+            total = sum(values)
+
+            if total > 0:
+                # Scale values so their sum equals the reported final fitness for precise percentage semantics
+                if best_fitness > 0:
+                    scale = best_fitness / total
+                    values_plot = [v * scale for v in values]
+                    denom = best_fitness
+                else:
+                    values_plot = values
+                    denom = total
+                colors = ['#3498db', '#e74c3c', '#f1c40f']
+                labels = [f"{name} ({(v/denom)*100:.1f}%)" for name, v in zip(components, values_plot)]
+                wedges, texts, autotexts = ax1.pie(
+                    values_plot,
+                    labels=labels,
+                    colors=colors,
+                    autopct=lambda p: f"{p:.1f}%" if p > 0 else '',
+                    startangle=90,
+                    pctdistance=0.75
+                )
+                ax1.set_title('Final Fitness Contribution (%)')
+                ax1.axis('equal')
+
+                # Add center annotation with total
+                ax1.text(0, 0, f"Total\n{best_fitness:.6f}", ha='center', va='center', fontsize=10,
+                        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8, edgecolor='black'))
+
+                # Add legend to ensure all components are visible even if some are zero
+                from matplotlib.patches import Patch
+                legend_handles = [Patch(facecolor=c, edgecolor='black', label=l) for c, l in zip(colors, labels)]
+                leg = ax1.legend(handles=legend_handles, loc='upper right', framealpha=0.95, fancybox=True, fontsize=9)
+                if leg is not None:
+                    leg.set_zorder(10)
+                    try:
+                        leg.get_frame().set_edgecolor('black')
+                    except Exception:
+                        pass
             else:
                 ax1.text(0.5, 0.5, 'No fitness components to display', ha='center', va='center', transform=ax1.transAxes)
         else:
