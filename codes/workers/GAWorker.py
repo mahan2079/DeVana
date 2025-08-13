@@ -1005,8 +1005,8 @@ class GAWorker(QThread):
                     self.update.emit(f"  - Population: {len(population)}")
                 else:
                     # Use current adaptive rates if enabled (legacy heuristic)
-                current_cxpb = self.current_cxpb if self.adaptive_rates else self.ga_cxpb
-                current_mutpb = self.current_mutpb if self.adaptive_rates else self.ga_mutpb
+                    current_cxpb = self.current_cxpb if self.adaptive_rates else self.ga_cxpb
+                    current_mutpb = self.current_mutpb if self.adaptive_rates else self.ga_mutpb
                 self.update.emit(f"  Rates type: {'Adaptive' if self.adaptive_rates else 'Fixed'}")
                 self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
                 self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
@@ -1189,7 +1189,7 @@ class GAWorker(QThread):
                         offspring = new_offspring
                     else:
                         # Fallback: evaluate all invalids
-                    self.update.emit(f"  Evaluating {len(invalid_ind)} individuals...")
+                        self.update.emit(f"  Evaluating {len(invalid_ind)} individuals...")
                     fitnesses = map(toolbox.evaluate, invalid_ind)
                     for ind, fit in zip(invalid_ind, fitnesses):
                         ind.fitness.values = fit

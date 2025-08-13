@@ -5396,9 +5396,9 @@ class GAOptimizationMixin:
                     ax_main.plot(generations[i:i+2], param_values[i:i+2], 
                                color=colors[i], linewidth=2.5, alpha=0.8)
                 
-                # Add markers for key points
-                ax_main.scatter(generations, param_values, c=colors, s=30, 
-                              edgecolors='white', linewidth=1, zorder=5)
+                # Add markers for key points (reduced prominence, black edges)
+                ax_main.scatter(generations, param_values, c=colors, s=24, 
+                              edgecolors='black', linewidth=0.6, zorder=3)
                 
                 # Add trend line
                 if len(param_values) > 1:
@@ -5406,7 +5406,9 @@ class GAOptimizationMixin:
                     trend_line = np.poly1d(z)
                     ax_main.plot(generations, trend_line(generations), 'r--', 
                                alpha=0.7, linewidth=2, label=f'Trend (slope: {z[0]:.6f})')
-                    ax_main.legend()
+                    leg = ax_main.legend(framealpha=0.95, fancybox=True, edgecolor='black', fontsize=10)
+                    if leg is not None:
+                        leg.set_zorder(10)
                 
                 ax_main.set_title(f'Parameter Convergence Analysis: {selected_param}', 
                                 fontsize=16, fontweight='bold', pad=20)
@@ -5573,9 +5575,9 @@ Change: {change:+.6f}'''
                             ax.plot(generations[j:j+2], param_values[j:j+2], 
                                    color=color, alpha=alpha * (0.3 + 0.7 * intensity), linewidth=2)
                     
-                    # Add markers
+                    # Add markers (use black edges for clarity)
                     ax.scatter(generations, param_values, c=color, s=15, alpha=alpha, 
-                             edgecolors='white', linewidth=0.5, zorder=5)
+                             edgecolors='black', linewidth=0.5, zorder=3)
                     
                     # Add trend line for active parameters
                     if behavior == "Active" and len(param_values) > 1:
@@ -5878,9 +5880,9 @@ Stat = Static'''
                             ax_main.plot(generations[j:j+2], normalized_values[j:j+2], 
                                        color=color, alpha=alpha, linewidth=2.5)
                         
-                        # Add markers
-                        ax_main.scatter(generations, normalized_values, c=color, s=25, 
-                                      edgecolors='white', linewidth=1, zorder=5, label=param_name)
+                        # Add markers (reduced prominence, black edges)
+                        ax_main.scatter(generations, normalized_values, c=color, s=20, 
+                                      edgecolors='black', linewidth=0.6, zorder=3, label=param_name)
                         
                         # Add trend lines
                         if len(normalized_values) > 1:
@@ -5895,7 +5897,8 @@ Stat = Static'''
                     ax_main.set_xlabel('Generation', fontsize=12)
                     ax_main.set_ylabel('Normalized Parameter Value (0-1)', fontsize=12)
                     ax_main.grid(True, alpha=0.3, linestyle=':', linewidth=0.8)
-                    ax_main.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=9)
+                    ax_main.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=9, 
+                                   framealpha=0.95, fancybox=True, edgecolor='black', zorder=10)
                     
                     # Store comparison analysis data for display outside the plot
                     sorted_by_range = sorted(param_stats.items(), key=lambda x: x[1]['range'], reverse=True)
@@ -6032,13 +6035,13 @@ Please select parameters to compare using the dialog.
                             ax.plot(generations[j:j+2], param_values[j:j+2], 
                                    color=color, alpha=line_alpha, linewidth=2.5)
                         
-                        # Add markers with varying sizes based on change magnitude
+                        # Add markers with varying sizes based on change magnitude (black edges)
                         changes = np.abs(np.diff(param_values))
                         marker_sizes = 10 + 20 * (changes / (np.max(changes) + 1e-10)) if len(changes) > 0 else [10] * len(param_values)
                         marker_sizes = np.concatenate([[marker_sizes[0]], marker_sizes])  # Add first point
                         
                         ax.scatter(generations, param_values, c=color, s=marker_sizes, 
-                                 alpha=0.8, edgecolors='white', linewidth=1, zorder=5)
+                                 alpha=0.8, edgecolors='black', linewidth=0.7, zorder=3)
                         
                         # Add trend line
                         if len(param_values) > 1:
@@ -6109,7 +6112,9 @@ Volatility: {volatility}'''
                         
                         # Add legend for trend line if it exists
                         if len(param_values) > 1:
-                            ax.legend(fontsize=7, loc='upper right')
+                            leg = ax.legend(fontsize=7, loc='upper right', framealpha=0.95, fancybox=True, edgecolor='black')
+                            if leg is not None:
+                                leg.set_zorder(10)
                     
                     # Remove empty subplots
                     for i in range(num_active, rows * cols):

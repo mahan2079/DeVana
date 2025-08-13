@@ -129,7 +129,7 @@ def exception_hook(exctype, value, tb):
 # Set the exception hook
 sys.excepthook = exception_hook
 
-# DeVana v0.3.0
+# DeVana v0.4.0
 
 class WelcomePage(QWidget):
     def __init__(self):
@@ -161,7 +161,7 @@ class WelcomePage(QWidget):
             padding: 20px;
         """)
         
-        self.version_label = QLabel("Version V0.3.0")
+        self.version_label = QLabel("Version V0.4.0")
         self.version_label.setFont(QFont("Segoe UI", 18, QFont.Normal))
         self.version_label.setAlignment(Qt.AlignCenter)
         self.version_label.setStyleSheet("""
@@ -478,7 +478,7 @@ class SplashScreen(QSplashScreen):
         
         font.setPointSize(14)
         self.painter.setFont(font)
-        self.painter.drawText(50, 200, "Version V0.3.0")
+        self.painter.drawText(50, 200, "Version V0.4.0")
         
         font.setPointSize(12)
         font.setBold(False)
