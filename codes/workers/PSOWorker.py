@@ -8,8 +8,11 @@ from scipy.stats import qmc
 import time
 import math
 from enum import Enum
+import platform
+import psutil
+from datetime import datetime
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 
 # --- Particle Swarm Optimization (PSO) for Beginners Explained ---
 
@@ -167,6 +170,9 @@ class PSOWorker(QThread):
     error = pyqtSignal(str)  # Signal emitted when an error occurs
     update = pyqtSignal(str)  # Signal for progress updates during optimization
     convergence_signal = pyqtSignal(list, list)  # Signal for sending convergence data (iterations, best fitness values)
+    progress = pyqtSignal(int)
+    benchmark_data = pyqtSignal(dict)
+    generation_metrics = pyqtSignal(dict)
 
     def __init__(self, 
                  main_params,
@@ -194,7 +200,16 @@ class PSOWorker(QThread):
                  early_stopping_iters=15,  # Iterations to check for early stopping
                  early_stopping_tol=1e-5,  # Improvement tolerance for early stopping
                  diversity_threshold=0.01,  # Minimum diversity threshold
-                 quasi_random_init=True):  # Use quasi-random initialization
+                 quasi_random_init=True,  # Use quasi-random initialization
+                 track_metrics=True,
+                 # ML/Bandit adaptive controller (GA parity)
+                 use_ml_adaptive=False,
+                 pop_min=None,
+                 pop_max=None,
+                 ml_ucb_c=0.6,
+                 ml_adapt_population=True,
+                 ml_diversity_weight=0.02,
+                 ml_diversity_target=0.2):
         """
         Initialize the enhanced PSO optimization worker with advanced features.
         
@@ -295,6 +310,8 @@ class PSOWorker(QThread):
         self.early_stopping_tol = early_stopping_tol
         self.diversity_threshold = diversity_threshold
         self.quasi_random_init = quasi_random_init
+        self.track_metrics = track_metrics
+        self.use_ml_adaptive = use_ml_adaptive
         
         # Runtime data
         self.iteration_best_fitness = []
@@ -303,6 +320,53 @@ class PSOWorker(QThread):
         self.start_time = None
         self.neighborhoods = None
         self.last_improvement_iter = 0
+
+        # Metrics collection (GA parity)
+        self.metrics = {
+            'start_time': None,
+            'end_time': None,
+            'total_duration': None,
+            'cpu_usage': [],
+            'memory_usage': [],
+            'system_info': {},
+            'generation_times': [],
+            'fitness_history': [],
+            'mean_fitness_history': [],
+            'std_fitness_history': [],
+            'convergence_rate': [],
+            'best_fitness_per_gen': [],
+            'best_individual_per_gen': [],
+            'evaluation_count': 0,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'cpu_per_core': [],
+            'memory_details': [],
+            'thread_count': [],
+            'evaluation_times': [],
+            'time_per_generation_breakdown': [],
+            'pop_size_history': [],
+            'rates_history': [],
+            'controller': 'pso',
+            'diversity_history': [],
+            'surrogate_enabled': False,
+            'surrogate_info': []
+        }
+
+        self.metrics_timer = QTimer()
+        self.metrics_timer_interval = 500
+
+        # Watchdog timer similar to GA to avoid infinite loops
+        self.watchdog_timer = QTimer()
+        self.watchdog_timer.setSingleShot(True)
+        self.watchdog_timer.timeout.connect(self._handle_timeout)
+        self._last_progress_percent = 0
+
+        # ML controller configuration and guardrails
+        self.pop_min = pop_min if pop_min is not None else max(10, int(0.5 * self.pso_swarm_size))
+        self.pop_max = pop_max if pop_max is not None else int(2.0 * self.pso_swarm_size)
+        self.ml_ucb_c = ml_ucb_c
+        self.ml_adapt_population = ml_adapt_population
+        self.ml_diversity_weight = ml_diversity_weight
+        self.ml_diversity_target = ml_diversity_target
         
         # Constriction factor calculation
         # Based on Clerc & Kennedy (2002) - provides guaranteed convergence when c1+c2>4
@@ -802,6 +866,27 @@ class PSOWorker(QThread):
         try:
             self.start_time = time.time()
             self.update.emit("[INFO] Starting enhanced PSO optimization...")
+            if self.track_metrics:
+                self._start_metrics_tracking()
+            # Start watchdog (10 minutes)
+            try:
+                self.watchdog_timer.start(600000)
+            except Exception:
+                pass
+
+            # Debug output for controller settings (GA parity)
+            try:
+                if self.use_ml_adaptive:
+                    self.metrics['controller'] = 'ml_bandit'
+                elif self.adaptive_params:
+                    self.metrics['controller'] = 'adaptive'
+                else:
+                    self.metrics['controller'] = 'fixed'
+                self.update.emit(f"DEBUG: PSO controller is set to: {self.metrics['controller']}")
+                if self.use_ml_adaptive:
+                    self.update.emit(f"DEBUG: ML params: UCB c={self.ml_ucb_c:.2f}, pop_adapt={self.ml_adapt_population}, div_weight={self.ml_diversity_weight:.3f}, div_target={self.ml_diversity_target:.2f}")
+            except Exception:
+                pass
             
             # Extract parameter names, bounds, and fixed parameters
             parameter_names = []
@@ -905,6 +990,74 @@ class PSOWorker(QThread):
                 particle['neighborhood_best_position'] = swarm[neighborhood_best_idx]['best_position'][:]
                 particle['neighborhood_best_fitness'] = neighborhood_best_fitness
 
+            # Optional ML/Bandit controller (GA parity) over PSO rates and swarm size
+            if self.use_ml_adaptive:
+                deltas = [-0.25, -0.1, 0.0, 0.1, 0.25]
+                pop_multipliers = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+                ml_actions = [(dw, dc1, dc2, pm) for dw in deltas for dc1 in deltas for dc2 in deltas for pm in pop_multipliers]
+                ml_counts = [0 for _ in ml_actions]
+                ml_sums = [0.0 for _ in ml_actions]
+                ml_t = 0
+
+                def ml_select_action(cur_w, cur_c1, cur_c2, cur_pop):
+                    nonlocal ml_t
+                    ml_t += 1
+                    scores = []
+                    for i, _ in enumerate(ml_actions):
+                        if ml_counts[i] == 0:
+                            scores.append((float('inf'), i))
+                        else:
+                            avg = ml_sums[i] / ml_counts[i]
+                            bonus = self.ml_ucb_c * math.sqrt(math.log(max(ml_t, 1)) / ml_counts[i])
+                            scores.append((avg + bonus, i))
+                    scores.sort(key=lambda t: t[0], reverse=True)
+                    _, idx = scores[0]
+                    dw, dc1, dc2, pm = ml_actions[idx]
+                    new_w = min(self.pso_w_max, max(self.pso_w_min, cur_w * (1.0 + dw)))
+                    new_c1 = max(0.1, cur_c1 * (1.0 + dc1))
+                    new_c2 = max(0.1, cur_c2 * (1.0 + dc2))
+                    new_pop = int(min(self.pop_max, max(self.pop_min, round(cur_pop * pm))))
+                    return idx, new_w, new_c1, new_c2, new_pop
+
+                def ml_update(idx, reward):
+                    ml_counts[idx] += 1
+                    ml_sums[idx] += float(reward)
+
+                def resize_swarm(swarm_list, new_size):
+                    # Shrink: keep best by current fitness
+                    if new_size < len(swarm_list):
+                        swarm_list.sort(key=lambda p: p['best_fitness'])
+                        return swarm_list[:new_size]
+                    # Grow: add random particles around global best
+                    extra = new_size - len(swarm_list)
+                    for _ in range(extra):
+                        gb = swarm[global_best_particle_idx]
+                        new_pos = []
+                        for j in range(num_params):
+                            lo, hi = parameter_bounds[j]
+                            center = gb['position'][j]
+                            radius = (hi - lo) * 0.1
+                            new_pos.append(random.uniform(max(lo, center - radius), min(hi, center + radius)))
+                        new_vel = []
+                        for j in range(num_params):
+                            if j in fixed_parameters:
+                                new_vel.append(0.0)
+                            else:
+                                max_vel = (parameter_bounds[j][1] - parameter_bounds[j][0]) * self.max_velocity_factor
+                                new_vel.append(random.uniform(-max_vel/2, max_vel/2))
+                        new_fit = self.evaluate_particle(new_pos, parameter_bounds)
+                        swarm_list.append({
+                            'position': new_pos,
+                            'velocity': new_vel,
+                            'best_position': new_pos[:],
+                            'best_fitness': new_fit,
+                            'current_fitness': new_fit,
+                            'stagnation_counter': 0,
+                            'neighborhood_best_position': None,
+                            'neighborhood_best_fitness': float('inf')
+                        })
+                    return swarm_list
+
             # PSO main loop: update each particle's velocity and position.
             for iteration in range(1, self.pso_num_iterations + 1):
                 # Check if termination has been requested
@@ -913,30 +1066,57 @@ class PSOWorker(QThread):
                     break
                     
                 self.update.emit(f"-- Iteration {iteration} --")
+                # Progress
+                try:
+                    pct_val = int((iteration / max(1, self.pso_num_iterations)) * 100)
+                    self._last_progress_percent = pct_val
+                    self.progress.emit(pct_val)
+                except Exception:
+                    pass
+
+                if self.track_metrics:
+                    iter_start_time = time.time()
+                    time_breakdown = {}
                 
                 # Update adaptive parameters if enabled
-                if self.adaptive_params:
+                if self.adaptive_params or self.use_ml_adaptive:
+                    adapt_start = time.time() if self.track_metrics else None
                     # Calculate current average fitness
                     avg_fitness = sum(p['current_fitness'] for p in swarm) / len(swarm)
                     
                     # Calculate current diversity
                     diversity = self.calculate_diversity(swarm, parameter_bounds)
                     self.iteration_diversity.append(diversity)
+                    if self.track_metrics:
+                        self.metrics['diversity_history'].append(diversity)
                     
-                    # Update inertia weight
-                    self.pso_w = self.adaptive_inertia_weight(
-                        iteration, self.pso_num_iterations,
-                        swarm[global_best_particle_idx]['best_fitness'],
-                        avg_fitness, diversity
-                    )
-                    
-                    # Update acceleration coefficients
-                    self.pso_c1, self.pso_c2 = self.adaptive_acceleration_coefficients(
-                        iteration, self.pso_num_iterations, diversity
-                    )
+                    if self.use_ml_adaptive:
+                        # Use ML bandit to choose rates and optionally swarm size
+                        idx, new_w, new_c1, new_c2, new_pop = ml_select_action(self.pso_w, self.pso_c1, self.pso_c2, len(swarm))
+                        self.pso_w, self.pso_c1, self.pso_c2 = new_w, new_c1, new_c2
+                        if self.ml_adapt_population and new_pop != len(swarm):
+                            swarm = resize_swarm(swarm, new_pop)
+                            # Recompute global best after resizing
+                            global_best_particle_idx = min(range(len(swarm)), key=lambda i: swarm[i]['best_fitness'])
+                        # Log/record rates for this iteration
+                        if self.track_metrics:
+                            self.metrics['rates_history'].append({'generation': iteration, 'w': self.pso_w, 'c1': self.pso_c1, 'c2': self.pso_c2})
+                    else:
+                        # Update inertia weight
+                        self.pso_w = self.adaptive_inertia_weight(
+                            iteration, self.pso_num_iterations,
+                            swarm[global_best_particle_idx]['best_fitness'],
+                            avg_fitness, diversity
+                        )
+                        # Update acceleration coefficients
+                        self.pso_c1, self.pso_c2 = self.adaptive_acceleration_coefficients(
+                            iteration, self.pso_num_iterations, diversity
+                        )
                     
                     # Update neighborhoods for dynamic topologies
                     self.update_neighborhoods(iteration)
+                    if self.track_metrics and adapt_start is not None:
+                        time_breakdown['adaptation'] = time.time() - adapt_start
                 
                 # Update all particles
                 current_fitnesses = []
@@ -945,8 +1125,12 @@ class PSOWorker(QThread):
                 if self._terminate_flag:
                     break
                     
+                update_start = time.time() if self.track_metrics else None
+                eval_time_accum = 0.0
+                velpos_time_accum = 0.0
                 for i, particle in enumerate(swarm):
                     # Update velocities and positions for each dimension
+                    velpos_start_particle = time.time() if self.track_metrics else None
                     for j in range(num_params):
                         # For fixed parameters, ensure they remain constant
                         if j in fixed_parameters:
@@ -998,7 +1182,13 @@ class PSOWorker(QThread):
                         particle['position'] = mutated_position
                     
                     # Evaluate new position
+                    if self.track_metrics:
+                        _eval_t0 = time.time()
                     fitness = self.evaluate_particle(particle['position'], parameter_bounds)
+                    if self.track_metrics:
+                        eval_time_accum += (time.time() - _eval_t0)
+                    if self.track_metrics:
+                        self.metrics['evaluation_count'] += 1
                     particle['current_fitness'] = fitness
                     current_fitnesses.append(fitness)
                     
@@ -1007,6 +1197,12 @@ class PSOWorker(QThread):
                         particle['best_position'] = particle['position'][:]
                         particle['best_fitness'] = fitness
                         particle['stagnation_counter'] = 0  # Reset stagnation counter
+                        # Attach fitness components if available (GA-style reporting support)
+                        if hasattr(self, '_last_eval_components') and isinstance(self._last_eval_components, dict):
+                            # mirror GA individual's component attributes names
+                            particle['primary_objective'] = self._last_eval_components.get('primary_objective', 0.0)
+                            particle['sparsity_penalty'] = self._last_eval_components.get('sparsity_penalty', 0.0)
+                            particle['percentage_error'] = self._last_eval_components.get('percentage_error', 0.0)
                     else:
                         # Increment stagnation counter if no improvement
                         particle['stagnation_counter'] += 1
@@ -1016,7 +1212,14 @@ class PSOWorker(QThread):
                         global_best_particle_idx = i
                         self.last_improvement_iter = iteration
                 
+                    if self.track_metrics and velpos_start_particle is not None:
+                        velpos_time_accum += (time.time() - velpos_start_particle)
+                if self.track_metrics and update_start is not None:
+                    time_breakdown['update'] = time.time() - update_start
+
                 # Update neighborhood bests
+                neigh_start = time.time() if self.track_metrics else None
+                neigh_time = 0.0
                 if self.topology != TopologyType.GLOBAL:
                     for i, particle in enumerate(swarm):
                         for neighbor_idx in self.neighborhoods[i]:
@@ -1024,11 +1227,35 @@ class PSOWorker(QThread):
                             if neighbor['best_fitness'] < particle['neighborhood_best_fitness']:
                                 particle['neighborhood_best_fitness'] = neighbor['best_fitness']
                                 particle['neighborhood_best_position'] = neighbor['best_position'][:]
+                if self.track_metrics and neigh_start is not None:
+                    neigh_time = time.time() - neigh_start
+                    time_breakdown['neighborhood'] = neigh_time
                 
                 # Calculate and store statistics
                 avg_fitness = sum(current_fitnesses) / len(current_fitnesses)
                 self.iteration_best_fitness.append(swarm[global_best_particle_idx]['best_fitness'])
                 self.iteration_avg_fitness.append(avg_fitness)
+                if self.track_metrics:
+                    fits = current_fitnesses[:]
+                    self.metrics['fitness_history'].append(fits)
+                    length = len(fits)
+                    mean = sum(fits) / max(1, length)
+                    sum2 = sum(f ** 2 for f in fits)
+                    std = abs(sum2 / max(1, length) - mean ** 2) ** 0.5
+                    self.metrics['mean_fitness_history'].append(mean)
+                    self.metrics['std_fitness_history'].append(std)
+                    self.metrics['best_fitness_per_gen'].append(swarm[global_best_particle_idx]['best_fitness'])
+                    self.metrics['best_individual_per_gen'].append(list(swarm[global_best_particle_idx]['best_position']))
+                    # Record current swarm size (may change under ML controller)
+                    self.metrics['pop_size_history'].append(len(swarm))
+                    self.metrics['rates_history'].append({'generation': iteration, 'w': self.pso_w, 'c1': self.pso_c1, 'c2': self.pso_c2})
+                    # Per-iteration operation timings (provide approximate split for vel/pos)
+                    self.metrics.setdefault('evaluation_times', []).append(float(eval_time_accum))
+                    # Split combined vel/pos time evenly for visualization purposes
+                    half = float(velpos_time_accum) * 0.5
+                    self.metrics.setdefault('velocity_update_times', []).append(half)
+                    self.metrics.setdefault('position_update_times', []).append(half)
+                    self.metrics.setdefault('neighborhood_update_times', []).append(float(neigh_time))
                 
                 # Handle stagnation: Reinitialize particles that haven't improved
                 for i, particle in enumerate(swarm):
@@ -1060,6 +1287,12 @@ class PSOWorker(QThread):
                         f"  Iteration {iteration}: Best fitness = {swarm[global_best_particle_idx]['best_fitness']:.6f}, "
                         f"Avg fitness = {avg_fitness:.6f}, Diversity = {diversity:.4f}, w = {self.pso_w:.4f}"
                     )
+                    if self.use_ml_adaptive:
+                        self.update.emit("  Rates type: ML-Bandit")
+                        self.update.emit(f"  - w: {self.pso_w:.4f}")
+                        self.update.emit(f"  - c1: {self.pso_c1:.4f}")
+                        self.update.emit(f"  - c2: {self.pso_c2:.4f}")
+                        self.update.emit(f"  - Swarm size: {len(swarm)}")
                     
                     # Emit convergence data every 5 iterations
                     if len(self.iteration_best_fitness) >= 5:
@@ -1068,6 +1301,43 @@ class PSOWorker(QThread):
                             self.iteration_best_fitness
                         )
                 
+                if self.track_metrics:
+                    iter_time = time.time() - iter_start_time
+                    time_breakdown['total'] = iter_time
+                    self.metrics['generation_times'].append(iter_time)
+                    self.metrics['time_per_generation_breakdown'].append(time_breakdown)
+                    if len(self.metrics['best_fitness_per_gen']) > 1:
+                        prev_best = self.metrics['best_fitness_per_gen'][-2]
+                        cur_best = self.metrics['best_fitness_per_gen'][-1]
+                        self.metrics['convergence_rate'].append(max(0.0, prev_best - cur_best))
+
+                    # ML controller reward logging
+                    if self.use_ml_adaptive:
+                        last_best = self.metrics['best_fitness_per_gen'][-2] if len(self.metrics['best_fitness_per_gen']) > 1 else None
+                        imp = (last_best - self.metrics['best_fitness_per_gen'][-1]) if (last_best is not None and last_best > self.metrics['best_fitness_per_gen'][-1]) else 0.0
+                        cv = (self.metrics['std_fitness_history'][-1] / (abs(self.metrics['mean_fitness_history'][-1]) + 1e-12)) if self.metrics['mean_fitness_history'] else 0.0
+                        effort = max(1.0, len(current_fitnesses))
+                        reward = (imp / max(iter_time, 1e-6)) / effort - self.ml_diversity_weight * abs(cv - self.ml_diversity_target)
+                        try:
+                            ml_update(idx, reward)
+                        except Exception:
+                            pass
+                        # Record ML controller history
+                        try:
+                            self.metrics.setdefault('ml_controller_history', []).append({
+                                'generation': iteration,
+                                'w': self.pso_w,
+                                'c1': self.pso_c1,
+                                'c2': self.pso_c2,
+                                'pop': len(swarm),
+                                'best_fitness': self.metrics['best_fitness_per_gen'][-1],
+                                'mean_fitness': self.metrics['mean_fitness_history'][-1] if self.metrics['mean_fitness_history'] else None,
+                                'std_fitness': self.metrics['std_fitness_history'][-1] if self.metrics['std_fitness_history'] else None,
+                                'reward': reward
+                            })
+                        except Exception:
+                            pass
+
                 # Check for convergence
                 if swarm[global_best_particle_idx]['best_fitness'] <= self.pso_tol:
                     self.update.emit(f"[INFO] Convergence reached at iteration {iteration} (fitness below tolerance)")
@@ -1131,15 +1401,150 @@ class PSOWorker(QThread):
                     'convergence_iterations': self.iteration_best_fitness,
                     'convergence_diversity': self.iteration_diversity
                 }
+                if self.track_metrics:
+                    self._stop_metrics_tracking()
+                    if not self.metrics.get('system_info'):
+                        self.metrics['system_info'] = self._get_system_info()
+                    self.metrics['total_duration'] = elapsed_time
+                    final_results['benchmark_metrics'] = self.metrics
                 
             except Exception as e:
                 final_results = {"Error": str(e)}
 
             # Emit results to be processed by the main thread
             self.finished.emit(final_results, best_particle, parameter_names, best_fitness)
+            try:
+                if self.track_metrics:
+                    self.benchmark_data.emit(self.metrics)
+            except Exception:
+                pass
+            try:
+                if self.watchdog_timer.isActive():
+                    self.watchdog_timer.stop()
+            except Exception:
+                pass
 
         except Exception as e:
+            try:
+                if self.track_metrics:
+                    self._stop_metrics_tracking()
+            except Exception:
+                pass
             self.error.emit(str(e))
+        finally:
+            try:
+                if self.watchdog_timer.isActive():
+                    self.watchdog_timer.stop()
+            except Exception:
+                pass
+
+    def _handle_timeout(self):
+        try:
+            self._terminate_flag = True
+            self.update.emit("PSO optimization timed out. The operation was taking too long.")
+        except Exception:
+            pass
+
+    def _get_system_info(self):
+        try:
+            system_info = {
+                'platform': platform.system(),
+                'platform_release': platform.release(),
+                'platform_version': platform.version(),
+                'architecture': platform.machine(),
+                'processor': platform.processor(),
+                'physical_cores': psutil.cpu_count(logical=False),
+                'total_cores': psutil.cpu_count(logical=True),
+                'total_memory': round(psutil.virtual_memory().total / (1024.0 ** 3), 2),
+                'python_version': platform.python_version(),
+            }
+            try:
+                cpu_freq = psutil.cpu_freq()
+                if cpu_freq:
+                    system_info['cpu_max_freq'] = cpu_freq.max
+                    system_info['cpu_min_freq'] = cpu_freq.min
+                    system_info['cpu_current_freq'] = cpu_freq.current
+            except Exception:
+                pass
+            return system_info
+        except Exception as e:
+            try:
+                self.update.emit(f"Warning: Could not collect complete system info: {str(e)}")
+            except Exception:
+                pass
+            return {'error': str(e)}
+
+    def _update_resource_metrics(self):
+        if not self.track_metrics:
+            return
+        try:
+            cpu_percent = psutil.cpu_percent(interval=None)
+            process = psutil.Process(os.getpid())
+            memory_info = process.memory_info()
+            memory_usage_mb = memory_info.rss / (1024 * 1024)
+
+            self.metrics['cpu_usage'].append(cpu_percent)
+            self.metrics['memory_usage'].append(memory_usage_mb)
+
+            per_core = psutil.cpu_percent(interval=None, percpu=True)
+            self.metrics['cpu_per_core'].append(per_core)
+
+            mem_details = {
+                'rss': memory_info.rss / (1024 * 1024),
+                'vms': memory_info.vms / (1024 * 1024),
+                'shared': getattr(memory_info, 'shared', 0) / (1024 * 1024),
+                'system_total': psutil.virtual_memory().total / (1024 * 1024),
+                'system_available': psutil.virtual_memory().available / (1024 * 1024),
+                'system_percent': psutil.virtual_memory().percent,
+            }
+            self.metrics['memory_details'].append(mem_details)
+
+            self.metrics['thread_count'].append(process.num_threads())
+
+            current_metrics = {
+                'cpu': cpu_percent,
+                'cpu_per_core': per_core,
+                'memory': memory_usage_mb,
+                'memory_details': mem_details,
+                'thread_count': process.num_threads(),
+                'time': time.time() - self.metrics['start_time'] if self.metrics.get('start_time') else 0
+            }
+            self.generation_metrics.emit(current_metrics)
+        except Exception as e:
+            try:
+                self.update.emit(f"Warning: Failed to update resource metrics: {str(e)}")
+            except Exception:
+                pass
+
+    def _start_metrics_tracking(self):
+        if not self.track_metrics:
+            return
+        self.metrics['start_time'] = time.time()
+        if not self.metrics.get('system_info'):
+            self.metrics['system_info'] = self._get_system_info()
+        self.metrics_timer.timeout.connect(self._update_resource_metrics)
+        self.metrics_timer.start(self.metrics_timer_interval)
+        try:
+            self.update.emit(f"Started metrics tracking with interval: {self.metrics_timer_interval}ms")
+        except Exception:
+            pass
+
+    def _stop_metrics_tracking(self):
+        if not self.track_metrics:
+            return
+        try:
+            self.metrics_timer.stop()
+        except Exception:
+            pass
+        self.metrics['end_time'] = time.time()
+        if self.metrics.get('start_time'):
+            self.metrics['total_duration'] = self.metrics['end_time'] - self.metrics['start_time']
+        # Ensure at least one CPU/memory sample exists
+        try:
+            if not self.metrics.get('cpu_usage'):
+                self._update_resource_metrics()
+        except Exception:
+            pass
 
     def evaluate_particle(self, position, parameter_bounds):
         """
@@ -1247,14 +1652,33 @@ class PSOWorker(QThread):
             smoothness_penalty = 0
             if 'frequency_response_variance' in results:
                 smoothness_penalty = 0.1 * results['frequency_response_variance']
+
+            # Calculate percentage error sum (GA parity metric)
+            percentage_error_sum = 0.0
+            if "percentage_differences" in results:
+                for mass_key, pdiffs in results["percentage_differences"].items():
+                    for criterion, percent_diff in pdiffs.items():
+                        percentage_error_sum += abs(percent_diff)
+            percentage_error_scaled = percentage_error_sum / 1000.0
             
             # Combine all penalty terms for final fitness
             fitness = (
                 primary_objective +   # Main objective
                 sparsity_penalty +    # Sparsity penalty
                 peak_penalty +        # Peak penalty
-                smoothness_penalty    # Smoothness penalty
+                smoothness_penalty +  # Smoothness penalty
+                percentage_error_scaled
             )
+
+            # Store last evaluation components for caller to attach to particle for reporting
+            try:
+                self._last_eval_components = {
+                    'primary_objective': float(primary_objective),
+                    'sparsity_penalty': float(sparsity_penalty),
+                    'percentage_error': float(percentage_error_sum / 100.0)  # GA displays /100 units
+                }
+            except Exception:
+                self._last_eval_components = None
             
             return fitness
             

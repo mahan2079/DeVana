@@ -1,7 +1,13 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-from workers.PSOWorker import PSOWorker, TopologyType
+# Support running this module directly by ensuring the project root (codes/) is on sys.path
+try:
+    from workers.PSOWorker import PSOWorker, TopologyType
+except ModuleNotFoundError:
+    import os, sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+    from workers.PSOWorker import PSOWorker, TopologyType
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -86,6 +92,17 @@ class PSOMixin:
         pso_advanced_tab = QWidget()
         pso_advanced_layout = QFormLayout(pso_advanced_tab)
 
+        # Controller Mode (parity with GA)
+        self.pso_controller_group = QGroupBox("Controller Mode")
+        controller_layout = QHBoxLayout(self.pso_controller_group)
+        self.pso_controller_fixed_radio = QRadioButton("Fixed")
+        self.pso_controller_adaptive_radio = QRadioButton("Adaptive Params")
+        self.pso_controller_ml_radio = QRadioButton("ML Bandit")
+        self.pso_controller_fixed_radio.setChecked(True)
+        controller_layout.addWidget(self.pso_controller_fixed_radio)
+        controller_layout.addWidget(self.pso_controller_adaptive_radio)
+        controller_layout.addWidget(self.pso_controller_ml_radio)
+
         # Adaptive Parameters
         self.pso_adaptive_params_checkbox = QCheckBox()
         self.pso_adaptive_params_checkbox.setChecked(True)
@@ -144,6 +161,64 @@ class PSOMixin:
         self.pso_quasi_random_init_checkbox = QCheckBox()
         self.pso_quasi_random_init_checkbox.setChecked(True)
         
+        # ML controller options (GA parity)
+        self.pso_ml_options_group = QGroupBox("ML Bandit Options")
+        ml_layout = QFormLayout(self.pso_ml_options_group)
+        self.pso_ml_ucb_c_box = QDoubleSpinBox()
+        self.pso_ml_ucb_c_box.setRange(0.1, 3.0)
+        self.pso_ml_ucb_c_box.setDecimals(2)
+        self.pso_ml_ucb_c_box.setSingleStep(0.05)
+        self.pso_ml_ucb_c_box.setValue(0.60)
+        ml_layout.addRow("ML UCB c:", self.pso_ml_ucb_c_box)
+
+        self.pso_ml_diversity_weight_box = QDoubleSpinBox()
+        self.pso_ml_diversity_weight_box.setRange(0.0, 1.0)
+        self.pso_ml_diversity_weight_box.setDecimals(3)
+        self.pso_ml_diversity_weight_box.setSingleStep(0.005)
+        self.pso_ml_diversity_weight_box.setValue(0.02)
+        ml_layout.addRow("ML Diversity Weight:", self.pso_ml_diversity_weight_box)
+
+        self.pso_ml_diversity_target_box = QDoubleSpinBox()
+        self.pso_ml_diversity_target_box.setRange(0.0, 1.0)
+        self.pso_ml_diversity_target_box.setDecimals(2)
+        self.pso_ml_diversity_target_box.setSingleStep(0.05)
+        self.pso_ml_diversity_target_box.setValue(0.20)
+        ml_layout.addRow("ML Diversity Target:", self.pso_ml_diversity_target_box)
+
+        self.pso_ml_pop_min_box = QSpinBox()
+        self.pso_ml_pop_min_box.setRange(10, 100000)
+        self.pso_ml_pop_min_box.setValue(max(10, int(0.5 * self.pso_swarm_size_box.value())))
+        ml_layout.addRow("Min Swarm Size:", self.pso_ml_pop_min_box)
+
+        self.pso_ml_pop_max_box = QSpinBox()
+        self.pso_ml_pop_max_box.setRange(10, 100000)
+        self.pso_ml_pop_max_box.setValue(int(2.0 * self.pso_swarm_size_box.value()))
+        ml_layout.addRow("Max Swarm Size:", self.pso_ml_pop_max_box)
+
+        self.pso_ml_pop_adapt_checkbox = QCheckBox()
+        self.pso_ml_pop_adapt_checkbox.setChecked(True)
+        ml_layout.addRow("Allow Population Adaptation:", self.pso_ml_pop_adapt_checkbox)
+
+        # Sync population bounds when swarm size changes
+        def _sync_pop_bounds(val):
+            try:
+                if not self.pso_ml_pop_min_box.hasFocus():
+                    self.pso_ml_pop_min_box.setValue(max(10, int(0.5 * val)))
+                if not self.pso_ml_pop_max_box.hasFocus():
+                    self.pso_ml_pop_max_box.setValue(int(2.0 * val))
+            except Exception:
+                pass
+        self.pso_swarm_size_box.valueChanged.connect(_sync_pop_bounds)
+
+        # Link controller radios to adaptive checkbox and ML options visibility
+        self.pso_controller_adaptive_radio.toggled.connect(lambda checked: self.pso_adaptive_params_checkbox.setChecked(checked))
+        def _toggle_ml_options():
+            self.pso_ml_options_group.setVisible(self.pso_controller_ml_radio.isChecked())
+        self.pso_controller_ml_radio.toggled.connect(lambda _: _toggle_ml_options())
+        _toggle_ml_options()
+
+        # Add controller and ML groups to layout
+        pso_advanced_layout.addRow(self.pso_controller_group)
         pso_advanced_layout.addRow("Enable Adaptive Parameters:", self.pso_adaptive_params_checkbox)
         pso_advanced_layout.addRow("Neighborhood Topology:", self.pso_topology_combo)
         pso_advanced_layout.addRow("Inertia Weight Damping:", self.pso_w_damping_box)
@@ -156,6 +231,7 @@ class PSOMixin:
         pso_advanced_layout.addRow("Early Stopping Iterations:", self.pso_early_stopping_iters_box)
         pso_advanced_layout.addRow("Early Stopping Tolerance:", self.pso_early_stopping_tol_box)
         pso_advanced_layout.addRow("Use Quasi-Random Init:", self.pso_quasi_random_init_checkbox)
+        pso_advanced_layout.addRow(self.pso_ml_options_group)
 
         # Add a small Run PSO button in the advanced settings sub-tab
         self.hyper_run_pso_button = QPushButton("Run PSO")
@@ -344,6 +420,7 @@ class PSOMixin:
         
         # Create a tabbed widget for the statistics section
         pso_stats_subtabs = QTabWidget()
+        self.pso_stats_subtabs = pso_stats_subtabs
         
         # ---- Subtab 1: Summary Statistics ----
         pso_summary_tab = QWidget()
@@ -366,8 +443,8 @@ class PSOMixin:
         
         # Top: Table of all runs
         self.pso_benchmark_runs_table = QTableWidget()
-        self.pso_benchmark_runs_table.setColumnCount(3)
-        self.pso_benchmark_runs_table.setHorizontalHeaderLabels(["Run #", "Best Fitness", "Time (s)"])
+        self.pso_benchmark_runs_table.setColumnCount(4)
+        self.pso_benchmark_runs_table.setHorizontalHeaderLabels(["Run #", "Best Fitness", "Time (s)", "Select"]) 
         self.pso_benchmark_runs_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.pso_benchmark_runs_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.pso_benchmark_runs_table.itemClicked.connect(self.pso_show_run_details)
@@ -381,10 +458,23 @@ class PSOMixin:
         # Set initial sizes
         pso_runs_splitter.setSizes([200, 300])
         pso_runs_layout.addWidget(pso_runs_splitter)
+
+        # Select Run button to populate Selected Run Analysis
+        self.pso_select_run_button = QPushButton("Select Run")
+        self.pso_select_run_button.setObjectName("primary-button")
+        self.pso_select_run_button.clicked.connect(self.pso_select_run_for_analysis)
+        pso_runs_layout.addWidget(self.pso_select_run_button)
         
+        # Selected Run Analysis tab (mirrors GA counterpart)
+        pso_selected_run_tab = QWidget()
+        pso_selected_run_layout = QVBoxLayout(pso_selected_run_tab)
+        self.pso_selected_run_widget = QWidget()
+        pso_selected_run_layout.addWidget(self.pso_selected_run_widget)
+
         # Add all stats subtabs
         pso_stats_subtabs.addTab(pso_summary_tab, "Summary Statistics")
         pso_stats_subtabs.addTab(pso_runs_tab, "Run Details")
+        pso_stats_subtabs.addTab(pso_selected_run_tab, "Selected Run Analysis")
         
         # Add the stats tabbed widget to the stats tab
         pso_stats_layout.addWidget(pso_stats_subtabs)
@@ -421,6 +511,20 @@ class PSOMixin:
         # Add the PSO sub-tabs widget to the main PSO tab layout
         layout.addWidget(self.pso_sub_tabs)
         self.pso_tab.setLayout(layout)
+
+        # Create PSO progress bar (mirrors GA progress bar UX)
+        if not hasattr(self, 'pso_progress_bar'):
+            self.pso_progress_bar = QProgressBar()
+            self.pso_progress_bar.setRange(0, 100)
+            self.pso_progress_bar.setValue(0)
+            self.pso_progress_bar.setTextVisible(True)
+            self.pso_progress_bar.setFormat("PSO Progress: %p%")
+            # Insert into results tab layout at the top
+            try:
+                pso_results_tab_layout = self.pso_results_text.parent().layout()
+                pso_results_tab_layout.insertWidget(0, self.pso_progress_bar)
+            except Exception:
+                pass
         
     def toggle_pso_fixed(self, state, row, table=None):
         """Toggle the fixed state of a PSO parameter row"""
@@ -468,7 +572,7 @@ class PSOMixin:
                     self.pso_worker.wait()
             
         self.status_bar.showMessage("Running PSO optimization...")
-        self.results_text.append("PSO optimization started...")
+        self.pso_results_text.append("PSO optimization started...")
         
         try:
             # Retrieve PSO parameters from the GUI
@@ -586,6 +690,13 @@ class PSOMixin:
             else:
                 # Create and start PSOWorker with all parameters
                 self.pso_results_text.append("Running PSO optimization...")
+            if hasattr(self, 'pso_progress_bar'):
+                self.pso_progress_bar.setValue(0)
+                self.pso_progress_bar.show()
+            # Map controller mode to worker args
+            use_ml = self.pso_controller_ml_radio.isChecked()
+            use_adaptive = self.pso_controller_adaptive_radio.isChecked()
+
             self.pso_worker = PSOWorker(
                 main_params=main_params,
                 target_values_dict=target_values,
@@ -612,13 +723,23 @@ class PSOMixin:
                 early_stopping_iters=early_stopping_iters,
                 early_stopping_tol=early_stopping_tol,
                 diversity_threshold=diversity_threshold,
-                quasi_random_init=quasi_random_init
+                quasi_random_init=quasi_random_init,
+                track_metrics=True,
+                use_ml_adaptive=bool(use_ml and not use_adaptive),
+                pop_min=int(max(10, self.pso_ml_pop_min_box.value())) if use_ml else None,
+                pop_max=int(max(self.pso_ml_pop_min_box.value(), self.pso_ml_pop_max_box.value())) if use_ml else None,
+                ml_ucb_c=self.pso_ml_ucb_c_box.value() if use_ml else 0.6,
+                ml_adapt_population=self.pso_ml_pop_adapt_checkbox.isChecked() if use_ml else True,
+                ml_diversity_weight=self.pso_ml_diversity_weight_box.value() if use_ml else 0.02,
+                ml_diversity_target=self.pso_ml_diversity_target_box.value() if use_ml else 0.2
             )
             
             self.pso_worker.finished.connect(self.handle_pso_finished)
             self.pso_worker.error.connect(self.handle_pso_error)
             self.pso_worker.update.connect(self.handle_pso_update)
             self.pso_worker.convergence_signal.connect(self.handle_pso_convergence)
+            # Connect GA-like progress/metrics to mirror GA tab behavior
+            self.pso_worker.progress.connect(self.update_pso_progress)
             
             # Disable both run PSO buttons to prevent multiple runs
             self.hyper_run_pso_button.setEnabled(False)
@@ -636,6 +757,10 @@ class PSOMixin:
         """Handle the completion of PSO optimization"""
         # For benchmarking, collect data from this run
         self.pso_current_benchmark_run += 1
+
+        # Stop/reset progress bar
+        if hasattr(self, 'pso_progress_bar'):
+            self.pso_progress_bar.setValue(100)
         
         # Store benchmark results
         if hasattr(self, 'pso_benchmark_runs') and self.pso_benchmark_runs > 1:
@@ -662,6 +787,9 @@ class PSOMixin:
                 # Add optimization metadata if available
                 if 'optimization_metadata' in results:
                     run_data['optimization_metadata'] = results['optimization_metadata']
+                # Add GA-parity benchmark metrics if available
+                if 'benchmark_metrics' in results and isinstance(results['benchmark_metrics'], dict):
+                    run_data['benchmark_metrics'] = results['benchmark_metrics']
             
             # Store the run data
             self.pso_benchmark_data.append(run_data)
@@ -694,9 +822,11 @@ class PSOMixin:
                 'elapsed_time': elapsed_time
             }
             
-            # Add optimization metadata if available
+            # Add optimization/benchmark metadata if available
             if isinstance(results, dict) and 'optimization_metadata' in results:
                 run_data['optimization_metadata'] = results['optimization_metadata']
+            if isinstance(results, dict) and 'benchmark_metrics' in results:
+                run_data['benchmark_metrics'] = results['benchmark_metrics']
 
             self.pso_benchmark_data = [run_data]
             # Immediately visualize results for single runs so parameter
@@ -743,6 +873,10 @@ class PSOMixin:
         # Re-enable both run PSO buttons
         self.hyper_run_pso_button.setEnabled(True)
         self.run_pso_button.setEnabled(True)
+
+        # Reset progress bar
+        if hasattr(self, 'pso_progress_bar'):
+            self.pso_progress_bar.setValue(0)
         
         # Explicitly handle thread cleanup on error
         if hasattr(self, 'pso_worker') and self.pso_worker is not None:
@@ -761,6 +895,12 @@ class PSOMixin:
     def handle_pso_update(self, msg):
         """Handle progress updates from PSO worker"""
         self.pso_results_text.append(msg)
+        try:
+            self.pso_results_text.verticalScrollBar().setValue(
+                self.pso_results_text.verticalScrollBar().maximum()
+            )
+        except Exception:
+            pass
         
     def handle_pso_convergence(self, iterations, fitness_values):
         """Handle convergence data from PSO optimization without creating plots"""
@@ -777,6 +917,20 @@ class PSOMixin:
         except Exception as e:
             self.status_bar.showMessage(f"Error handling PSO convergence data: {str(e)}")
             print(f"Error in handle_pso_convergence: {str(e)}")
+
+    def update_pso_progress(self, value: int):
+        """Update the PSO progress bar, mirroring GA behavior including benchmarks."""
+        try:
+            if hasattr(self, 'pso_progress_bar'):
+                if hasattr(self, 'pso_benchmark_runs') and self.pso_benchmark_runs > 1:
+                    run_contribution = 100.0 / self.pso_benchmark_runs
+                    current_run_progress = value / 100.0
+                    overall = ((self.pso_current_benchmark_run - 1) * run_contribution) + (current_run_progress * run_contribution)
+                    self.pso_progress_bar.setValue(int(overall))
+                else:
+                    self.pso_progress_bar.setValue(int(value))
+        except Exception:
+            pass
             
     def visualize_pso_benchmark_results(self):
         """Create visualizations for PSO benchmark results"""
@@ -834,6 +988,26 @@ class PSOMixin:
             'ga_ops_plot_widget': self.pso_ops_plot_widget
         }
         visualize_all_metrics(widgets_dict, df)
+
+        # If available, replicate GA component table style output using PSO particle fields
+        try:
+            # Compute simple component table akin to GA for first run (best solution)
+            best_fitnesses = [run.get('best_fitness', float('inf')) for run in self.pso_benchmark_data]
+            if best_fitnesses:
+                best_idx = int(np.argmin(best_fitnesses))
+                run = self.pso_benchmark_data[best_idx]
+                # If benchmark_metrics include histories, show a compact summary in results text
+                if hasattr(self, 'pso_results_text') and 'benchmark_metrics' in run:
+                    self.pso_results_text.append("\nPSO Metrics Summary:")
+                    bm = run['benchmark_metrics']
+                    if 'best_fitness_per_gen' in bm and bm['best_fitness_per_gen']:
+                        self.pso_results_text.append(f"  Best fitness (final): {bm['best_fitness_per_gen'][-1]:.6f}")
+                    if 'mean_fitness_history' in bm and bm['mean_fitness_history']:
+                        self.pso_results_text.append(f"  Mean fitness (final): {bm['mean_fitness_history'][-1]:.6f}")
+                    if 'std_fitness_history' in bm and bm['std_fitness_history']:
+                        self.pso_results_text.append(f"  Std fitness (final): {bm['std_fitness_history'][-1]:.6f}")
+        except Exception:
+            pass
         
         # 3. Create scatter plot of parameters vs fitness
         try:
@@ -1173,6 +1347,13 @@ class PSOMixin:
                 self.pso_benchmark_runs_table.setItem(i, 0, run_item)
                 self.pso_benchmark_runs_table.setItem(i, 1, fitness_item)
                 self.pso_benchmark_runs_table.setItem(i, 2, time_item)
+
+                # Add per-row Select button
+                select_btn = QPushButton("Select")
+                select_btn.setObjectName("table-select-button")
+                # Bind to select this specific run number
+                select_btn.clicked.connect(lambda _=False, rn=run_number: self.pso_select_run_for_analysis(rn))
+                self.pso_benchmark_runs_table.setCellWidget(i, 3, select_btn)
                 
         except Exception as e:
             print(f"Error updating PSO statistics tables: {str(e)}")
@@ -1564,6 +1745,93 @@ class PSOMixin:
         details.append(f"<h3>Run #{run_number} Details</h3>")
         details.append(f"<p><b>Best Fitness:</b> {run_data.get('best_fitness', 'N/A'):.6f}</p>")
         details.append(f"<p><b>Elapsed Time:</b> {run_data.get('elapsed_time', 'N/A'):.2f} seconds</p>")
+
+        # Optimization metadata (PSO-specific)
+        opt_meta = run_data.get('optimization_metadata', {}) if isinstance(run_data.get('optimization_metadata'), dict) else {}
+        if opt_meta:
+            iters = opt_meta.get('iterations')
+            final_div = opt_meta.get('final_diversity')
+            if iters is not None:
+                details.append(f"<p><b>Iterations:</b> {int(iters)}</p>")
+            if final_div is not None:
+                try:
+                    details.append(f"<p><b>Final Diversity:</b> {float(final_div):.6f}</p>")
+                except Exception:
+                    details.append(f"<p><b>Final Diversity:</b> {final_div}</p>")
+
+        # Benchmark metrics summary (tailored for PSO)
+        bm = run_data.get('benchmark_metrics', {}) if isinstance(run_data.get('benchmark_metrics'), dict) else {}
+        if bm:
+            try:
+                # Controller
+                controller = bm.get('controller', 'pso')
+                details.append(f"<p><b>Controller:</b> {controller}</p>")
+
+                # Iteration timing
+                gen_times = bm.get('generation_times', []) or []
+                if gen_times:
+                    import numpy as _np
+                    gt = _np.array(gen_times, dtype=float)
+                    details.append(
+                        f"<p><b>Iteration Time:</b> mean {gt.mean():.4f}s, min {gt.min():.4f}s, max {gt.max():.4f}s</p>"
+                    )
+                total_duration = bm.get('total_duration', None)
+                if total_duration is not None:
+                    details.append(f"<p><b>Total Duration (tracked):</b> {float(total_duration):.2f} s</p>")
+
+                # Fitness histories
+                best_hist = bm.get('best_fitness_per_gen', []) or []
+                mean_hist = bm.get('mean_fitness_history', []) or []
+                if best_hist:
+                    try:
+                        initial_best = float(best_hist[0])
+                        final_best = float(best_hist[-1])
+                        improvement = initial_best - final_best
+                        details.append(
+                            f"<p><b>Best Fitness (initial → final):</b> {initial_best:.6f} → {final_best:.6f} (Δ {improvement:.6f})</p>"
+                        )
+                    except Exception:
+                        pass
+                if mean_hist:
+                    try:
+                        details.append(f"<p><b>Final Mean Fitness:</b> {float(mean_hist[-1]):.6f}</p>")
+                    except Exception:
+                        pass
+
+                # Evaluation count
+                eval_count = bm.get('evaluation_count', None)
+                if eval_count is not None:
+                    details.append(f"<p><b>Total Evaluations:</b> {int(eval_count)}</p>")
+
+                # Swarm size stats
+                pop_hist = bm.get('pop_size_history', []) or []
+                if pop_hist:
+                    import numpy as _np
+                    ph = _np.array(pop_hist, dtype=float)
+                    details.append(
+                        f"<p><b>Swarm Size:</b> min {int(ph.min())}, mean {ph.mean():.1f}, max {int(ph.max())}</p>"
+                    )
+
+                # Rates summary (w, c1, c2)
+                rates = bm.get('rates_history', []) or []
+                if isinstance(rates, list) and rates:
+                    try:
+                        import numpy as _np
+                        w_vals = [r.get('w') for r in rates if isinstance(r, dict) and r.get('w') is not None]
+                        c1_vals = [r.get('c1') for r in rates if isinstance(r, dict) and r.get('c1') is not None]
+                        c2_vals = [r.get('c2') for r in rates if isinstance(r, dict) and r.get('c2') is not None]
+                        def _fmt(arr):
+                            if not arr:
+                                return "n/a"
+                            a = _np.array(arr, dtype=float)
+                            return f"{a.mean():.4f} ± {a.std():.4f} (final {a[-1]:.4f})"
+                        details.append(
+                            f"<p><b>Rates Summary:</b> w {_fmt(w_vals)}, c1 {_fmt(c1_vals)}, c2 {_fmt(c2_vals)}</p>"
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
         
         # Show singular response if available
         if 'singular_response' in run_data:
@@ -1586,32 +1854,22 @@ class PSOMixin:
             
         details.append("</table>")
         
-        # Add optimization metadata if available
-        if 'optimization_metadata' in run_data:
-            metadata = run_data['optimization_metadata']
+        # Add optimization metadata (other numeric fields)
+        if opt_meta:
             details.append("<h4>Optimization Metadata:</h4>")
-            
-            # Add iterations
-            if 'iterations' in metadata:
-                details.append(f"<p><b>Iterations:</b> {metadata['iterations']}</p>")
-                
-            # Add diversity
-            if 'final_diversity' in metadata:
-                details.append(f"<p><b>Final Diversity:</b> {metadata['final_diversity']:.6f}</p>")
-                
-            # Add other metadata
-            for key, value in metadata.items():
-                if key not in ['iterations', 'final_diversity', 'convergence_iterations', 'convergence_diversity'] and isinstance(value, (int, float)):
+            for key, value in opt_meta.items():
+                if key in ['iterations', 'final_diversity', 'convergence_iterations', 'convergence_diversity']:
+                    continue
+                if isinstance(value, (int, float)):
                     details.append(f"<p><b>{key}:</b> {value}</p>")
         
-        # Add any other metrics that might be available
+        # Add any other top-level numeric metrics
         details.append("<h4>Additional Metrics:</h4>")
         other_metrics_found = False
         for key, value in run_data.items():
-            if key not in ['run_number', 'best_fitness', 'best_solution', 'parameter_names', 'elapsed_time', 'optimization_metadata', 'singular_response'] and isinstance(value, (int, float)):
+            if key not in ['run_number', 'best_fitness', 'best_solution', 'parameter_names', 'elapsed_time', 'optimization_metadata', 'singular_response', 'benchmark_metrics'] and isinstance(value, (int, float)):
                 details.append(f"<p><b>{key}:</b> {value:.6f}</p>")
                 other_metrics_found = True
-                
         if not other_metrics_found:
             details.append("<p>No additional metrics available</p>")
             
@@ -1659,11 +1917,17 @@ class PSOMixin:
                 param_tab.setLayout(QVBoxLayout())
                 efficiency_tab = QWidget()
                 efficiency_tab.setLayout(QVBoxLayout())
+                rates_tab = QWidget()
+                rates_tab.setLayout(QVBoxLayout())
+                breakdown_tab = QWidget()
+                breakdown_tab.setLayout(QVBoxLayout())
                 
                 # Add the tabs
                 pso_ops_tabs.addTab(fitness_tab, "Fitness Evolution")
                 pso_ops_tabs.addTab(param_tab, "Parameter Convergence")
                 pso_ops_tabs.addTab(efficiency_tab, "Computational Efficiency")
+                pso_ops_tabs.addTab(rates_tab, "Rates (w, c1, c2)")
+                pso_ops_tabs.addTab(breakdown_tab, "Iteration Breakdown")
                 
                 # Try to create each visualization in its own tab
                 try:
@@ -1675,6 +1939,10 @@ class PSOMixin:
                     
                     # Create computational efficiency plot
                     self.create_computational_efficiency_plot(efficiency_tab, run_data)
+
+                    # Create PSO rates and iteration breakdown plots (GA parity)
+                    self.create_pso_rates_plot(rates_tab, run_data)
+                    self.create_pso_generation_breakdown_plot(breakdown_tab, run_data)
                 except Exception as viz_error:
                     print(f"Error in PSO visualization tabs: {str(viz_error)}")
                 
@@ -1704,6 +1972,17 @@ class PSOMixin:
                 # Also ensure all visualization tabs are properly displayed
                 # Use our update_all_visualizations function but adapt it for PSO widgets
                 self.update_pso_visualizations(run_data)
+
+            # Update the Selected Run Analysis tab content
+            try:
+                self.pso_create_selected_run_visualizations(run_data)
+                # Switch to the Selected Run Analysis tab to show the new visuals
+                if hasattr(self, 'pso_stats_subtabs'):
+                    idx = self.pso_stats_subtabs.indexOf(self.pso_stats_subtabs.widget(2))
+                    if idx != -1:
+                        self.pso_stats_subtabs.setCurrentIndex(idx)
+            except Exception as _e:
+                pass
         except Exception as e:
             import traceback
             print(f"Error visualizing PSO run metrics: {str(e)}\n{traceback.format_exc()}")
@@ -1740,6 +2019,8 @@ class PSOMixin:
         self.status_bar.showMessage(f"Running PSO optimization (Run {self.pso_current_benchmark_run + 1}/{self.pso_benchmark_runs})...")
         
         # Create and start PSOWorker with all parameters
+        use_ml = self.pso_controller_ml_radio.isChecked()
+        use_adaptive = self.pso_controller_adaptive_radio.isChecked()
         self.pso_worker = PSOWorker(
             main_params=params['main_params'],
             target_values_dict=params['target_values'],
@@ -1766,7 +2047,15 @@ class PSOMixin:
             early_stopping_iters=params['early_stopping_iters'],
             early_stopping_tol=params['early_stopping_tol'],
             diversity_threshold=params['diversity_threshold'],
-            quasi_random_init=params['quasi_random_init']
+            quasi_random_init=params['quasi_random_init'],
+            track_metrics=True,
+            use_ml_adaptive=bool(use_ml and not use_adaptive),
+            pop_min=int(max(10, self.pso_ml_pop_min_box.value())) if use_ml else None,
+            pop_max=int(max(self.pso_ml_pop_min_box.value(), self.pso_ml_pop_max_box.value())) if use_ml else None,
+            ml_ucb_c=self.pso_ml_ucb_c_box.value() if use_ml else 0.6,
+            ml_adapt_population=self.pso_ml_pop_adapt_checkbox.isChecked() if use_ml else True,
+            ml_diversity_weight=self.pso_ml_diversity_weight_box.value() if use_ml else 0.02,
+            ml_diversity_target=self.pso_ml_diversity_target_box.value() if use_ml else 0.2
         )
         
         # Connect signals
@@ -1774,6 +2063,7 @@ class PSOMixin:
         self.pso_worker.error.connect(self.handle_pso_error)
         self.pso_worker.update.connect(self.handle_pso_update)
         self.pso_worker.convergence_signal.connect(self.handle_pso_convergence)
+        self.pso_worker.progress.connect(self.update_pso_progress)
 
         # Start the worker
         self.pso_worker.start()
@@ -1943,6 +2233,116 @@ class PSOMixin:
         except Exception as e:
             import traceback
             print(f"Error updating PSO visualizations: {str(e)}\n{traceback.format_exc()}")
+    
+    def pso_create_selected_run_visualizations(self, run_data):
+        """Create comprehensive visualizations for the selected PSO run (GA parity)."""
+        try:
+            # Ensure container exists
+            if not hasattr(self, 'pso_selected_run_widget') or self.pso_selected_run_widget is None:
+                return
+
+            # Clear existing content
+            if self.pso_selected_run_widget.layout():
+                for i in reversed(range(self.pso_selected_run_widget.layout().count())):
+                    w = self.pso_selected_run_widget.layout().itemAt(i).widget()
+                    if w:
+                        w.setParent(None)
+            else:
+                from PyQt5.QtWidgets import QVBoxLayout
+                self.pso_selected_run_widget.setLayout(QVBoxLayout())
+
+            # Create tab widget for the selected run visualizations
+            from PyQt5.QtWidgets import QTabWidget, QWidget, QVBoxLayout
+            run_tabs = QTabWidget()
+            self.pso_selected_run_widget.layout().addWidget(run_tabs)
+
+            # Extract metrics if available
+            metrics = run_data.get('benchmark_metrics', {}) if isinstance(run_data.get('benchmark_metrics'), dict) else {}
+
+            # Fitness Evolution
+            tab_fitness = QWidget(); tab_fitness.setLayout(QVBoxLayout())
+            self.create_fitness_evolution_plot(tab_fitness, run_data)
+            run_tabs.addTab(tab_fitness, "Fitness Evolution")
+
+            # Performance Metrics (CPU/Memory/Times)
+            perf_tab = QWidget(); perf_layout = QVBoxLayout(perf_tab)
+            self.create_pso_performance_plot(perf_layout, run_data, metrics)
+            run_tabs.addTab(perf_tab, "Performance Metrics")
+
+            # Operation Timing (PSO operations + generation time trend)
+            timing_tab = QWidget(); timing_layout = QVBoxLayout(timing_tab)
+            self.create_pso_timing_analysis_plot(timing_layout, run_data, metrics)
+            run_tabs.addTab(timing_tab, "Operation Timing")
+
+            # Parameter Convergence (GA-style)
+            tab_params = QWidget(); params_layout = QVBoxLayout(tab_params)
+            self.create_pso_parameter_convergence_plot(params_layout, run_data, metrics)
+            run_tabs.addTab(tab_params, "Parameter Convergence")
+
+            # Computational Efficiency (kept for PSO parity)
+            tab_eff = QWidget(); tab_eff.setLayout(QVBoxLayout())
+            self.create_computational_efficiency_plot(tab_eff, run_data)
+            run_tabs.addTab(tab_eff, "Computational Efficiency")
+
+            # Adaptive Rates (w, c1, c2)
+            tab_rates = QWidget(); tab_rates.setLayout(QVBoxLayout())
+            self.create_pso_rates_plot(tab_rates, run_data)
+            run_tabs.addTab(tab_rates, "Adaptive Rates")
+
+            # ML Controller (if available)
+            if metrics.get('ml_controller_history') or metrics.get('pop_size_history') or metrics.get('rates_history'):
+                ml_tab = QWidget(); ml_layout = QVBoxLayout(ml_tab)
+                self.create_pso_ml_bandit_plots(ml_layout, run_data, metrics)
+                run_tabs.addTab(ml_tab, "ML Controller")
+
+            # Surrogate Screening (if available)
+            if metrics.get('surrogate_info') or metrics.get('surrogate_enabled'):
+                surr_tab = QWidget(); surr_layout = QVBoxLayout(surr_tab)
+                self.create_pso_surrogate_plots(surr_layout, run_data, metrics)
+                run_tabs.addTab(surr_tab, "Surrogate Screening")
+
+            # Generation Analysis (time breakdown + convergence rate)
+            tab_break = QWidget(); tab_break.setLayout(QVBoxLayout())
+            self.create_pso_generation_breakdown_plot(tab_break, run_data)
+            run_tabs.addTab(tab_break, "Generation Analysis")
+
+            # Fitness Components
+            tab_comp = QWidget(); comp_layout = QVBoxLayout(tab_comp)
+            self.create_pso_fitness_components_plot(comp_layout, run_data, metrics)
+            run_tabs.addTab(tab_comp, "Fitness Components")
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO selected run visualizations: {str(e)}\n{traceback.format_exc()}")
+
+    def pso_select_run_for_analysis(self, run_number: int = None):
+        """Populate Selected Run Analysis tab for the chosen run.
+        If run_number is None, uses the currently highlighted row."""
+        try:
+            if run_number is None:
+                row = self.pso_benchmark_runs_table.currentRow()
+                if row < 0:
+                    return
+                run_item = self.pso_benchmark_runs_table.item(row, 0)
+                if not run_item:
+                    return
+                run_number = int(run_item.text())
+            # Find run
+            run_data = None
+            for run in getattr(self, 'pso_benchmark_data', []):
+                if run.get('run_number') == run_number:
+                    run_data = run
+                    break
+            if not run_data:
+                return
+            # Build visuals and switch tab
+            self.pso_create_selected_run_visualizations(run_data)
+            if hasattr(self, 'pso_stats_subtabs'):
+                idx = self.pso_stats_subtabs.indexOf(self.pso_stats_subtabs.widget(2))
+                if idx != -1:
+                    self.pso_stats_subtabs.setCurrentIndex(idx)
+        except Exception as e:
+            import traceback
+            print(f"Error selecting PSO run for analysis: {str(e)}\n{traceback.format_exc()}")
     
     def setup_widget_layout(self, widget):
         """Setup a widget with a vertical layout if it doesn't have one"""
@@ -2117,6 +2517,111 @@ class PSOMixin:
         except Exception as e:
             import traceback
             print(f"Error creating PSO parameter convergence plot: {str(e)}\n{traceback.format_exc()}")
+
+    def create_pso_parameter_convergence_plot(self, layout, run_data, metrics):
+        """GA-style parameter convergence analysis for PSO selected run."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox
+        import numpy as np
+
+        control_panel = QWidget()
+        control_layout = QHBoxLayout(control_panel)
+        param_label = QLabel("Select Parameter:")
+        param_dropdown = QComboBox(); param_dropdown.setMinimumWidth(200)
+        view_label = QLabel("View Mode:")
+        view_dropdown = QComboBox(); view_dropdown.addItems(["Single Parameter", "All Parameters (Grid)", "Compare Multiple", "Active Parameters Only"]) 
+        view_dropdown.setMinimumWidth(150)
+        control_layout.addWidget(param_label);
+        control_layout.addWidget(param_dropdown);
+        control_layout.addWidget(QLabel("  |  "))
+        control_layout.addWidget(view_label);
+        control_layout.addWidget(view_dropdown);
+        control_layout.addStretch()
+        layout.addWidget(control_panel)
+
+        plot_container = QWidget(); plot_layout = QVBoxLayout(plot_container)
+        layout.addWidget(plot_container)
+
+        param_data = None; param_names = []; generations = []
+        if metrics.get('best_individual_per_gen'):
+            param_data = np.array(metrics['best_individual_per_gen'])
+            generations = range(1, len(param_data) + 1)
+            num_params = param_data.shape[1] if param_data.ndim > 1 else 1
+            param_names = run_data.get('parameter_names', [f'Param_{i}' for i in range(num_params)])
+            param_dropdown.addItems(["-- Select Parameter --"] + param_names)
+
+        def update_plot():
+            while plot_layout.count():
+                w = plot_layout.takeAt(0).widget()
+                if w: w.setParent(None)
+            if param_data is None or len(param_data) == 0:
+                lbl = QLabel("No parameter convergence data available"); lbl.setAlignment(Qt.AlignCenter)
+                lbl.setStyleSheet("font-size: 14px; color: gray; margin: 50px;")
+                plot_layout.addWidget(lbl); return
+
+            view_mode = view_dropdown.currentText()
+            selected_param = param_dropdown.currentText()
+
+            if view_mode == "Single Parameter" and selected_param != "-- Select Parameter --":
+                fig = Figure(figsize=(12, 8), tight_layout=True)
+                ax = fig.add_subplot(111)
+                idx = param_names.index(selected_param)
+                values = param_data[:, idx]
+                ax.plot(generations, values, marker='o', linewidth=2, alpha=0.8)
+                ax.set_title(f'Parameter Convergence: {selected_param}')
+                ax.set_xlabel('Iteration'); ax.set_ylabel('Value'); ax.grid(True, alpha=0.3)
+                canvas = FigureCanvasQTAgg(fig); toolbar = NavigationToolbar(canvas, None)
+                plot_layout.addWidget(toolbar); plot_layout.addWidget(canvas)
+            elif view_mode == "All Parameters (Grid)":
+                num_params = len(param_names)
+                rows = 2 if num_params <= 4 else (3 if num_params <= 9 else 4)
+                cols = min(4, int(np.ceil(num_params / rows)))
+                fig = Figure(figsize=(16, 12), tight_layout=True)
+                for i, name in enumerate(param_names):
+                    ax = fig.add_subplot(rows, cols, i + 1)
+                    vals = param_data[:, i]
+                    ax.plot(generations, vals, linewidth=1.5)
+                    ax.set_title(name, fontsize=9); ax.grid(True, alpha=0.3)
+                canvas = FigureCanvasQTAgg(fig); toolbar = NavigationToolbar(canvas, None)
+                plot_layout.addWidget(toolbar); plot_layout.addWidget(canvas)
+            elif view_mode == "Compare Multiple":
+                # Simple multi-select: compare first 5 parameters if no UI picker here
+                chosen = param_names[:min(5, len(param_names))]
+                fig = Figure(figsize=(12, 8), tight_layout=True); ax = fig.add_subplot(111)
+                colors = plt.cm.tab10(np.linspace(0, 1, len(chosen))) if hasattr(plt, 'cm') else None
+                for i, name in enumerate(chosen):
+                    vals = param_data[:, i]
+                    ax.plot(generations, vals, linewidth=2, label=name, color=(colors[i] if colors is not None else None))
+                ax.set_title('Parameter Convergence Comparison'); ax.set_xlabel('Iteration'); ax.set_ylabel('Value'); ax.grid(True, alpha=0.3); ax.legend()
+                canvas = FigureCanvasQTAgg(fig); toolbar = NavigationToolbar(canvas, None)
+                plot_layout.addWidget(toolbar); plot_layout.addWidget(canvas)
+            elif view_mode == "Active Parameters Only":
+                activity = []
+                for i, name in enumerate(param_names):
+                    vals = param_data[:, i]
+                    activity.append((i, name, np.max(vals) - np.min(vals)))
+                activity.sort(key=lambda t: t[2], reverse=True)
+                chosen = [t[0] for t in activity[:min(9, len(activity))]]
+                rows = 3; cols = 3
+                fig = Figure(figsize=(12, 10), tight_layout=True)
+                for plot_idx, idx in enumerate(chosen):
+                    ax = fig.add_subplot(rows, cols, plot_idx + 1)
+                    vals = param_data[:, idx]
+                    ax.plot(generations, vals, linewidth=2)
+                    ax.set_title(param_names[idx], fontsize=9); ax.grid(True, alpha=0.3)
+                canvas = FigureCanvasQTAgg(fig); toolbar = NavigationToolbar(canvas, None)
+                plot_layout.addWidget(toolbar); plot_layout.addWidget(canvas)
+            else:
+                fig = Figure(figsize=(10, 6), tight_layout=True)
+                ax = fig.add_subplot(111)
+                ax.text(0.5, 0.5, 'Select a parameter to visualize', ha='center', va='center', transform=ax.transAxes)
+                canvas = FigureCanvasQTAgg(fig); toolbar = NavigationToolbar(canvas, None)
+                plot_layout.addWidget(toolbar); plot_layout.addWidget(canvas)
+
+        param_dropdown.currentTextChanged.connect(update_plot)
+        view_dropdown.currentTextChanged.connect(update_plot)
+        update_plot()
     
     def create_computational_efficiency_plot(self, tab_widget, run_data):
         """Create a computational efficiency plot for PSO operations visualization"""
@@ -2195,6 +2700,388 @@ class PSOMixin:
         except Exception as e:
             import traceback
             print(f"Error creating PSO computational efficiency plot: {str(e)}\n{traceback.format_exc()}")
+
+    def create_pso_performance_plot(self, layout, run_data, metrics):
+        """Create CPU/Memory, generation times, and run info (GA parity)."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        import numpy as np
+
+        fig = Figure(figsize=(12, 8), tight_layout=True)
+        ax1 = fig.add_subplot(2, 2, 1)
+        ax2 = fig.add_subplot(2, 2, 2)
+        ax3 = fig.add_subplot(2, 2, 3)
+        ax4 = fig.add_subplot(2, 2, 4)
+
+        cpu_data = metrics.get('cpu_usage', []) or []
+        if cpu_data:
+            t = range(len(cpu_data))
+            ax1.plot(t, cpu_data, 'g-', linewidth=2, marker='o', markersize=4)
+            ax1.set_title('CPU Usage Over Time')
+            ax1.set_xlabel('Sample Points')
+            ax1.set_ylabel('CPU (%)')
+            ax1.grid(True, alpha=0.3)
+            ax1.set_ylim(0, 100)
+            avg_cpu = np.mean(cpu_data); max_cpu = np.max(cpu_data)
+            ax1.text(0.02, 0.98, f'Avg: {avg_cpu:.1f}%\nMax: {max_cpu:.1f}%', transform=ax1.transAxes,
+                    va='top', bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.7))
+        else:
+            ax1.text(0.5, 0.5, 'No CPU data', ha='center', va='center', transform=ax1.transAxes)
+
+        mem_data = metrics.get('memory_usage', []) or []
+        if mem_data:
+            t = range(len(mem_data))
+            ax2.plot(t, mem_data, 'b-', linewidth=2, marker='s', markersize=4)
+            ax2.set_title('Memory Usage Over Time')
+            ax2.set_xlabel('Sample Points')
+            ax2.set_ylabel('Memory (MB)')
+            ax2.grid(True, alpha=0.3)
+            avg_m = np.mean(mem_data); max_m = np.max(mem_data)
+            ax2.text(0.02, 0.98, f'Avg: {avg_m:.1f} MB\nMax: {max_m:.1f} MB', transform=ax2.transAxes,
+                    va='top', bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
+        else:
+            ax2.text(0.5, 0.5, 'No memory data', ha='center', va='center', transform=ax2.transAxes)
+
+        gen_times = metrics.get('generation_times', []) or []
+        if gen_times:
+            gens = range(1, len(gen_times) + 1)
+            bars = ax3.bar(gens, gen_times, alpha=0.7, color='purple')
+            ax3.set_title('Time Per Iteration')
+            ax3.set_xlabel('Iteration')
+            ax3.set_ylabel('Time (s)')
+            ax3.grid(True, alpha=0.3, axis='y')
+            avg_t = np.mean(gen_times)
+            ax3.axhline(avg_t, color='red', linestyle='--', alpha=0.8, label=f'Avg: {avg_t:.3f}s')
+            ax3.legend()
+            idx = int(np.argmax(gen_times))
+            ax3.text(idx + 1, gen_times[idx] + 0.001, f'{gen_times[idx]:.3f}s', ha='center', va='bottom', fontsize=8)
+        else:
+            ax3.text(0.5, 0.5, 'No iteration timing data', ha='center', va='center', transform=ax3.transAxes)
+
+        ax4.axis('off')
+        info = []
+        info.append(f"Run #{run_data.get('run_number', 'N/A')}")
+        info.append(f"Best Fitness: {run_data.get('best_fitness', float('nan')):.6f}")
+        if 'system_info' in metrics:
+            si = metrics['system_info']
+            info.append(f"Platform: {si.get('platform', 'N/A')}")
+            info.append(f"CPU Cores: {si.get('total_cores', 'N/A')}")
+            info.append(f"Total Memory: {si.get('total_memory', 'N/A')} GB")
+        if 'total_duration' in metrics:
+            info.append(f"Duration: {metrics.get('total_duration', 0):.2f}s")
+        if 'evaluation_count' in metrics:
+            info.append(f"Evaluations: {metrics.get('evaluation_count', 0)}")
+        ax4.text(0.05, 0.95, '\n'.join(info), transform=ax4.transAxes, va='top', fontsize=10,
+                 bbox=dict(boxstyle='round', facecolor='lightcyan', alpha=0.8))
+
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar(canvas, None)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+
+    def create_pso_timing_analysis_plot(self, layout, run_data, metrics):
+        """Create PSO operations timing and iteration time trend (GA parity)."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        import numpy as np
+
+        fig = Figure(figsize=(12, 6), tight_layout=True)
+        ax1 = fig.add_subplot(1, 2, 1)
+        ax2 = fig.add_subplot(1, 2, 2)
+
+        ops = ['Position', 'Velocity', 'Neighborhood', 'Evaluation']
+        keys = ['position_update_times', 'velocity_update_times', 'neighborhood_update_times', 'evaluation_times']
+        avgs = []
+        for k in keys:
+            v = metrics.get(k, []) or []
+            avgs.append(float(np.mean(v)) if len(v) > 0 else 0.0)
+
+        if any(t > 0 for t in avgs):
+            bars = ax1.bar(ops, avgs, alpha=0.7, color=['#3498db', '#9b59b6', '#f1c40f', '#e67e22'])
+            ax1.set_title('Average Operation Times')
+            ax1.set_ylabel('Time (s)')
+            ax1.tick_params(axis='x', rotation=20)
+            for bar, val in zip(bars, avgs):
+                if val > 0:
+                    ax1.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.001, f'{val:.4f}s',
+                            ha='center', va='bottom', fontsize=9)
+        else:
+            ax1.text(0.5, 0.5, 'No timing data available', ha='center', va='center', transform=ax1.transAxes)
+
+        gen_times = metrics.get('generation_times', []) or []
+        if gen_times:
+            gens = range(1, len(gen_times) + 1)
+            ax2.plot(gens, gen_times, 'g-', marker='o', linewidth=2)
+            ax2.set_title('Iteration Time Trend')
+            ax2.set_xlabel('Iteration')
+            ax2.set_ylabel('Time (s)')
+            ax2.grid(True, alpha=0.3)
+            if len(gen_times) > 1:
+                z = np.polyfit(list(gens), gen_times, 1)
+                p = np.poly1d(z)
+                ax2.plot(gens, p(gens), 'r--', alpha=0.8, label='Trend')
+                ax2.legend()
+        else:
+            ax2.text(0.5, 0.5, 'No iteration timing data', ha='center', va='center', transform=ax2.transAxes)
+
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar(canvas, None)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+
+    def create_pso_rates_plot(self, tab_widget, run_data):
+        """Create rates evolution plot for PSO (w, c1, c2 over iterations)."""
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import numpy as np
+            from computational_metrics_new import ensure_all_visualizations_visible
+
+            fig = Figure(figsize=(8, 5), tight_layout=True)
+            ax = fig.add_subplot(111)
+
+            metrics = run_data.get('benchmark_metrics', {}) if isinstance(run_data.get('benchmark_metrics'), dict) else {}
+            rates_hist = metrics.get('rates_history', []) or []
+
+            if isinstance(rates_hist, list) and rates_hist:
+                iters = [h.get('generation', i + 1) for i, h in enumerate(rates_hist)]
+                w_vals = [h.get('w') for h in rates_hist if isinstance(h, dict)]
+                c1_vals = [h.get('c1') for h in rates_hist if isinstance(h, dict)]
+                c2_vals = [h.get('c2') for h in rates_hist if isinstance(h, dict)]
+
+                if w_vals:
+                    ax.plot(iters[:len(w_vals)], w_vals, label='w (inertia)', linewidth=2)
+                if c1_vals:
+                    ax.plot(iters[:len(c1_vals)], c1_vals, label='c1 (cognitive)', linewidth=2)
+                if c2_vals:
+                    ax.plot(iters[:len(c2_vals)], c2_vals, label='c2 (social)', linewidth=2)
+
+                ax.set_title('PSO Rates Evolution', fontsize=14)
+                ax.set_xlabel('Iteration', fontsize=12)
+                ax.set_ylabel('Value', fontsize=12)
+                ax.grid(True, linestyle='--', alpha=0.7)
+                ax.legend(loc='best')
+            else:
+                ax.text(0.5, 0.5, 'No rates history available', ha='center', va='center', transform=ax.transAxes)
+
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, tab_widget)
+            tab_widget.layout().addWidget(toolbar)
+            tab_widget.layout().addWidget(canvas)
+            ensure_all_visualizations_visible(tab_widget)
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO rates plot: {str(e)}\n{traceback.format_exc()}")
+
+    def create_pso_ml_bandit_plots(self, layout, run_data, metrics):
+        """Create ML bandit controller plots analogous to GA."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        import numpy as np
+
+        fig = Figure(figsize=(12, 8), tight_layout=True)
+        ax1 = fig.add_subplot(2, 2, 1)
+        ax2 = fig.add_subplot(2, 2, 2)
+        ax3 = fig.add_subplot(2, 1, 2)
+
+        ml_hist = metrics.get('ml_controller_history', []) or []
+        rates_hist = metrics.get('rates_history', []) or []
+        pop_hist = metrics.get('pop_size_history', []) or []
+
+        if ml_hist:
+            gens = [r.get('generation', i+1) for i, r in enumerate(ml_hist)]
+            rewards = [r.get('reward', 0.0) for r in ml_hist]
+            ax1.plot(gens, rewards, 'm-', marker='o', linewidth=2)
+            ax1.set_title('Bandit Reward per Iteration')
+            ax1.set_xlabel('Iteration')
+            ax1.set_ylabel('Reward')
+            ax1.grid(True, alpha=0.3)
+            if len(rewards) >= 5:
+                k = 5
+                ma = np.convolve(rewards, np.ones(k)/k, mode='valid')
+                ax1.plot(gens[k-1:], ma, 'k--', alpha=0.7, label='MA(5)')
+                ax1.legend()
+        else:
+            ax1.text(0.5, 0.5, 'No ML reward history', ha='center', va='center', transform=ax1.transAxes)
+
+        if rates_hist:
+            gens_r = [r.get('generation', i+1) for i, r in enumerate(rates_hist)]
+            wv = [r.get('w', np.nan) for r in rates_hist]
+            c1v = [r.get('c1', np.nan) for r in rates_hist]
+            c2v = [r.get('c2', np.nan) for r in rates_hist]
+            ax2.plot(gens_r, wv, 'b-', marker='o', linewidth=2, label='w')
+            ax2.plot(gens_r, c1v, 'r-', marker='s', linewidth=2, label='c1')
+            ax2.plot(gens_r, c2v, 'g-', marker='^', linewidth=2, label='c2')
+            ax2.set_title('Rates per Iteration')
+            ax2.set_xlabel('Iteration')
+            ax2.set_ylabel('Value')
+            ax2.grid(True, alpha=0.3)
+            ax2.legend()
+        else:
+            ax2.text(0.5, 0.5, 'No rates history', ha='center', va='center', transform=ax2.transAxes)
+
+        if pop_hist:
+            gens_p = range(1, len(pop_hist)+1)
+            ax3.step(list(gens_p), pop_hist, where='mid', color='g')
+            ax3.set_title('Swarm Size per Iteration')
+            ax3.set_xlabel('Iteration')
+            ax3.set_ylabel('Swarm Size')
+            ax3.grid(True, alpha=0.3)
+        else:
+            ax3.text(0.5, 0.5, 'No population history', ha='center', va='center', transform=ax3.transAxes)
+
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar(canvas, None)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+
+    def create_pso_surrogate_plots(self, layout, run_data, metrics):
+        """Create surrogate screening plots analogous to GA."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        import numpy as np
+
+        fig = Figure(figsize=(12, 6), tight_layout=True)
+        ax1 = fig.add_subplot(1, 2, 1)
+        ax2 = fig.add_subplot(1, 2, 2)
+
+        surr_info = metrics.get('surrogate_info', []) or []
+        if surr_info:
+            gens = [d.get('generation', i+1) for i, d in enumerate(surr_info)]
+            pools = [d.get('pool_size', np.nan) for d in surr_info]
+            evals = [d.get('evaluated_count', np.nan) for d in surr_info]
+            ax1.plot(gens, pools, 'c-', marker='o', label='Pool Size')
+            ax1.plot(gens, evals, 'm-', marker='s', label='Evaluated (FRF)')
+            ax1.set_title('Surrogate Pool vs FRF Evaluations')
+            ax1.set_xlabel('Iteration')
+            ax1.set_ylabel('Count')
+            ax1.grid(True, alpha=0.3)
+            ax1.legend()
+
+            explore_frac = run_data.get('benchmark_metrics', {}).get('surrogate_explore_frac', 0.15)
+            exploit = [max(0, int((1.0 - explore_frac) * e)) if e == e else 0 for e in evals]
+            explore = [max(0, int(explore_frac * e)) if e == e else 0 for e in evals]
+            ax2.plot(gens, exploit, 'g-', marker='o', label='Exploit')
+            ax2.plot(gens, explore, 'r-', marker='^', label='Explore')
+            ax2.set_title('Exploit vs Explore (approx)')
+            ax2.set_xlabel('Iteration')
+            ax2.set_ylabel('FRF Evaluations')
+            ax2.grid(True, alpha=0.3)
+            ax2.legend()
+        else:
+            ax1.text(0.5, 0.5, 'No surrogate info available', ha='center', va='center', transform=ax1.transAxes)
+            ax2.text(0.5, 0.5, 'No surrogate info available', ha='center', va='center', transform=ax2.transAxes)
+
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar(canvas, None)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+
+    def create_pso_fitness_components_plot(self, layout, run_data, metrics):
+        """Create a fitness components analysis like GA counterpart."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        import numpy as np
+
+        fig = Figure(figsize=(12, 6), tight_layout=True)
+        ax1 = fig.add_subplot(1, 2, 1)
+        ax2 = fig.add_subplot(1, 2, 2)
+
+        best_solution = run_data.get('best_solution', [])
+        best_fitness = run_data.get('best_fitness', 0.0)
+
+        if best_solution:
+            alpha = 0.01
+            sparsity_penalty = alpha * sum(abs(p) for p in best_solution)
+            primary_objective = max(0.0, best_fitness - sparsity_penalty)
+            components = ['Primary Objective', 'Sparsity Penalty']
+            values = [primary_objective, sparsity_penalty]
+            colors = ['lightblue', 'lightcoral']
+            nz = [(c, v, col) for c, v, col in zip(components, values, colors) if v > 0]
+            if nz:
+                comps, vals, cols = zip(*nz)
+                ax1.pie(vals, labels=comps, colors=cols, autopct='%1.1f%%', startangle=90)
+                ax1.set_title('Fitness Components Breakdown')
+            else:
+                ax1.text(0.5, 0.5, 'No fitness components to display', ha='center', va='center', transform=ax1.transAxes)
+        else:
+            ax1.text(0.5, 0.5, 'No fitness data available', ha='center', va='center', transform=ax1.transAxes)
+
+        if best_solution and 'parameter_names' in run_data:
+            param_names = run_data['parameter_names']
+            pairs = [(n, v) for n, v in zip(param_names, best_solution) if abs(v) > 1e-6]
+            if pairs:
+                fig.set_size_inches(12, max(6, 0.4 * len(pairs)))
+                names, vals = zip(*pairs)
+                y = range(len(names))
+                bars = ax2.barh(y, vals, alpha=0.7, color='green')
+                ax2.set_yticks(y)
+                ax2.set_yticklabels(names)
+                ax2.set_xlabel('Parameter Value')
+                ax2.set_title('Active Parameters in Best Solution')
+                for i, (bar, val) in enumerate(zip(bars, vals)):
+                    ax2.text(val + 0.01 * max(vals) if val >= 0 else val - 0.01 * max(vals), i, f'{val:.4f}',
+                            va='center', ha='left' if val >= 0 else 'right')
+            else:
+                ax2.text(0.5, 0.5, 'No active parameters found', ha='center', va='center', transform=ax2.transAxes)
+        else:
+            ax2.text(0.5, 0.5, 'No parameter data available', ha='center', va='center', transform=ax2.transAxes)
+
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar(canvas, None)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+
+    def create_pso_generation_breakdown_plot(self, tab_widget, run_data):
+        """Create per-iteration stacked timing breakdown plot using PSO metrics."""
+        try:
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+            import numpy as np
+            from computational_metrics_new import ensure_all_visualizations_visible
+
+            metrics = run_data.get('benchmark_metrics', {}) if isinstance(run_data.get('benchmark_metrics'), dict) else {}
+            eval_t = metrics.get('evaluation_times', []) or []
+            neigh_t = metrics.get('neighborhood_update_times', []) or []
+            vel_t = metrics.get('velocity_update_times', []) or []
+            pos_t = metrics.get('position_update_times', []) or []
+
+            fig = Figure(figsize=(8, 5), tight_layout=True)
+            ax = fig.add_subplot(111)
+
+            if any([eval_t, neigh_t, vel_t, pos_t]):
+                max_len = max(len(eval_t), len(neigh_t), len(vel_t), len(pos_t))
+                def pad(arr):
+                    return list(arr) + [0.0] * (max_len - len(arr))
+                eval_t, neigh_t, vel_t, pos_t = map(pad, [eval_t, neigh_t, vel_t, pos_t])
+
+                iters = np.arange(max_len)
+                p0 = np.array(pos_t)
+                p1 = p0 + np.array(vel_t)
+                p2 = p1 + np.array(neigh_t)
+                p3 = p2 + np.array(eval_t)
+
+                ax.fill_between(iters, 0, p0, alpha=0.7, label='Position Update')
+                ax.fill_between(iters, p0, p1, alpha=0.7, label='Velocity Update')
+                ax.fill_between(iters, p1, p2, alpha=0.7, label='Neighborhood Update')
+                ax.fill_between(iters, p2, p3, alpha=0.7, label='Fitness Evaluation')
+
+                ax.set_title('Iteration Time Breakdown', fontsize=14)
+                ax.set_xlabel('Iteration', fontsize=12)
+                ax.set_ylabel('Time (s)', fontsize=12)
+                ax.grid(True, linestyle='--', alpha=0.7)
+                ax.legend(loc='upper right')
+            else:
+                ax.text(0.5, 0.5, 'No per-iteration timing data available', ha='center', va='center', transform=ax.transAxes)
+
+            canvas = FigureCanvasQTAgg(fig)
+            toolbar = NavigationToolbar(canvas, tab_widget)
+            tab_widget.layout().addWidget(toolbar)
+            tab_widget.layout().addWidget(canvas)
+            ensure_all_visualizations_visible(tab_widget)
+        except Exception as e:
+            import traceback
+            print(f"Error creating PSO iteration breakdown plot: {str(e)}\n{traceback.format_exc()}")
 
     # Update existing visualization methods to match GA mixin
     def pso_extract_parameter_data_from_runs(self, df):
