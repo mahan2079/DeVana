@@ -144,16 +144,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QMutex, QWaitCondition, QTimer
 from PyQt5.QtGui import QIcon, QPalette, QColor, QFont
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-
 from modules.FRF import frf
-from modules.sobol_sensitivity import (
-    perform_sobol_analysis,
-    calculate_and_save_errors,
-    format_parameter_name
-)
 
 import random
 from deap import base, creator, tools
@@ -187,7 +178,7 @@ def safe_deap_operation(func):
                         # Remove Individual attribute if it exists
                         if hasattr(creator, "Individual"):
                             delattr(creator, "Individual")
-                    except:
+                    except Exception:
                         # If cleanup fails, continue to next retry attempt
                         pass
                 else:
@@ -572,12 +563,12 @@ class GAWorker(QThread):
         if hasattr(creator, "FitnessMin"):      # If we have a fitness type defined
             try:
                 delattr(creator, "FitnessMin")  # Remove it
-            except:
+            except Exception:
                 pass                            # Ignore errors if it's already gone
         if hasattr(creator, "Individual"):      # If we have an individual type defined
             try:
                 delattr(creator, "Individual")  # Remove it
-            except:
+            except Exception:
                 pass                            # Ignore errors if it's already gone
         
         # Stop the watchdog timer if it's running
@@ -623,7 +614,7 @@ class GAWorker(QThread):
             pass
 
         if self.adaptive_rates:
-            self.update.emit(f"DEBUG: Adaptive rate parameters:")
+            self.update.emit("DEBUG: Adaptive rate parameters:")
             self.update.emit(f"DEBUG: - Stagnation limit: {self.stagnation_limit}")
             self.update.emit(f"DEBUG: - Crossover range: {self.cxpb_min:.2f} - {self.cxpb_max:.2f}")
             self.update.emit(f"DEBUG: - Mutation range: {self.mutpb_min:.2f} - {self.mutpb_max:.2f}")
@@ -1851,7 +1842,7 @@ class GAWorker(QThread):
                     system_info['cpu_max_freq'] = cpu_freq.max
                     system_info['cpu_min_freq'] = cpu_freq.min
                     system_info['cpu_current_freq'] = cpu_freq.current
-            except:
+            except Exception:
                 pass
                 
             return system_info
