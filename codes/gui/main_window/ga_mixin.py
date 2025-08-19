@@ -21,6 +21,8 @@ import time
 from computational_metrics_new import visualize_all_metrics, ensure_all_visualizations_visible
 from modules.plotwindow import PlotWindow
 from workers.GAWorker import GAWorker
+from modules.FRF import frf
+from scipy.stats import qmc
 
 class GAOptimizationMixin:
     def create_ga_tab(self):
@@ -248,6 +250,112 @@ class GAOptimizationMixin:
         self.surr_explore_frac_box.setValue(0.15)
         self.surr_explore_frac_box.setToolTip("Fraction of FRF budget reserved for exploratory/uncertain candidates")
         ga_hyper_layout.addRow("Surrogate Explore Fraction:", self.surr_explore_frac_box)
+
+        # Seeding method selection
+        self.seeding_method_combo = QComboBox()
+        self.seeding_method_combo.addItems(["Random", "Sobol", "Latin Hypercube", "Neural (UCB/EI)"])
+        self.seeding_method_combo.setCurrentIndex(0)
+        self.seeding_method_combo.setToolTip("Choose initial population seeding method: Random, Sobol, Latin Hypercube, or Neural surrogate with acquisition (UCB/EI)")
+        ga_hyper_layout.addRow("Seeding Method:", self.seeding_method_combo)
+
+        # Neural seeding options (collapsible)
+        self.neural_options_group = QGroupBox("Neural Seeding Options")
+        self.neural_options_group.setCheckable(True)
+        self.neural_options_group.setChecked(False)
+        neural_form = QFormLayout(self.neural_options_group)
+
+        self.neural_acq_combo = QComboBox()
+        self.neural_acq_combo.addItems(["UCB", "EI"])
+        self.neural_acq_combo.setCurrentIndex(0)
+        neural_form.addRow("Acquisition:", self.neural_acq_combo)
+
+        self.neural_beta_min = QDoubleSpinBox()
+        self.neural_beta_min.setRange(0.0, 10.0)
+        self.neural_beta_min.setDecimals(2)
+        self.neural_beta_min.setSingleStep(0.1)
+        self.neural_beta_min.setValue(1.0)
+        self.neural_beta_max = QDoubleSpinBox()
+        self.neural_beta_max.setRange(0.0, 10.0)
+        self.neural_beta_max.setDecimals(2)
+        self.neural_beta_max.setSingleStep(0.1)
+        self.neural_beta_max.setValue(2.5)
+        beta_row = QWidget(); beta_layout = QHBoxLayout(beta_row); beta_layout.setContentsMargins(0,0,0,0)
+        beta_layout.addWidget(QLabel("Min:")); beta_layout.addWidget(self.neural_beta_min)
+        beta_layout.addWidget(QLabel("Max:")); beta_layout.addWidget(self.neural_beta_max)
+        neural_form.addRow("β (UCB range):", beta_row)
+
+        self.neural_eps = QDoubleSpinBox()
+        self.neural_eps.setRange(0.0, 0.9)
+        self.neural_eps.setSingleStep(0.05)
+        self.neural_eps.setValue(0.1)
+        neural_form.addRow("Exploration fraction ε:", self.neural_eps)
+
+        self.neural_pool_mult = QDoubleSpinBox()
+        self.neural_pool_mult.setRange(1.0, 20.0)
+        self.neural_pool_mult.setSingleStep(0.5)
+        self.neural_pool_mult.setValue(3.0)
+        neural_form.addRow("Pool size × pop:", self.neural_pool_mult)
+
+        self.neural_ensemble = QSpinBox()
+        self.neural_ensemble.setRange(1, 9)
+        self.neural_ensemble.setValue(3)
+        neural_form.addRow("Ensemble size:", self.neural_ensemble)
+
+        self.neural_layers = QSpinBox()
+        self.neural_layers.setRange(0, 5)
+        self.neural_layers.setValue(2)
+        neural_form.addRow("Hidden layers:", self.neural_layers)
+
+        self.neural_hidden = QSpinBox()
+        self.neural_hidden.setRange(8, 1024)
+        self.neural_hidden.setValue(96)
+        neural_form.addRow("Hidden units:", self.neural_hidden)
+
+        self.neural_dropout = QDoubleSpinBox()
+        self.neural_dropout.setRange(0.0, 0.9)
+        self.neural_dropout.setSingleStep(0.05)
+        self.neural_dropout.setValue(0.1)
+        neural_form.addRow("Dropout:", self.neural_dropout)
+
+        self.neural_wd = QDoubleSpinBox()
+        self.neural_wd.setRange(0.0, 1.0)
+        self.neural_wd.setDecimals(6)
+        self.neural_wd.setValue(0.0001)
+        neural_form.addRow("Weight decay:", self.neural_wd)
+
+        self.neural_epochs = QSpinBox()
+        self.neural_epochs.setRange(1, 100)
+        self.neural_epochs.setValue(8)
+        neural_form.addRow("Epochs/gen:", self.neural_epochs)
+
+        self.neural_time_cap = QSpinBox()
+        self.neural_time_cap.setRange(50, 10000)
+        self.neural_time_cap.setValue(750)
+        neural_form.addRow("Train time cap [ms]:", self.neural_time_cap)
+
+        self.neural_grad_refine_chk = QCheckBox("Gradient refinement of acquisitions")
+        self.neural_grad_refine_chk.setChecked(False)
+        self.neural_grad_steps = QSpinBox()
+        self.neural_grad_steps.setRange(0, 50)
+        self.neural_grad_steps.setValue(0)
+        grad_row = QWidget(); grad_layout = QHBoxLayout(grad_row); grad_layout.setContentsMargins(0,0,0,0)
+        grad_layout.addWidget(self.neural_grad_refine_chk)
+        grad_layout.addWidget(QLabel("Steps:"))
+        grad_layout.addWidget(self.neural_grad_steps)
+        neural_form.addRow("Grad refine:", grad_row)
+
+        self.neural_device_combo = QComboBox()
+        self.neural_device_combo.addItems(["cpu", "cuda"])
+        self.neural_device_combo.setCurrentIndex(0)
+        neural_form.addRow("Device:", self.neural_device_combo)
+
+        ga_hyper_layout.addRow(self.neural_options_group)
+
+        # Auto-toggle group based on selection
+        def _toggle_neural_group():
+            self.neural_options_group.setChecked(self.seeding_method_combo.currentText().lower().startswith("neural"))
+        self.seeding_method_combo.currentTextChanged.connect(_toggle_neural_group)
+        _toggle_neural_group()
 
         # Add a small Run GA button in the hyperparameters sub-tab
         self.hyper_run_ga_button = QPushButton("Run GA")
@@ -594,11 +702,185 @@ class GAOptimizationMixin:
         # Initialize empty benchmark data storage
         self.ga_benchmark_data = []
 
+        # -------------------- Sub-tab 5: Random Validation --------------------
+        ga_validation_tab = QWidget()
+        ga_validation_layout = QVBoxLayout(ga_validation_tab)
+
+        # Split controls and views
+        rv_splitter = QSplitter(Qt.Horizontal)
+
+        # Left: Controls
+        rv_controls_widget = QWidget()
+        rv_controls_layout = QFormLayout(rv_controls_widget)
+
+        self.rv_num_samples_box = QSpinBox()
+        self.rv_num_samples_box.setRange(10, 200000)
+        self.rv_num_samples_box.setValue(500)
+        self.rv_num_samples_box.setToolTip("Number of random samples to evaluate")
+
+        self.rv_method_combo = QComboBox()
+        self.rv_method_combo.addItems(["Random", "Sobol", "Latin Hypercube"])
+        self.rv_method_combo.setCurrentIndex(0)
+        self.rv_method_combo.setToolTip("Sampling method for generating populations within bounds")
+
+        self.rv_seed_box = QSpinBox()
+        self.rv_seed_box.setRange(-1, 2_147_483_647)
+        self.rv_seed_box.setValue(-1)
+        self.rv_seed_box.setToolTip(
+            "<b>Random Seed</b><br>"
+            "Controls reproducibility of the sampled population.<br>"
+            "- Set a non-negative integer to reproduce the exact same samples every run.<br>"
+            "- Set to -1 to disable seeding (each run generates a new random population).<br>"
+            "This applies to all sampling methods: Random (PRNG), Sobol (scrambled), and LHS."
+        )
+        self.rv_seed_box.setWhatsThis(self.rv_seed_box.toolTip())
+
+        self.rv_alpha_box = QDoubleSpinBox()
+        self.rv_alpha_box.setRange(0.0, 10.0)
+        self.rv_alpha_box.setDecimals(4)
+        self.rv_alpha_box.setSingleStep(0.01)
+        self.rv_alpha_box.setValue(self.ga_alpha_box.value())
+        self.rv_alpha_box.setToolTip(
+            "<b>Alpha (sparsity penalty)</b><br>"
+            "Weight for penalizing large parameter magnitudes in the fitness function.<br>"
+            "Fitness = |singular_response - 1| + α · Σ|params| + (percentage_error_sum)/1000.<br>"
+            "- Higher α favors simpler (smaller-magnitude) parameter sets.<br>"
+            "- Set α = 0 to disable sparsity penalty.<br>"
+            "Uses the same definition as in GA optimization."
+        )
+        self.rv_alpha_box.setWhatsThis(self.rv_alpha_box.toolTip())
+
+        self.rv_respect_fixed_chk = QCheckBox("Respect fixed parameters")
+        self.rv_respect_fixed_chk.setChecked(True)
+        self.rv_respect_fixed_chk.setToolTip(
+            "<b>Respect Fixed Parameters</b><br>"
+            "When enabled, any parameter marked <i>Fixed</i> in the DVA Parameters tab will be held at its fixed value during sampling.<br>"
+            "When disabled, sampling ignores the <i>Fixed</i> flags and uses each parameter's Lower/Upper bounds instead (even if currently fixed).<br>"
+            "Zero-width bounds still produce a constant value."
+        )
+        self.rv_respect_fixed_chk.setWhatsThis(self.rv_respect_fixed_chk.toolTip())
+
+        self.rv_bins_box = QSpinBox()
+        self.rv_bins_box.setRange(5, 200)
+        self.rv_bins_box.setValue(50)
+        self.rv_bins_box.setToolTip("Histogram bins for visualizations")
+
+        # Action buttons
+        rv_btn_row = QWidget()
+        rv_btn_row_layout = QHBoxLayout(rv_btn_row)
+        rv_btn_row_layout.setContentsMargins(0, 0, 0, 0)
+        self.rv_run_button = QPushButton("Generate & Evaluate")
+        self.rv_run_button.clicked.connect(self.run_random_validation)
+        self.rv_cancel_button = QPushButton("Cancel")
+        self.rv_cancel_button.setEnabled(False)
+        self.rv_cancel_button.clicked.connect(self.cancel_random_validation)
+        self.rv_export_button = QPushButton("Export CSV")
+        self.rv_export_button.setEnabled(False)
+        self.rv_export_button.clicked.connect(self.export_random_validation_results)
+        rv_btn_row_layout.addWidget(self.rv_run_button)
+        rv_btn_row_layout.addWidget(self.rv_cancel_button)
+        rv_btn_row_layout.addWidget(self.rv_export_button)
+
+        self.rv_progress_bar = QProgressBar()
+        self.rv_progress_bar.setRange(0, 100)
+        self.rv_progress_bar.setValue(0)
+
+        rv_controls_layout.addRow("Samples:", self.rv_num_samples_box)
+        rv_controls_layout.addRow("Method:", self.rv_method_combo)
+        rv_controls_layout.addRow("Seed:", self.rv_seed_box)
+        rv_controls_layout.addRow("Alpha:", self.rv_alpha_box)
+        rv_controls_layout.addRow("Respect Fixed:", self.rv_respect_fixed_chk)
+        rv_controls_layout.addRow("Histogram bins:", self.rv_bins_box)
+        rv_controls_layout.addRow("", rv_btn_row)
+        rv_controls_layout.addRow("Progress:", self.rv_progress_bar)
+
+        # Right: Result views
+        rv_views_widget = QWidget()
+        rv_views_layout = QVBoxLayout(rv_views_widget)
+        rv_views_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.rv_tabs = QTabWidget()
+
+        # Summary tab
+        rv_summary_tab = QWidget()
+        rv_summary_layout = QVBoxLayout(rv_summary_tab)
+        self.rv_summary_label = QLabel("No results yet.")
+        self.rv_summary_label.setWordWrap(True)
+        self.rv_success_bar = QProgressBar()
+        self.rv_success_bar.setRange(0, 100)
+        self.rv_success_bar.setFormat("%p% within tolerance")
+        rv_summary_layout.addWidget(self.rv_summary_label)
+        rv_summary_layout.addWidget(self.rv_success_bar)
+
+        # Fitness distribution tab
+        rv_fitdist_tab = QWidget()
+        rv_fitdist_layout = QVBoxLayout(rv_fitdist_tab)
+        self.rv_fitdist_plot = QWidget()
+        rv_fitdist_layout.addWidget(self.rv_fitdist_plot)
+
+        # Component distributions tab
+        rv_comp_tab = QWidget()
+        rv_comp_layout = QVBoxLayout(rv_comp_tab)
+        self.rv_comp_plot = QWidget()
+        rv_comp_layout.addWidget(self.rv_comp_plot)
+
+        # Correlation heatmap tab
+        rv_corr_tab = QWidget()
+        rv_corr_layout = QVBoxLayout(rv_corr_tab)
+        self.rv_corr_plot = QWidget()
+        rv_corr_layout.addWidget(self.rv_corr_plot)
+
+        # Scatter tab (parameter vs fitness)
+        rv_scatter_tab = QWidget()
+        rv_scatter_layout = QVBoxLayout(rv_scatter_tab)
+        rv_scatter_layout.setContentsMargins(0, 0, 0, 0)
+        scatter_ctrl_row = QWidget()
+        scatter_ctrl_layout = QHBoxLayout(scatter_ctrl_row)
+        scatter_ctrl_layout.setContentsMargins(0, 0, 0, 0)
+        scatter_ctrl_layout.addWidget(QLabel("Parameter:"))
+        self.rv_scatter_param_combo = QComboBox()
+        self.rv_scatter_param_combo.currentTextChanged.connect(self.update_random_validation_scatter)
+        scatter_ctrl_layout.addWidget(self.rv_scatter_param_combo)
+        scatter_ctrl_layout.addStretch()
+        self.rv_scatter_plot = QWidget()
+        rv_scatter_layout.addWidget(scatter_ctrl_row)
+        rv_scatter_layout.addWidget(self.rv_scatter_plot)
+
+        # Table tab
+        rv_table_tab = QWidget()
+        rv_table_layout = QVBoxLayout(rv_table_tab)
+        self.rv_table = QTableWidget()
+        self.rv_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.rv_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        rv_table_layout.addWidget(self.rv_table)
+
+        # Add tabs
+        self.rv_tabs.addTab(rv_summary_tab, "Summary")
+        self.rv_tabs.addTab(rv_fitdist_tab, "Fitness Distribution")
+        self.rv_tabs.addTab(rv_comp_tab, "Components")
+        self.rv_tabs.addTab(rv_corr_tab, "Correlation")
+        self.rv_tabs.addTab(rv_scatter_tab, "Scatter")
+        self.rv_tabs.addTab(rv_table_tab, "Table")
+
+        rv_views_layout.addWidget(self.rv_tabs)
+
+        rv_splitter.addWidget(rv_controls_widget)
+        rv_splitter.addWidget(rv_views_widget)
+        rv_splitter.setStretchFactor(0, 0)
+        rv_splitter.setStretchFactor(1, 1)
+
+        ga_validation_layout.addWidget(rv_splitter)
+
+        # Keep references
+        self.rv_results_df = None
+        self._rv_worker = None
+
         # Add all sub-tabs to the GA tab widget
         self.ga_sub_tabs.addTab(ga_hyper_tab, "GA Settings")
         self.ga_sub_tabs.addTab(ga_param_tab, "DVA Parameters")
         self.ga_sub_tabs.addTab(ga_results_tab, "Results")
         self.ga_sub_tabs.addTab(ga_benchmark_tab, "GA Benchmarking")
+        self.ga_sub_tabs.addTab(ga_validation_tab, "Random Validation")
 
         # Add the GA sub-tabs widget to the main GA tab layout
         layout.addWidget(self.ga_sub_tabs)
@@ -656,6 +938,499 @@ class GAOptimizationMixin:
         else:
             self.ga_cxpb_box.setToolTip("Crossover probability")
             self.ga_mutpb_box.setToolTip("Mutation probability")
+
+    # -------------------- Random Validation: worker and helpers --------------------
+    class RandomValidationWorker(QThread):
+        finished = pyqtSignal(object)
+        error = pyqtSignal(str)
+        progress = pyqtSignal(int)
+
+        def __init__(self,
+                     main_params,
+                     omega_start,
+                     omega_end,
+                     omega_points,
+                     target_values,
+                     weights,
+                     param_names,
+                     bounds,
+                     fixed_flags,
+                     fixed_values,
+                     alpha,
+                     method,
+                     num_samples,
+                     seed,
+                     respect_fixed):
+            super().__init__()
+            self.main_params = main_params
+            self.omega_start = omega_start
+            self.omega_end = omega_end
+            self.omega_points = omega_points
+            self.target_values = target_values
+            self.weights = weights
+            self.param_names = param_names
+            self.bounds = bounds
+            self.fixed_flags = fixed_flags
+            self.fixed_values = fixed_values
+            self.alpha = alpha
+            self.method = method
+            self.num_samples = num_samples
+            self.seed = seed if seed is not None and seed >= 0 else None
+            self.respect_fixed = respect_fixed
+            self.abort = False
+
+        def _sample_matrix(self):
+            dim = len(self.param_names)
+            lower = np.array([low for (low, _high) in self.bounds], dtype=float)
+            upper = np.array([high for (_low, high) in self.bounds], dtype=float)
+
+            # Ensure bounds are ordered
+            swap_mask = upper < lower
+            if np.any(swap_mask):
+                tmp = lower[swap_mask].copy()
+                lower[swap_mask] = upper[swap_mask]
+                upper[swap_mask] = tmp
+
+            # Respect fixed bounds by collapsing the interval
+            if self.respect_fixed:
+                for j, is_fixed in enumerate(self.fixed_flags):
+                    if is_fixed:
+                        val = self.fixed_values.get(j, lower[j])
+                        lower[j] = val
+                        upper[j] = val
+
+            # Generate unit-cube samples
+            if self.method == "Random":
+                rng = np.random.default_rng(self.seed)
+                u = rng.random((self.num_samples, dim))
+            elif self.method == "Sobol":
+                engine = qmc.Sobol(d=dim, scramble=True, seed=self.seed)
+                m = int(np.ceil(np.log2(max(1, self.num_samples))))
+                u_full = engine.random_base2(m=m)
+                u = u_full[:self.num_samples]
+            else:
+                engine = qmc.LatinHypercube(d=dim, seed=self.seed)
+                u = engine.random(n=self.num_samples)
+
+            # Manually scale to [lower, upper] to allow zero-width intervals
+            width = (upper - lower)
+            samples = lower + u * width
+            return samples
+
+        def run(self):
+            try:
+                X = self._sample_matrix()
+                n = X.shape[0]
+                rows = []
+                main_params = self.main_params
+                omega_start = self.omega_start
+                omega_end = self.omega_end
+                omega_points = self.omega_points
+                target_values = self.target_values
+                weights = self.weights
+                alpha = self.alpha
+
+                for i in range(n):
+                    if self.abort:
+                        break
+                    dva_params = tuple(float(v) for v in X[i, :])
+                    try:
+                        res = frf(
+                            main_system_parameters=main_params,
+                            dva_parameters=dva_params,
+                            omega_start=omega_start,
+                            omega_end=omega_end,
+                            omega_points=omega_points,
+                            target_values_mass1=target_values['mass_1'],
+                            weights_mass1=weights['mass_1'],
+                            target_values_mass2=target_values['mass_2'],
+                            weights_mass2=weights['mass_2'],
+                            target_values_mass3=target_values['mass_3'],
+                            weights_mass3=weights['mass_3'],
+                            target_values_mass4=target_values['mass_4'],
+                            weights_mass4=weights['mass_4'],
+                            target_values_mass5=target_values['mass_5'],
+                            weights_mass5=weights['mass_5'],
+                            plot_figure=False,
+                            show_peaks=False,
+                            show_slopes=False
+                        )
+                        singular = res.get('singular_response', np.nan)
+                        if not np.isfinite(singular):
+                            fitness = 1e6
+                            primary = np.nan
+                            sparsity = np.nan
+                            perror_sum = np.nan
+                        else:
+                            primary = abs(float(singular) - 1.0)
+                            sparsity = float(alpha) * float(np.sum(np.abs(X[i, :])))
+                            perror_sum = 0.0
+                            if isinstance(res.get('percentage_differences', None), dict):
+                                for _mk, pdiffs in res['percentage_differences'].items():
+                                    for _crit, p in pdiffs.items():
+                                        perror_sum += abs(float(p))
+                            fitness = primary + sparsity + perror_sum / 1000.0
+                    except Exception:
+                        fitness = 1e6
+                        primary = np.nan
+                        sparsity = np.nan
+                        perror_sum = np.nan
+
+                    row = {name: X[i, j] for j, name in enumerate(self.param_names)}
+                    row.update({
+                        'primary_objective': primary,
+                        'sparsity_penalty': sparsity,
+                        'percentage_error_sum': perror_sum,
+                        'fitness': fitness,
+                    })
+                    rows.append(row)
+                    if (i + 1) % max(1, n // 100) == 0:
+                        self.progress.emit(int((i + 1) * 100 / n))
+
+                df = pd.DataFrame(rows)
+                self.finished.emit(df)
+            except Exception as e:
+                self.error.emit(str(e))
+
+        def cancel(self):
+            self.abort = True
+
+    def _get_current_ga_param_config(self):
+        param_names = [
+            *[f"beta_{i}" for i in range(1, 16)],
+            *[f"lambda_{i}" for i in range(1, 16)],
+            *[f"mu_{i}" for i in range(1, 4)],
+            *[f"nu_{i}" for i in range(1, 16)],
+        ]
+        bounds = []
+        fixed_flags = []
+        fixed_values = {}
+        name_to_row = {self.ga_param_table.item(r, 0).text(): r for r in range(self.ga_param_table.rowCount())}
+        for j, pname in enumerate(param_names):
+            if pname not in name_to_row:
+                bounds.append((0.0, 0.0))
+                fixed_flags.append(True)
+                fixed_values[j] = 0.0
+                continue
+            r = name_to_row[pname]
+            fixed_chk = self.ga_param_table.cellWidget(r, 1)
+            is_fixed = bool(fixed_chk.isChecked()) if fixed_chk is not None else False
+            if is_fixed:
+                fx_w = self.ga_param_table.cellWidget(r, 2)
+                fx_val = fx_w.value() if fx_w is not None else 0.0
+                bounds.append((fx_val, fx_val))
+                fixed_flags.append(True)
+                fixed_values[j] = fx_val
+            else:
+                lo_w = self.ga_param_table.cellWidget(r, 3)
+                hi_w = self.ga_param_table.cellWidget(r, 4)
+                low = float(lo_w.value() if lo_w is not None else 0.0)
+                high = float(hi_w.value() if hi_w is not None else low)
+                # If equal, keep as-is (zero-width interval is allowed)
+                # If inverted, swap to maintain low <= high
+                if high < low:
+                    low, high = high, low
+                bounds.append((low, high))
+                fixed_flags.append(False)
+        return param_names, bounds, fixed_flags, fixed_values
+
+    def _render_figure_into_widget(self, target_widget, fig, include_toolbar=True):
+        layout = target_widget.layout()
+        if layout is None:
+            layout = QVBoxLayout(target_widget)
+            layout.setContentsMargins(0, 0, 0, 0)
+        else:
+            while layout.count():
+                item = layout.takeAt(0)
+                w = item.widget()
+                if w is not None:
+                    w.setParent(None)
+        canvas = FigureCanvasQTAgg(fig)
+        if include_toolbar:
+            toolbar = NavigationToolbar(canvas, target_widget)
+            layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+
+    def run_random_validation(self):
+        if hasattr(self, '_rv_worker') and self._rv_worker is not None and self._rv_worker.isRunning():
+            QMessageBox.information(self, "Random Validation", "Validation is already running.")
+            return
+        if self.omega_start_box.value() >= self.omega_end_box.value():
+            QMessageBox.warning(self, "Input Error", "Ω Start must be less than Ω End.")
+            return
+        try:
+            target_values, weights = self.get_target_values_weights()
+        except Exception:
+            QMessageBox.warning(self, "Input Error", "Targets & Weights are not properly defined.")
+            return
+
+        main_params = (
+            self.mu_box.value(),
+            *[b.value() for b in self.landa_boxes],
+            *[b.value() for b in self.nu_boxes],
+            self.a_low_box.value(),
+            self.a_up_box.value(),
+            self.f_1_box.value(),
+            self.f_2_box.value(),
+            self.omega_dc_box.value(),
+            self.zeta_dc_box.value(),
+        )
+
+        param_names, bounds, fixed_flags, fixed_values = self._get_current_ga_param_config()
+
+        num_samples = self.rv_num_samples_box.value()
+        method = self.rv_method_combo.currentText()
+        seed = self.rv_seed_box.value()
+        alpha = self.rv_alpha_box.value()
+        respect_fixed = self.rv_respect_fixed_chk.isChecked()
+
+        self._rv_worker = self.RandomValidationWorker(
+            main_params=main_params,
+            omega_start=self.omega_start_box.value(),
+            omega_end=self.omega_end_box.value(),
+            omega_points=self.omega_points_box.value(),
+            target_values=target_values,
+            weights=weights,
+            param_names=param_names,
+            bounds=bounds,
+            fixed_flags=fixed_flags,
+            fixed_values=fixed_values,
+            alpha=alpha,
+            method=method,
+            num_samples=num_samples,
+            seed=seed,
+            respect_fixed=respect_fixed,
+        )
+        self._rv_worker.progress.connect(self.rv_progress_bar.setValue)
+        self._rv_worker.error.connect(lambda msg: QMessageBox.critical(self, "Random Validation Error", msg))
+        self._rv_worker.finished.connect(self._handle_random_validation_finished)
+        # Store context for summary
+        self._rv_context = {
+            'method': method,
+            'seed': seed,
+            'alpha': alpha,
+            'respect_fixed': respect_fixed,
+            'tol': self.ga_tol_box.value(),
+            'param_names': param_names,
+            'fixed_flags': fixed_flags,
+            'num_samples': num_samples,
+            'start_time': time.time(),
+        }
+        self.rv_run_button.setEnabled(False)
+        self.rv_cancel_button.setEnabled(True)
+        self.rv_export_button.setEnabled(False)
+        self.rv_summary_label.setText("Running validation...")
+        self.rv_progress_bar.setValue(0)
+        self._rv_worker.start()
+
+    def cancel_random_validation(self):
+        if hasattr(self, '_rv_worker') and self._rv_worker is not None and self._rv_worker.isRunning():
+            self._rv_worker.cancel()
+            self.rv_summary_label.setText("Cancelling...")
+
+    def _handle_random_validation_finished(self, df):
+        self._rv_worker = None
+        if df is None or len(df) == 0:
+            self.rv_summary_label.setText("No results produced.")
+            self.rv_run_button.setEnabled(True)
+            self.rv_cancel_button.setEnabled(False)
+            return
+        self.rv_results_df = df
+        tol = self.ga_tol_box.value()
+        df['pass'] = df['fitness'].apply(lambda v: bool(np.isfinite(v) and v <= tol))
+        pct = float(100.0 * df['pass'].mean()) if len(df) else 0.0
+        self.rv_success_bar.setValue(int(round(pct)))
+        # Build expanded summary
+        method = (self._rv_context or {}).get('method', 'Unknown')
+        seed = (self._rv_context or {}).get('seed', -1)
+        alpha = (self._rv_context or {}).get('alpha', self.rv_alpha_box.value())
+        respect_fixed = (self._rv_context or {}).get('respect_fixed', True)
+        fixed_flags = (self._rv_context or {}).get('fixed_flags', [])
+        n_total_params = len(fixed_flags) if fixed_flags else len([c for c in df.columns if c.startswith(('beta_','lambda_','mu_','nu_'))])
+        n_fixed = int(sum(bool(x) for x in fixed_flags)) if fixed_flags else 0
+        n_varied = max(0, n_total_params - n_fixed)
+        start_time = (self._rv_context or {}).get('start_time', None)
+        elapsed = (time.time() - start_time) if start_time else None
+
+        fitness_series = df['fitness']
+        mean_v = float(fitness_series.mean())
+        median_v = float(fitness_series.median())
+        std_v = float(fitness_series.std())
+        min_v = float(fitness_series.min())
+        max_v = float(fitness_series.max())
+        q05 = float(fitness_series.quantile(0.05))
+        q25 = float(fitness_series.quantile(0.25))
+        q75 = float(fitness_series.quantile(0.75))
+        q95 = float(fitness_series.quantile(0.95))
+        n = len(df)
+        n_pass = int(df['pass'].sum())
+        n_invalid = int((df['fitness'] >= 1e6).sum())
+        n_nan = int(df['fitness'].isna().sum())
+        n_inf = int(np.isinf(df['fitness']).sum())
+
+        p_mean = float(df['primary_objective'].mean())
+        p_std = float(df['primary_objective'].std())
+        s_mean = float(df['sparsity_penalty'].mean())
+        s_std = float(df['sparsity_penalty'].std())
+        e_mean = float(df['percentage_error_sum'].mean())
+        e_std = float(df['percentage_error_sum'].std())
+
+        if mean_v > 1e-12:
+            pct_primary = 100.0 * p_mean / mean_v
+            pct_sparsity = 100.0 * s_mean / mean_v
+            pct_perror = 100.0 * (e_mean / 1000.0) / mean_v
+        else:
+            pct_primary = pct_sparsity = pct_perror = float('nan')
+
+        seed_text = str(seed) if isinstance(seed, (int,)) and seed >= 0 else 'None'
+        elapsed_text = f" | Time: {elapsed:.2f}s" if elapsed is not None else ""
+
+        html = (
+            f"<b>Run Settings</b><br>"
+            f"Samples: {n} | Method: {method} | Seed: {seed_text} | Alpha: {alpha:.4f} | Tolerance: {tol:.6f}{elapsed_text}<br>"
+            f"Respect fixed: {'Yes' if respect_fixed else 'No'} | Varied params: {n_varied} / {n_total_params} (total)<br><br>"
+            f"<b>Fitness Summary</b><br>"
+            f"Mean: {mean_v:.6f} | Median: {median_v:.6f} | Std: {std_v:.6f}<br>"
+            f"Min: {min_v:.6f} | Q05: {q05:.6f} | Q25: {q25:.6f} | Q75: {q75:.6f} | Q95: {q95:.6f} | Max: {max_v:.6f}<br>"
+            f"Within tolerance: {n_pass} / {n} = {pct:.1f}% | Invalid>=1e6: {n_invalid} | NaN: {n_nan} | Inf: {n_inf}<br><br>"
+            f"<b>Component Averages</b><br>"
+            f"Primary: {p_mean:.6f} ± {p_std:.6f} | Sparsity: {s_mean:.6f} ± {s_std:.6f} | %Error sum: {e_mean:.6f} ± {e_std:.6f}<br>"
+            f"Approx. contribution to mean fitness: Primary {pct_primary:.1f}%, Sparsity {pct_sparsity:.1f}%, %Error {(pct_perror):.1f}%"
+        )
+        self.rv_summary_label.setText(html)
+
+        self.rv_scatter_param_combo.blockSignals(True)
+        self.rv_scatter_param_combo.clear()
+        for name in [c for c in df.columns if c.startswith('beta_') or c.startswith('lambda_') or c.startswith('mu_') or c.startswith('nu_')]:
+            self.rv_scatter_param_combo.addItem(name)
+        self.rv_scatter_param_combo.blockSignals(False)
+
+        fig1 = Figure(figsize=(6, 4))
+        ax1 = fig1.add_subplot(111)
+        sns.histplot(df['fitness'], kde=True, bins=self.rv_bins_box.value(), ax=ax1, color='skyblue', edgecolor='darkblue', alpha=0.6)
+        ax1.axvline(self.ga_tol_box.value(), color='magenta', linestyle='--', linewidth=2.0, alpha=0.9, label='Tolerance')
+        ax1.set_title('Fitness Distribution')
+        ax1.set_xlabel('Fitness')
+        ax1.set_ylabel('Frequency')
+        ax1.grid(True, linestyle='--', alpha=0.5)
+        ax1.legend()
+        fig1.tight_layout()
+        self._render_figure_into_widget(self.rv_fitdist_plot, fig1)
+
+        fig2 = Figure(figsize=(10, 3))
+        axes = fig2.subplots(1, 3)
+        comp_cols = ['primary_objective', 'sparsity_penalty', 'percentage_error_sum']
+        titles = ['Primary Objective', 'Sparsity Penalty', 'Percentage Error Sum']
+        for ax, col, title in zip(axes, comp_cols, titles):
+            # Draw histogram bars (green)
+            sns.histplot(
+                df[col],
+                kde=False,
+                bins=max(10, self.rv_bins_box.value() // 2),
+                ax=ax,
+                color='lightgreen',
+                edgecolor='darkgreen',
+                alpha=0.6,
+            )
+            # Overlay KDE curve in purple (separate call to avoid seaborn kwargs issues)
+            try:
+                sns.kdeplot(
+                    df[col].dropna(),
+                    ax=ax,
+                    color='purple',
+                    linewidth=2.0,
+                )
+            except Exception:
+                pass
+            ax.set_title(title)
+            ax.grid(True, linestyle='--', alpha=0.5)
+        fig2.tight_layout()
+        self._render_figure_into_widget(self.rv_comp_plot, fig2)
+
+        try:
+            numeric_cols = [c for c in df.columns if df[c].dtype.kind in 'fc' and c != 'pass']
+            corr = df[numeric_cols].corr()
+            fig3 = Figure(figsize=(6, 5))
+            ax3 = fig3.add_subplot(111)
+            sns.heatmap(corr, cmap='coolwarm', center=0.0, ax=ax3)
+            ax3.set_title('Correlation Heatmap')
+            fig3.tight_layout()
+            self._render_figure_into_widget(self.rv_corr_plot, fig3)
+        except Exception:
+            fig3 = Figure(figsize=(6, 5))
+            ax3 = fig3.add_subplot(111)
+            ax3.text(0.5, 0.5, 'Correlation unavailable', ha='center', va='center')
+            ax3.axis('off')
+            self._render_figure_into_widget(self.rv_corr_plot, fig3)
+
+        self.update_random_validation_scatter()
+
+        cols = [c for c in df.columns if c.startswith('beta_') or c.startswith('lambda_') or c.startswith('mu_') or c.startswith('nu_')] + \
+               ['primary_objective', 'sparsity_penalty', 'percentage_error_sum', 'fitness', 'pass']
+        self.rv_table.setColumnCount(len(cols))
+        self.rv_table.setRowCount(len(df))
+        self.rv_table.setHorizontalHeaderLabels(cols)
+        for i, (_idx, row) in enumerate(df.iterrows()):
+            for j, col in enumerate(cols):
+                val = row[col]
+                if isinstance(val, (int, float, np.floating)):
+                    text = f"{val:.6g}"
+                else:
+                    text = str(val)
+                item = QTableWidgetItem(text)
+                if col == 'fitness':
+                    item.setForeground(QBrush(QColor('darkblue')))
+                if col == 'pass':
+                    item.setText('True' if bool(val) else 'False')
+                self.rv_table.setItem(i, j, item)
+        self.rv_table.resizeColumnsToContents()
+
+        self.rv_run_button.setEnabled(True)
+        self.rv_cancel_button.setEnabled(False)
+        self.rv_export_button.setEnabled(True)
+
+    def update_random_validation_scatter(self):
+        if self.rv_results_df is None or self.rv_results_df.empty:
+            fig = Figure(figsize=(5, 4))
+            ax = fig.add_subplot(111)
+            ax.text(0.5, 0.5, 'No data', ha='center', va='center')
+            ax.axis('off')
+            self._render_figure_into_widget(self.rv_scatter_plot, fig)
+            return
+        param = self.rv_scatter_param_combo.currentText()
+        if not param:
+            param_candidates = [c for c in self.rv_results_df.columns if c.startswith('beta_') or c.startswith('lambda_') or c.startswith('mu_') or c.startswith('nu_')]
+            if not param_candidates:
+                fig = Figure(figsize=(5, 4))
+                ax = fig.add_subplot(111)
+                ax.text(0.5, 0.5, 'No parameters', ha='center', va='center')
+                ax.axis('off')
+                self._render_figure_into_widget(self.rv_scatter_plot, fig)
+                return
+            param = param_candidates[0]
+        df = self.rv_results_df
+        fig = Figure(figsize=(6, 4))
+        ax = fig.add_subplot(111)
+        sns.scatterplot(x=df[param], y=df['fitness'], ax=ax, alpha=0.6, edgecolor=None)
+        ax.axhline(self.ga_tol_box.value(), color='magenta', linestyle='--', linewidth=2.0, alpha=0.9)
+        ax.set_xlabel(param)
+        ax.set_ylabel('Fitness')
+        ax.set_title(f'{param} vs Fitness')
+        ax.grid(True, linestyle='--', alpha=0.5)
+        fig.tight_layout()
+        self._render_figure_into_widget(self.rv_scatter_plot, fig, include_toolbar=False)
+
+    def export_random_validation_results(self):
+        if self.rv_results_df is None or self.rv_results_df.empty:
+            QMessageBox.information(self, "Export", "No results to export.")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Save CSV", os.path.expanduser("~"), "CSV Files (*.csv)")
+        if path:
+            try:
+                self.rv_results_df.to_csv(path, index=False)
+                QMessageBox.information(self, "Export", f"Saved to {path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Error", str(e))
     def toggle_ga_fixed(self, state, row, table=None):
         """Toggle the fixed state of a GA parameter row"""
         if table is None:
@@ -890,7 +1665,29 @@ class GAOptimizationMixin:
             use_surrogate=self.surrogate_checkbox.isChecked(),
             surrogate_pool_factor=self.surr_pool_factor_box.value(),
             surrogate_k=self.surr_k_box.value(),
-            surrogate_explore_frac=self.surr_explore_frac_box.value()
+            surrogate_explore_frac=self.surr_explore_frac_box.value(),
+            # Seeding
+            seeding_method=(
+                "random" if self.seeding_method_combo.currentText().lower().startswith("random") else
+                ("sobol" if self.seeding_method_combo.currentText().lower().startswith("sobol") else
+                 ("lhs" if self.seeding_method_combo.currentText().lower().startswith("latin") else "neural"))
+            ),
+            use_neural_seeding=self.seeding_method_combo.currentText().lower().startswith("neural"),
+            neural_acq_type=self.neural_acq_combo.currentText().lower(),
+            neural_beta_min=self.neural_beta_min.value(),
+            neural_beta_max=self.neural_beta_max.value(),
+            neural_epsilon=self.neural_eps.value(),
+            neural_pool_mult=self.neural_pool_mult.value(),
+            neural_epochs=self.neural_epochs.value(),
+            neural_time_cap_ms=self.neural_time_cap.value(),
+            neural_ensemble_n=self.neural_ensemble.value(),
+            neural_hidden=self.neural_hidden.value(),
+            neural_layers=self.neural_layers.value(),
+            neural_dropout=self.neural_dropout.value(),
+            neural_weight_decay=self.neural_wd.value(),
+            neural_enable_grad_refine=self.neural_grad_refine_chk.isChecked(),
+            neural_grad_steps=self.neural_grad_steps.value(),
+            neural_device=self.neural_device_combo.currentText()
         )
         
         # Connect signals using strong references to avoid premature garbage collection
@@ -949,12 +1746,20 @@ class GAOptimizationMixin:
         # Store benchmark results
         if hasattr(self, 'benchmark_runs') and self.benchmark_runs > 1:
             # Create a data dictionary for this run
+            # Build results summary from worker results
+            results_summary = {}
+            if isinstance(results, dict):
+                for key in ['singular_response', 'percentage_differences', 'composite_measures']:
+                    if key in results:
+                        results_summary[key] = results[key]
+
             run_data = {
                 'run_number': self.current_benchmark_run,
                 'best_fitness': best_fitness,
                 'best_solution': list(best_ind),
                 'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', []),
-                'alpha': getattr(self, '_alpha_used_for_run', None)
+                'alpha': getattr(self, '_alpha_used_for_run', None),
+                'results_summary': results_summary
             }
             
             # Add any additional metrics from results
@@ -991,12 +1796,19 @@ class GAOptimizationMixin:
                 self.ga_results_text.append(f"\n--- All {self.benchmark_runs} benchmark runs completed ---")
         else:
             # For single runs, store the data directly
+            results_summary = {}
+            if isinstance(results, dict):
+                for key in ['singular_response', 'percentage_differences', 'composite_measures']:
+                    if key in results:
+                        results_summary[key] = results[key]
+
             run_data = {
                 'run_number': 1,
                 'best_fitness': best_fitness,
                 'best_solution': list(best_ind),
                 'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', []),
-                'alpha': getattr(self, '_alpha_used_for_run', None)
+                'alpha': getattr(self, '_alpha_used_for_run', None),
+                'results_summary': results_summary
             }
             
             # Add benchmark metrics if available
@@ -1005,11 +1817,14 @@ class GAOptimizationMixin:
             
             self.ga_benchmark_data = [run_data]
             self.visualize_ga_benchmark_results()
+            # Enable export benchmark data for single-run case too
+            if hasattr(self, 'export_benchmark_button'):
+                self.export_benchmark_button.setEnabled(True)
                 
         # Enable export of GA results
         if hasattr(self, 'export_ga_results_button'):
             self.export_ga_results_button.setEnabled(True)
-
+                
         # Re-enable buttons when completely done
         self.run_frf_button.setEnabled(True)
         self.run_sobol_button.setEnabled(True)
@@ -1207,7 +2022,29 @@ class GAOptimizationMixin:
             use_surrogate=self.surrogate_checkbox.isChecked(),
             surrogate_pool_factor=self.surr_pool_factor_box.value(),
             surrogate_k=self.surr_k_box.value(),
-            surrogate_explore_frac=self.surr_explore_frac_box.value()
+            surrogate_explore_frac=self.surr_explore_frac_box.value(),
+            # Seeding (ensure benchmark runs respect chosen method)
+            seeding_method=(
+                "random" if self.seeding_method_combo.currentText().lower().startswith("random") else
+                ("sobol" if self.seeding_method_combo.currentText().lower().startswith("sobol") else
+                 ("lhs" if self.seeding_method_combo.currentText().lower().startswith("latin") else "neural"))
+            ),
+            use_neural_seeding=self.seeding_method_combo.currentText().lower().startswith("neural"),
+            neural_acq_type=self.neural_acq_combo.currentText().lower(),
+            neural_beta_min=self.neural_beta_min.value(),
+            neural_beta_max=self.neural_beta_max.value(),
+            neural_epsilon=self.neural_eps.value(),
+            neural_pool_mult=self.neural_pool_mult.value(),
+            neural_epochs=self.neural_epochs.value(),
+            neural_time_cap_ms=self.neural_time_cap.value(),
+            neural_ensemble_n=self.neural_ensemble.value(),
+            neural_hidden=self.neural_hidden.value(),
+            neural_layers=self.neural_layers.value(),
+            neural_dropout=self.neural_dropout.value(),
+            neural_weight_decay=self.neural_wd.value(),
+            neural_enable_grad_refine=self.neural_grad_refine_chk.isChecked(),
+            neural_grad_steps=self.neural_grad_steps.value(),
+            neural_device=self.neural_device_combo.currentText()
         )
         
         # Connect signals using strong references to avoid premature garbage collection
@@ -1252,7 +2089,25 @@ class GAOptimizationMixin:
         from computational_metrics_new import visualize_all_metrics
         
         # Convert benchmark data to DataFrame for easier analysis
+        if not isinstance(self.ga_benchmark_data, list) or len(self.ga_benchmark_data) == 0:
+            return
         df = pd.DataFrame(self.ga_benchmark_data)
+        # Basic validation: ensure required columns exist; coerce types and drop invalid rows
+        required_cols = ['run_number', 'best_fitness']
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = np.nan
+        # Coerce types
+        df['run_number'] = pd.to_numeric(df['run_number'], errors='coerce')
+        df['best_fitness'] = pd.to_numeric(df['best_fitness'], errors='coerce')
+        # Drop rows missing core fields
+        df = df.dropna(subset=['run_number', 'best_fitness']).copy()
+        if df.empty:
+            # Clear the All Runs table explicitly to reflect no valid data
+            self.benchmark_runs_table.setRowCount(0)
+            return
+        # Ensure integer run numbers
+        df['run_number'] = df['run_number'].astype(int)
         
         # Visualize computational metrics
         widgets_dict = {
@@ -3881,8 +4736,15 @@ class GAOptimizationMixin:
             
             # Create enhanced benchmark data with all necessary visualization metrics
             enhanced_data = []
-            for run in self.ga_benchmark_data:
+            for idx, run in enumerate(self.ga_benchmark_data, start=1):
                 enhanced_run = run.copy()
+                # Ensure core fields exist
+                enhanced_run.setdefault('run_number', idx)
+                enhanced_run.setdefault('best_fitness', float('nan'))
+                enhanced_run.setdefault('best_solution', [])
+                enhanced_run.setdefault('parameter_names', [])
+                enhanced_run.setdefault('alpha', getattr(self, '_alpha_used_for_run', None))
+                enhanced_run.setdefault('results_summary', {})
                 
                 # Ensure benchmark_metrics exists and is a dictionary
                 if 'benchmark_metrics' not in enhanced_run or not isinstance(enhanced_run['benchmark_metrics'], dict):
@@ -4066,11 +4928,80 @@ class GAOptimizationMixin:
             with open(file_path, 'r') as f:
                 data = json.load(f)
             
-            # Extract benchmark data
+            # Normalize loaded data into a list of run dicts
+            runs = []
             if isinstance(data, dict) and 'ga_benchmark_data' in data:
-                self.ga_benchmark_data = data['ga_benchmark_data']
+                maybe_runs = data.get('ga_benchmark_data', [])
+                if isinstance(maybe_runs, list):
+                    runs = maybe_runs
+            elif isinstance(data, list):
+                runs = data
+            elif isinstance(data, dict) and ('best_fitness' in data or 'best_parameters' in data):
+                # Allow importing single-run GA results files
+                best_fitness_val = data.get('best_fitness', None)
+                best_params_map = data.get('best_parameters', {}) or {}
+                param_names = list(best_params_map.keys())
+                best_solution = [best_params_map[name] for name in param_names]
+                runs = [{
+                    'run_number': 1,
+                    'best_fitness': best_fitness_val if best_fitness_val is not None else float('nan'),
+                    'best_solution': best_solution,
+                    'parameter_names': param_names,
+                    'benchmark_metrics': {}
+                }]
             else:
-                self.ga_benchmark_data = data  # Assume direct list of benchmark data
+                runs = []
+
+            # Coerce and complete fields for each run
+            normalized_runs = []
+            for idx, run in enumerate(runs, start=1):
+                try:
+                    r = dict(run)
+                    # Run number
+                    if 'run_number' not in r:
+                        r['run_number'] = idx
+                    try:
+                        r['run_number'] = int(r['run_number'])
+                    except Exception:
+                        r['run_number'] = idx
+                    # Best fitness
+                    if 'best_fitness' not in r and 'fitness' in r:
+                        r['best_fitness'] = r.get('fitness')
+                    if isinstance(r.get('best_fitness'), str):
+                        try:
+                            r['best_fitness'] = float(r['best_fitness'])
+                        except Exception:
+                            r['best_fitness'] = float('nan')
+                    # Parameter data
+                    if ('best_solution' not in r or 'parameter_names' not in r) and isinstance(r.get('best_parameters'), dict):
+                        bp = r.get('best_parameters') or {}
+                        if bp:
+                            names = list(bp.keys())
+                            r['parameter_names'] = names
+                            r['best_solution'] = [bp[name] for name in names]
+                    # Ensure benchmark_metrics dict exists
+                    if 'benchmark_metrics' not in r or not isinstance(r['benchmark_metrics'], dict):
+                        r['benchmark_metrics'] = {}
+                    # Ensure results_summary dict exists (for singular_response/percentage_differences/etc.)
+                    if 'results_summary' not in r or not isinstance(r['results_summary'], dict):
+                        summary = {}
+                        # Try to build from root-level if present
+                        for key in ['singular_response', 'percentage_differences', 'composite_measures']:
+                            if key in r:
+                                summary[key] = r[key]
+                        r['results_summary'] = summary
+                    # Convert numpy types in benchmark_metrics lists
+                    metrics = r['benchmark_metrics']
+                    for key, value in list(metrics.items()):
+                        if isinstance(value, list):
+                            metrics[key] = [float(x) if isinstance(x, (np.integer, np.floating)) else x for x in value]
+                        elif isinstance(value, (np.integer, np.floating)):
+                            metrics[key] = float(value)
+                    normalized_runs.append(r)
+                except Exception:
+                    continue
+
+            self.ga_benchmark_data = normalized_runs
             
             # Convert any NumPy types to Python native types
             for run in self.ga_benchmark_data:
@@ -4306,6 +5237,12 @@ class GAOptimizationMixin:
             components_layout = QVBoxLayout(components_tab)
             self.create_run_fitness_components_plot(components_layout, run_data, metrics)
             run_analysis_tabs.addTab(components_tab, "Fitness Components")
+
+            # 9. Seeding Method Visualization (adaptive to method)
+            seeding_tab = QWidget()
+            seeding_layout = QVBoxLayout(seeding_tab)
+            self.create_run_seeding_visualizations(seeding_layout, run_data, metrics)
+            run_analysis_tabs.addTab(seeding_tab, "Seeding")
             
         except Exception as e:
             import traceback
@@ -5668,9 +6605,10 @@ Change: {change:+.6f}'''
                     
                     # Enhanced title with behavior indicator
                     behavior_icons = {"Active": "🔄", "Converged": "✅", "Static": "⏸️"}
+                    # Title color: use a fixed, readable color to avoid NumPy array comparisons
                     ax.set_title(f'{behavior_icons[behavior]} {param_name}', 
                                fontsize=10, fontweight='bold', 
-                               color=color if color != 'gray' else 'black')
+                               color='black')
                     
                     ax.set_xlabel('Generation', fontsize=9)
                     ax.set_ylabel('Value', fontsize=9)
@@ -6545,9 +7483,32 @@ All parameters remain constant during optimization.''',
 )
         import numpy as np
         
-        fig = Figure(figsize=(12, 6), tight_layout=True)
-        ax1 = fig.add_subplot(1, 2, 1)  # Pie chart of final fitness components
-        ax2 = fig.add_subplot(1, 2, 2)  # Best solution parameters
+        # Determine if we need to split parameters into 2 side-by-side plots
+        best_solution = run_data.get('best_solution', [])
+        param_names = run_data.get('parameter_names', [])
+        active_names = run_data.get('active_parameters', [])
+        
+        # Get active parameters
+        if active_names:
+            index_map = {name: idx for idx, name in enumerate(param_names)}
+            param_pairs = [(name, best_solution[index_map[name]]) for name in active_names if name in index_map]
+        else:
+            param_pairs = [(name, val) for name, val in zip(param_names, best_solution) if abs(val) > 1e-6]
+        
+        # Decide layout based on number of active parameters
+        num_active_params = len(param_pairs)
+        if num_active_params > 8:  # Split into 2 side-by-side plots
+            fig = Figure(figsize=(16, 8), tight_layout=True)
+            ax1 = fig.add_subplot(2, 3, 1)  # Pie chart of final fitness components (top left)
+            ax2 = fig.add_subplot(2, 3, 2)  # First half of active parameters (top middle)
+            ax3 = fig.add_subplot(2, 3, 3)  # Second half of active parameters (top right)
+            ax4 = fig.add_subplot(2, 3, (4, 6))  # Combined view (bottom spanning 2 columns)
+        else:  # Original layout for fewer parameters
+            fig = Figure(figsize=(12, 6), tight_layout=True)
+            ax1 = fig.add_subplot(1, 2, 1)  # Pie chart of final fitness components
+            ax2 = fig.add_subplot(1, 2, 2)  # Best solution parameters
+            ax3 = None
+            ax4 = None
         
         # Fitness components breakdown as percentage contributions to final fitness
         best_solution = run_data.get('best_solution', [])
@@ -6636,22 +7597,59 @@ All parameters remain constant during optimization.''',
         else:
             ax1.text(0.5, 0.5, 'No fitness data available', ha='center', va='center', transform=ax1.transAxes)
         
-        # Best solution parameters
-        if best_solution and 'parameter_names' in run_data:
-            param_names = run_data['parameter_names']
-            active_names = run_data.get('active_parameters', [])
-            if active_names:
-                index_map = {name: idx for idx, name in enumerate(param_names)}
-                param_pairs = [(name, best_solution[index_map[name]]) for name in active_names if name in index_map]
+        # Best solution parameters visualization
+        if param_pairs:
+            names, values = zip(*param_pairs)
+            
+            if num_active_params > 8 and ax3 is not None and ax4 is not None:
+                # Split parameters into 2 side-by-side plots for many parameters
+                mid_point = (num_active_params + 1) // 2
+                
+                # First half of parameters
+                names1, values1 = names[:mid_point], values[:mid_point]
+                y_pos1 = range(len(names1))
+                bars1 = ax2.barh(y_pos1, values1, alpha=0.7, color='#2ecc71')
+                ax2.set_yticks(y_pos1)
+                ax2.set_yticklabels(names1)
+                ax2.set_xlabel('Parameter Value')
+                ax2.set_title(f'Active Parameters (1-{mid_point})')
+                
+                # Add value labels to first plot
+                for i, (bar, val) in enumerate(zip(bars1, values1)):
+                    ax2.text(val + 0.01 * max(values1) if val >= 0 else val - 0.01 * max(values1),
+                            i, f'{val:.4f}', va='center', ha='left' if val >= 0 else 'right', fontsize=8)
+                
+                # Second half of parameters
+                names2, values2 = names[mid_point:], values[mid_point:]
+                y_pos2 = range(len(names2))
+                bars2 = ax3.barh(y_pos2, values2, alpha=0.7, color='#3498db')
+                ax3.set_yticks(y_pos2)
+                ax3.set_yticklabels(names2)
+                ax3.set_xlabel('Parameter Value')
+                ax3.set_title(f'Active Parameters ({mid_point+1}-{num_active_params})')
+                
+                # Add value labels to second plot
+                for i, (bar, val) in enumerate(zip(bars2, values2)):
+                    ax3.text(val + 0.01 * max(values2) if val >= 0 else val - 0.01 * max(values2),
+                            i, f'{val:.4f}', va='center', ha='left' if val >= 0 else 'right', fontsize=8)
+                
+                # Combined view (bottom plot)
+                y_pos_combined = range(len(names))
+                bars_combined = ax4.barh(y_pos_combined, values, alpha=0.7, 
+                                       color=['#2ecc71' if i < mid_point else '#3498db' for i in range(len(names))])
+                ax4.set_yticks(y_pos_combined)
+                ax4.set_yticklabels(names)
+                ax4.set_xlabel('Parameter Value')
+                ax4.set_title('All Active Parameters (Combined View)')
+                
+                # Add value labels to combined plot
+                for i, (bar, val) in enumerate(zip(bars_combined, values)):
+                    ax4.text(val + 0.01 * max(values) if val >= 0 else val - 0.01 * max(values),
+                            i, f'{val:.4f}', va='center', ha='left' if val >= 0 else 'right', fontsize=8)
+                
             else:
-                param_pairs = [(name, val) for name, val in zip(param_names, best_solution) if abs(val) > 1e-6]
-
-            if param_pairs:
-                fig_height = max(6, 0.4 * len(param_pairs))
-                fig.set_size_inches(12, fig_height)
-                names, values = zip(*param_pairs)
+                # Original single plot for fewer parameters
                 y_pos = range(len(names))
-
                 bars = ax2.barh(y_pos, values, alpha=0.7, color='green')
                 ax2.set_yticks(y_pos)
                 ax2.set_yticklabels(names)
@@ -6661,11 +7659,164 @@ All parameters remain constant during optimization.''',
                 for i, (bar, val) in enumerate(zip(bars, values)):
                     ax2.text(val + 0.01 * max(values) if val >= 0 else val - 0.01 * max(values),
                             i, f'{val:.4f}', va='center', ha='left' if val >= 0 else 'right')
-            else:
-                ax2.text(0.5, 0.5, 'No active parameters found', ha='center', va='center', transform=ax2.transAxes)
         else:
-            ax2.text(0.5, 0.5, 'No parameter data available', ha='center', va='center', transform=ax2.transAxes)
+            if ax2 is not None:
+                ax2.text(0.5, 0.5, 'No active parameters found', ha='center', va='center', transform=ax2.transAxes)
+            if ax3 is not None:
+                ax3.text(0.5, 0.5, 'No active parameters found', ha='center', va='center', transform=ax3.transAxes)
+            if ax4 is not None:
+                ax4.text(0.5, 0.5, 'No active parameters found', ha='center', va='center', transform=ax4.transAxes)
 
+        
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar(canvas, None)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+
+    def create_run_seeding_visualizations(self, layout, run_data, metrics):
+        """Create seeding method specific visualizations for the selected run."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import (
+            FigureCanvasQTAgg,
+            NavigationToolbar2QT as NavigationToolbar
+        )
+        import numpy as np
+
+        fig = Figure(figsize=(12, 8), tight_layout=True)
+        method = (metrics.get('seeding_method') or run_data.get('benchmark_metrics', {}).get('seeding_method') or 'unknown')
+        method = str(method).lower()
+
+        # Prepare subplots based on method
+        if method == 'neural':
+            # Layout: [ Train time | Beta/Epsilon ] / [ Pool mult | Text summary ]
+            ax1 = fig.add_subplot(2, 2, 1)
+            ax2 = fig.add_subplot(2, 2, 2)
+            ax3 = fig.add_subplot(2, 2, 3)
+            ax4 = fig.add_subplot(2, 2, 4)
+
+            history = metrics.get('neural_history', []) or []
+            if history:
+                gens = [h.get('generation', i+1) for i, h in enumerate(history)]
+                train_ms = [float(h.get('train_time_ms', np.nan)) for h in history]
+                betas = [float(h.get('beta', np.nan)) for h in history]
+                eps = [float(h.get('epsilon', np.nan)) for h in history]
+                poolm = [float(h.get('pool_mult', np.nan)) for h in history]
+
+                # Train time
+                ax1.plot(gens, train_ms, 'tab:blue', marker='o', linewidth=2, alpha=0.9)
+                ax1.set_title('Neural Training Time per Generation (ms)')
+                ax1.set_xlabel('Generation')
+                ax1.set_ylabel('Time (ms)')
+                ax1.grid(True, alpha=0.3)
+
+                # Beta and epsilon
+                ax2.plot(gens, betas, 'tab:red', marker='o', linewidth=2, label='β (UCB)')
+                ax2.plot(gens, eps, 'tab:green', marker='s', linewidth=2, label='ε (explore)')
+                # Highlight adapted epsilon range if enabled
+                ns = metrics.get('neural_seeding', {})
+                if ns.get('adapt_epsilon'):
+                    eps_min = float(ns.get('eps_min', np.nan))
+                    eps_max = float(ns.get('eps_max', np.nan))
+                    if eps_min == eps_min and eps_max == eps_max:
+                        ax2.fill_between(gens, [eps_min]*len(gens), [eps_max]*len(gens), color='green', alpha=0.08, label='ε bounds')
+                ax2.set_title('Acquisition Hyperparameters')
+                ax2.set_xlabel('Generation')
+                ax2.legend()
+                ax2.grid(True, alpha=0.3)
+
+                # Pool multiplier
+                ax3.step(gens, poolm, where='mid', color='tab:purple')
+                ax3.set_title('Pool Size Multiplier per Generation')
+                ax3.set_xlabel('Generation')
+                ax3.set_ylabel('× Population')
+                ax3.grid(True, alpha=0.3)
+
+                # Text summary
+                ax4.axis('off')
+                acq = ns.get('acq_type', 'ucb')
+                ens = ns.get('ensemble_n', '-')
+                hdim = ns.get('hidden', '-')
+                layers = ns.get('layers', '-')
+                dout = ns.get('dropout', '-')
+                wd = ns.get('weight_decay', '-')
+                device = ns.get('device', 'cpu')
+                adapt_eps = ns.get('adapt_epsilon', False)
+                text = (
+                    f"Method: Neural (Acq: {str(acq).upper()}) | Device: {device}\n"
+                    f"Ensemble: {ens} | Hidden: {hdim} x {layers} | Dropout: {dout} | WD: {wd}\n"
+                    f"ε: {'adaptive' if adapt_eps else 'fixed'}\n"
+                    f"Tip: Lower training time → more budget for FRF. β↑ → explore; ε↑ → more random coverage."
+                )
+                ax4.text(0.01, 0.95, text, va='top', ha='left')
+            else:
+                fig.suptitle('Neural Seeding Selected (no history yet)', fontsize=14, fontweight='bold')
+                ax = fig.add_subplot(1, 1, 1)
+                ax.axis('off')
+                ax.text(0.5, 0.5, 'Neural seeding was enabled, but no neural metrics were recorded.',
+                        ha='center', va='center')
+
+        else:
+            # Non-neural seeding (Random, Sobol, LHS)
+            ax1 = fig.add_subplot(2, 2, 1)
+            ax2 = fig.add_subplot(2, 2, 2)
+            ax3 = fig.add_subplot(2, 1, 2)
+
+            method_name = 'Random'
+            if 'sobol' in method:
+                method_name = 'Sobol (low-discrepancy)'
+            elif 'lhs' in method:
+                method_name = 'Latin Hypercube'
+            fig.suptitle(f'Seeding Method: {method_name}', fontsize=14, fontweight='bold')
+
+            # Population size per generation (if available)
+            pop_hist = metrics.get('pop_size_history', []) or []
+            if pop_hist:
+                gens = range(1, len(pop_hist)+1)
+                ax1.step(list(gens), pop_hist, where='mid', color='tab:green')
+                ax1.set_title('Population Size per Generation')
+                ax1.set_xlabel('Generation')
+                ax1.set_ylabel('Population')
+                ax1.grid(True, alpha=0.3)
+            else:
+                ax1.axis('off')
+                ax1.text(0.5, 0.5, 'No population history', ha='center', va='center')
+
+            # If surrogate was active, show pool vs evaluations as proxy for screening
+            surr_info = metrics.get('surrogate_info', []) or []
+            if surr_info:
+                gens_s = [d.get('generation', i+1) for i, d in enumerate(surr_info)]
+                pools = [d.get('pool_size', np.nan) for d in surr_info]
+                evals = [d.get('evaluated_count', np.nan) for d in surr_info]
+                ax2.plot(gens_s, pools, 'tab:cyan', marker='o', label='Pool')
+                ax2.plot(gens_s, evals, 'tab:pink', marker='s', label='Evaluated')
+                ax2.set_title('Surrogate: Pool vs Evaluated')
+                ax2.set_xlabel('Generation')
+                ax2.legend()
+                ax2.grid(True, alpha=0.3)
+            else:
+                ax2.axis('off')
+                ax2.text(0.5, 0.5, 'Surrogate not used', ha='center', va='center')
+
+            # Text panel with method info
+            ax3.axis('off')
+            if 'sobol' in method:
+                txt = (
+                    "Sobol seeding produces a low-discrepancy space-filling set, \n"
+                    "giving broad coverage with fewer gaps than purely random sampling. \n"
+                    "Good for exploration early on."
+                )
+            elif 'lhs' in method:
+                txt = (
+                    "LHS (Latin Hypercube) stratifies each dimension, \n"
+                    "ensuring balanced marginal coverage across parameters. \n"
+                    "Useful for balanced exploration with fewer points."
+                )
+            else:
+                txt = (
+                    "Random seeding samples uniformly within bounds. \n"
+                    "Highest variance; simple baseline; useful when constraints are minimal."
+                )
+            ax3.text(0.01, 0.95, txt, va='top', ha='left')
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
