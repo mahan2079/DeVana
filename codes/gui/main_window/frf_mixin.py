@@ -15,6 +15,7 @@ class FRFMixin:
         self.comp_canvas = None
         self.comp_toolbar = None
         self.comp_fig = None
+        self.zones = []  # Initialize zones list
 
     def create_comparative_visualization_options(self, parent_layout):
         """Create options for comparative visualization of multiple FRF inputs"""
@@ -104,6 +105,42 @@ class FRFMixin:
         legend_layout.addWidget(self.legend_table)
         
         comp_layout.addWidget(legend_group)
+        
+        # Zone highlighting section
+        zone_group = QGroupBox("Zone Highlighting")
+        zone_layout = QVBoxLayout(zone_group)
+        
+        # Zone management buttons
+        zone_btn_layout = QHBoxLayout()
+        
+        add_zone_button = QPushButton("Add Zone")
+        add_zone_button.clicked.connect(self.add_zone)
+        zone_btn_layout.addWidget(add_zone_button)
+        
+        remove_zone_button = QPushButton("Remove Zone")
+        remove_zone_button.clicked.connect(self.remove_zone)
+        zone_btn_layout.addWidget(remove_zone_button)
+        
+        clear_zones_button = QPushButton("Clear All Zones")
+        clear_zones_button.clicked.connect(self.clear_all_zones)
+        zone_btn_layout.addWidget(clear_zones_button)
+        
+        zone_layout.addLayout(zone_btn_layout)
+        
+        # Zone table
+        self.zone_table = QTableWidget()
+        self.zone_table.setColumnCount(4)
+        self.zone_table.setHorizontalHeaderLabels([
+            "Zone Name", 
+            "Start X", 
+            "End X", 
+            "Color"
+        ])
+        self.zone_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.zone_table.setMaximumHeight(150)
+        zone_layout.addWidget(self.zone_table)
+        
+        comp_layout.addWidget(zone_group)
         
         # Plot title customization
         title_group = QGroupBox("Plot Title")
@@ -349,6 +386,11 @@ class FRFMixin:
         # Reset the legend map
         self.legend_map = {}
         
+        # Clear zones
+        if hasattr(self, 'zones'):
+            self.zones.clear()
+            self._update_zone_table()
+        
         # Clear any existing plot
         try:
             if hasattr(self, 'comp_fig') and self.comp_fig:
@@ -380,7 +422,8 @@ class FRFMixin:
         # Gather data to export
         export_data = {
             'plots': {},
-            'legend_map': self.legend_map
+            'legend_map': self.legend_map,
+            'zones': self.zones if hasattr(self, 'zones') else []
         }
         
         # Add individual plot data
@@ -424,6 +467,11 @@ class FRFMixin:
             # Update legend map
             self.legend_map.update(import_data['legend_map'])
             
+            # Import zones if available
+            if 'zones' in import_data:
+                self.zones = import_data['zones']
+                self._update_zone_table()
+            
             # Import plot data
             for plot_name, plot_data in import_data['plots'].items():
                 # Store the data
@@ -444,6 +492,241 @@ class FRFMixin:
                                    
         except Exception as e:
             QMessageBox.critical(self, "Import Error", f"Error importing data: {str(e)}")
+    
+    def add_zone(self):
+        """Add a new zone to the zone table"""
+        # Ensure zones attribute exists
+        if not hasattr(self, 'zones'):
+            self.zones = []
+            
+        # Create a dialog for zone input
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Add Zone")
+        dialog.setModal(True)
+        dialog.setFixedSize(400, 200)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Zone name input
+        name_layout = QHBoxLayout()
+        name_label = QLabel("Zone Name:")
+        name_edit = QLineEdit()
+        name_edit.setPlaceholderText("e.g., Safe Zone, Critical Region")
+        name_layout.addWidget(name_label)
+        name_layout.addWidget(name_edit)
+        layout.addLayout(name_layout)
+        
+        # Start X input
+        start_layout = QHBoxLayout()
+        start_label = QLabel("Start X:")
+        start_spin = QDoubleSpinBox()
+        start_spin.setRange(-1000000, 1000000)
+        start_spin.setDecimals(3)
+        start_spin.setValue(0.0)
+        start_layout.addWidget(start_label)
+        start_layout.addWidget(start_spin)
+        layout.addLayout(start_layout)
+        
+        # End X input
+        end_layout = QHBoxLayout()
+        end_label = QLabel("End X:")
+        end_spin = QDoubleSpinBox()
+        end_spin.setRange(-1000000, 1000000)
+        end_spin.setDecimals(3)
+        end_spin.setValue(1.0)
+        end_layout.addWidget(end_label)
+        end_layout.addWidget(end_spin)
+        layout.addLayout(end_layout)
+        
+        # Color selection
+        color_layout = QHBoxLayout()
+        color_label = QLabel("Color:")
+        color_button = QPushButton()
+        color_button.setAutoFillBackground(True)
+        color_button.setFixedSize(60, 25)
+        color_button.setStyleSheet("background-color: lightblue;")
+        color_layout.addWidget(color_label)
+        color_layout.addWidget(color_button)
+        layout.addLayout(color_layout)
+        
+        # Color picker function
+        def choose_color():
+            color_dialog = QColorDialog(self)
+            if color_dialog.exec_():
+                color = color_dialog.selectedColor()
+                if color.isValid():
+                    color_button.setStyleSheet(f"background-color: {color.name()};")
+        
+        color_button.clicked.connect(choose_color)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        ok_button = QPushButton("OK")
+        cancel_button = QPushButton("Cancel")
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+        
+        # Connect buttons
+        ok_button.clicked.connect(dialog.accept)
+        cancel_button.clicked.connect(dialog.reject)
+        
+        # Show dialog
+        if dialog.exec_() == QDialog.Accepted:
+            zone_name = name_edit.text().strip()
+            start_x = start_spin.value()
+            end_x = end_spin.value()
+            color = color_button.styleSheet().split("background-color: ")[1].split(";")[0]
+            
+            if not zone_name:
+                QMessageBox.warning(self, "Input Error", "Zone name cannot be empty.")
+                return
+                
+            if start_x >= end_x:
+                QMessageBox.warning(self, "Input Error", "Start X must be less than End X.")
+                return
+            
+            # Add to zones list
+            zone_data = {
+                'name': zone_name,
+                'start_x': start_x,
+                'end_x': end_x,
+                'color': color
+            }
+            self.zones.append(zone_data)
+            
+            # Update table
+            self._update_zone_table()
+    
+    def remove_zone(self):
+        """Remove the selected zone from the zone table"""
+        # Ensure zones attribute exists
+        if not hasattr(self, 'zones'):
+            self.zones = []
+            
+        current_row = self.zone_table.currentRow()
+        if current_row >= 0 and current_row < len(self.zones):
+            del self.zones[current_row]
+            self._update_zone_table()
+        else:
+            QMessageBox.warning(self, "Selection Error", "Please select a zone to remove.")
+    
+    def clear_all_zones(self):
+        """Clear all zones from the zone table"""
+        # Ensure zones attribute exists
+        if not hasattr(self, 'zones'):
+            self.zones = []
+            
+        self.zones.clear()
+        self._update_zone_table()
+    
+    def _update_zone_table(self):
+        """Update the zone table with current zones data"""
+        # Ensure zones attribute exists
+        if not hasattr(self, 'zones'):
+            self.zones = []
+            
+        self.zone_table.setRowCount(len(self.zones))
+        
+        for row, zone in enumerate(self.zones):
+            # Zone name
+            name_item = QTableWidgetItem(zone['name'])
+            self.zone_table.setItem(row, 0, name_item)
+            
+            # Start X
+            start_item = QTableWidgetItem(f"{zone['start_x']:.3f}")
+            self.zone_table.setItem(row, 1, start_item)
+            
+            # End X
+            end_item = QTableWidgetItem(f"{zone['end_x']:.3f}")
+            self.zone_table.setItem(row, 2, end_item)
+            
+            # Color button
+            color_button = QPushButton()
+            color_button.setAutoFillBackground(True)
+            color_button.setStyleSheet(f"background-color: {zone['color']};")
+            color_button.setFixedSize(40, 20)
+            
+            # Connect color picker
+            def choose_color(row=row):
+                color_dialog = QColorDialog(self)
+                if color_dialog.exec_():
+                    color = color_dialog.selectedColor()
+                    if color.isValid():
+                        color_button.setStyleSheet(f"background-color: {color.name()};")
+                        self.zones[row]['color'] = color.name()
+            
+            color_button.clicked.connect(choose_color)
+            self.zone_table.setCellWidget(row, 3, color_button)
+    
+    def _add_zone_highlights(self, ax):
+        """Add zone highlighting to the plot with invisible boundary lines and text labels"""
+        import matplotlib.patches as patches
+        import matplotlib.pyplot as plt
+        
+        # Ensure zones attribute exists
+        if not hasattr(self, 'zones'):
+            self.zones = []
+        
+        # Get the current y-axis limits
+        y_min, y_max = ax.get_ylim()
+        
+        for zone in self.zones:
+            start_x = zone['start_x']
+            end_x = zone['end_x']
+            zone_name = zone['name']
+            color = zone['color']
+            
+            # Convert hex color to matplotlib format if needed
+            if color.startswith('#'):
+                color = color
+            elif color.startswith('rgb'):
+                # Handle rgb format
+                color = color.replace('rgb(', '').replace(')', '')
+                r, g, b = map(int, color.split(','))
+                color = f'#{r:02x}{g:02x}{b:02x}'
+            
+            # Add invisible vertical lines at start and end (for boundary definition only)
+            ax.axvline(x=start_x, color='none', alpha=0.0)
+            ax.axvline(x=end_x, color='none', alpha=0.0)
+            
+            # Add shaded region between the lines
+            ax.axvspan(start_x, end_x, alpha=0.2, color=color)
+            
+            # Add text label in the middle of the zone
+            mid_x = (start_x + end_x) / 2
+            mid_y = (y_min + y_max) / 2
+            
+            # Add text with background
+            ax.text(mid_x, mid_y, zone_name, 
+                   horizontalalignment='center',
+                   verticalalignment='center',
+                   bbox=dict(boxstyle="round,pad=0.3", 
+                           facecolor=color, 
+                           alpha=0.7,
+                           edgecolor='black',
+                           linewidth=1),
+                   fontsize=10,
+                   fontweight='bold',
+                   color='white' if self._is_dark_color(color) else 'black')
+    
+    def _is_dark_color(self, color):
+        """Check if a color is dark (for text color selection)"""
+        if color.startswith('#'):
+            # Convert hex to RGB
+            color = color.lstrip('#')
+            r, g, b = tuple(int(color[i:i+2], 16) for i in (0, 2, 4))
+        elif color.startswith('rgb'):
+            # Handle rgb format
+            color = color.replace('rgb(', '').replace(')', '')
+            r, g, b = map(int, color.split(','))
+        else:
+            # Default to light color
+            return False
+        
+        # Calculate luminance
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        return luminance < 0.5
     
     def create_sobol_analysis_tab(self):
         """This method is overridden by SobolAnalysisMixin - do not implement here"""
@@ -1084,6 +1367,10 @@ class FRFMixin:
                        marker=marker if marker != 'None' else '',
                        color=color,
                        label=legend_name)
+
+        # Add zone highlighting if zones are defined
+        if hasattr(self, 'zones') and self.zones:
+            self._add_zone_highlights(ax)
 
         # Set title with custom font size
         title = self.plot_title_edit.text() or "Comparative FRF Plot"

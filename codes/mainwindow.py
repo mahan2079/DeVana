@@ -164,6 +164,9 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
         self.current_pso_best_params = None
         self.current_rl_best_params = None
         self.current_rl_best_reward = None
+        
+        # Initialize zones for FRF comparative plotting
+        self.zones = []
 
     def integrate_de_functionality(self):
         """Manually integrate DE functionality from DEOptimizationMixin"""

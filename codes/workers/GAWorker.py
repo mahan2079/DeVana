@@ -157,6 +157,8 @@ from modules.sobol_sensitivity import (
 
 import random
 from deap import base, creator, tools
+from scipy.stats import qmc
+from .NeuralSeeder import NeuralSeeder
 
 
 # Helper function to safely perform operations involving DEAP
@@ -263,7 +265,31 @@ class GAWorker(QThread):
                  use_surrogate=False,
                  surrogate_pool_factor=2.0,
                  surrogate_k=5,
-                 surrogate_explore_frac=0.15):  # fraction evaluated for exploration
+                  surrogate_explore_frac=0.15,  # fraction evaluated for exploration
+                 # Seeding method for initial population and injections
+                  seeding_method="random",     # "random" | "sobol" | "lhs" | "neural"
+                  seeding_seed=None,
+                  # Neural seeding options
+                  use_neural_seeding=False,
+                  neural_acq_type="ucb",      # "ucb" | "ei"
+                  neural_beta_min=1.0,
+                  neural_beta_max=2.5,
+                  neural_epsilon=0.1,
+                  neural_pool_mult=3.0,
+                  neural_epochs=8,
+                  neural_time_cap_ms=750,
+                  neural_ensemble_n=3,
+                  neural_hidden=96,
+                  neural_layers=2,
+                  neural_dropout=0.1,
+                   neural_weight_decay=1e-4,
+                  neural_enable_grad_refine=False,
+                  neural_grad_steps=0,
+                  neural_device="cpu",
+                  # Optional: adaptive epsilon linkage
+                  neural_adapt_epsilon=False,
+                  neural_eps_min=0.05,
+                  neural_eps_max=0.30):
         """
         Initialize the Genetic Algorithm Worker
         
@@ -393,6 +419,41 @@ class GAWorker(QThread):
         self._surrogate_X = []  # raw parameter vectors
         self._surrogate_y = []  # corresponding fitness values
         
+        # Seeding configuration
+        # Seeding config (allow legacy seeding_method but also a boolean flag)
+        self.seeding_method = (seeding_method or "random").lower()
+        if self.seeding_method not in ("random", "sobol", "lhs", "neural"):
+            self.seeding_method = "random"
+        if use_neural_seeding:
+            self.seeding_method = "neural"
+        self.seeding_seed = seeding_seed if (seeding_seed is None or isinstance(seeding_seed, (int, np.integer))) else None
+        self._qmc_engine = None
+
+        # Neural seeding settings
+        self.use_neural_seeding = (self.seeding_method == "neural")
+        self.neural_acq_type = str(neural_acq_type or "ucb").lower()
+        self.neural_beta_min = float(neural_beta_min)
+        self.neural_beta_max = float(neural_beta_max)
+        self.neural_epsilon = float(neural_epsilon)
+        self.neural_pool_mult = float(neural_pool_mult)
+        self.neural_epochs = int(neural_epochs)
+        self.neural_time_cap_ms = int(neural_time_cap_ms)
+        self.neural_ensemble_n = int(neural_ensemble_n)
+        self.neural_hidden = int(neural_hidden)
+        self.neural_layers = int(neural_layers)
+        self.neural_dropout = float(neural_dropout)
+        self.neural_weight_decay = float(neural_weight_decay)
+        self.neural_enable_grad_refine = bool(neural_enable_grad_refine)
+        self.neural_grad_steps = int(neural_grad_steps)
+        self.neural_device = str(neural_device)
+        # Adaptive epsilon controls
+        self.neural_adapt_epsilon = bool(neural_adapt_epsilon)
+        self.neural_eps_min = float(neural_eps_min)
+        self.neural_eps_max = float(neural_eps_max)
+        self.current_epsilon = float(self.neural_epsilon)
+        # Neural seeding state helpers
+        self._neural_last_diversity = 0.2
+        
         # Thread safety mechanisms - these prevent crashes when multiple parts of the program try to use the same data
         # Think of it like traffic lights controlling access to a busy intersection
         self.mutex = QMutex()                   # A lock that only one part of the program can hold at a time
@@ -449,6 +510,29 @@ class GAWorker(QThread):
             'surrogate_explore_frac': float(self.surrogate_explore_frac),
             'surrogate_info': []           # List of dicts per generation with pool/eval counts and error
         }
+        # Record seeding method in metrics for transparency
+        self.metrics['seeding_method'] = self.seeding_method
+        self.metrics['neural_seeding'] = {
+            'enabled': bool(self.use_neural_seeding),
+            'backend': 'torch',
+            'ensemble_n': int(self.neural_ensemble_n),
+            'epochs': int(self.neural_epochs),
+            'pool_mult': float(self.neural_pool_mult),
+            'epsilon': float(self.neural_epsilon),
+            'acq_type': self.neural_acq_type,
+            'beta_min': float(self.neural_beta_min),
+            'beta_max': float(self.neural_beta_max),
+            # Architecture & regularization details for UI
+            'hidden': int(self.neural_hidden),
+            'layers': int(self.neural_layers),
+            'dropout': float(self.neural_dropout),
+            'weight_decay': float(self.neural_weight_decay),
+            'device': self.neural_device,
+            'adapt_epsilon': bool(self.neural_adapt_epsilon),
+            'eps_min': float(self.neural_eps_min),
+            'eps_max': float(self.neural_eps_max),
+        }
+        self.metrics['neural_history'] = []
         
         # Create metrics tracking timer
         self.metrics_timer = QTimer()
@@ -877,11 +961,113 @@ class GAWorker(QThread):
             toolbox.register("select", tools.selTournament, tournsize=3)  # Tournament selection with 3 competitors
 
             # ============================================================================
-            # INITIAL POPULATION
+            # INITIAL POPULATION (with configurable seeding strategy)
             # ============================================================================
             # Create our first generation of solutions
             self.update.emit("Initializing population...")
-            population = toolbox.population(n=self.ga_pop_size)  # Create population of specified size
+
+            # Helper to initialize QMC engine lazily
+            def _ensure_qmc_engine():
+                if self._qmc_engine is not None:
+                    return
+                try:
+                    dim = len(parameter_bounds)
+                    if dim <= 0:
+                        self._qmc_engine = None
+                        return
+                    if self.seeding_method == "sobol":
+                        # scramble for better uniformity; seed for reproducibility if provided
+                        self._qmc_engine = qmc.Sobol(d=dim, scramble=True, seed=self.seeding_seed)
+                    elif self.seeding_method == "lhs":
+                        self._qmc_engine = qmc.LatinHypercube(d=dim, seed=self.seeding_seed)
+                    else:
+                        self._qmc_engine = None
+                except Exception as qe:
+                    self.update.emit(f"Warning: Failed to initialize QMC engine ({self.seeding_method}): {str(qe)}. Falling back to random seeding.")
+                    self._qmc_engine = None
+
+            # Helper to generate seed individuals according to chosen strategy
+            def generate_seed_individuals(count):
+                # If all parameters are fixed, replicate the fixed vector
+                all_fixed = len(fixed_parameters) == len(parameter_bounds)
+                if all_fixed:
+                    fixed_vec = [fixed_parameters[i] for i in range(len(parameter_bounds))]
+                    return [creator.Individual(list(fixed_vec)) for _ in range(count)]
+
+                if self.seeding_method == "random" or count <= 0:
+                    return [toolbox.individual() for _ in range(count)]
+
+                _ensure_qmc_engine()
+                if self._qmc_engine is None:
+                    # Fallback if engine failed
+                    return [toolbox.individual() for _ in range(count)]
+
+                # Draw low-discrepancy points and scale to bounds
+                try:
+                    samples = self._qmc_engine.random(count)  # shape (count, d) in [0,1)
+                    lows = np.array([b[0] for b in parameter_bounds], dtype=float)
+                    highs = np.array([b[1] for b in parameter_bounds], dtype=float)
+                    span = (highs - lows)
+                    # Avoid NaNs if any span is zero
+                    span[span == 0.0] = 0.0
+                    scaled = lows + samples * span
+                    # Enforce fixed parameters exactly
+                    for idx, val in fixed_parameters.items():
+                        scaled[:, idx] = val
+                    individuals = []
+                    for row in scaled:
+                        ind = creator.Individual([float(row[i]) for i in range(len(parameter_bounds))])
+                        individuals.append(ind)
+                    return individuals
+                except Exception as gen_err:
+                    self.update.emit(f"Warning: QMC sampling error: {str(gen_err)}. Falling back to random seeding.")
+                    return [toolbox.individual() for _ in range(count)]
+
+            # Prepare neural seeder if enabled
+            neural_seeder = None
+            if self.use_neural_seeding:
+                lows = np.array([b[0] for b in parameter_bounds], dtype=float)
+                highs = np.array([b[1] for b in parameter_bounds], dtype=float)
+                fixed_mask = np.zeros(len(parameter_bounds), dtype=bool)
+                fixed_values = np.zeros(len(parameter_bounds), dtype=float)
+                for i in range(len(parameter_bounds)):
+                    if i in fixed_parameters:
+                        fixed_mask[i] = True
+                        fixed_values[i] = float(fixed_parameters[i])
+                    else:
+                        fixed_values[i] = float((lows[i] + highs[i]) * 0.5)
+                neural_seeder = NeuralSeeder(
+                    lows=lows,
+                    highs=highs,
+                    fixed_mask=fixed_mask,
+                    fixed_values=fixed_values,
+                    ensemble_n=self.neural_ensemble_n,
+                    hidden=self.neural_hidden,
+                    layers=self.neural_layers,
+                    dropout=self.neural_dropout,
+                    weight_decay=self.neural_weight_decay,
+                    epochs=self.neural_epochs,
+                    time_cap_ms=self.neural_time_cap_ms,
+                    pool_mult=self.neural_pool_mult,
+                    epsilon=self.neural_epsilon,
+                    acq_type=self.neural_acq_type,
+                    device=self.neural_device,
+                    seed=self.seeding_seed if isinstance(self.seeding_seed, (int, np.integer)) else None,
+                    diversity_min_dist=0.03,
+                    enable_grad_refine=self.neural_enable_grad_refine,
+                    grad_steps=self.neural_grad_steps,
+                )
+                self.update.emit("Seeding method: Neural surrogate (UCB/EI)")
+            else:
+                if self.seeding_method == "random":
+                    self.update.emit("Seeding method: Random uniform within bounds")
+                elif self.seeding_method == "sobol":
+                    self.update.emit("Seeding method: Sobol low-discrepancy sequence")
+                elif self.seeding_method == "lhs":
+                    self.update.emit("Seeding method: Latin Hypercube Sampling (LHS)")
+
+            # For gen 0: if neural enabled, bootstrap with classical seeds; model will train after first eval
+            population = generate_seed_individuals(self.ga_pop_size)
             # Track initial population size
             if self.track_metrics:
                 self.metrics['pop_size_history'].append(len(population))
@@ -891,6 +1077,28 @@ class GAWorker(QThread):
             fitnesses = list(map(toolbox.evaluate, population))
             for ind, fit in zip(population, fitnesses):
                 ind.fitness.values = fit
+
+            # Feed evaluated data to neural seeder (if enabled)
+            if self.use_neural_seeding and neural_seeder is not None:
+                try:
+                    X_data = [list(ind) for ind in population]
+                    y_data = [float(ind.fitness.values[0]) for ind in population]
+                    neural_seeder.add_data(X_data, y_data)
+                    # Log an initial (generation 0) neural history record so visuals have data immediately
+                    if self.track_metrics:
+                        init_beta = self.neural_beta_min
+                        init_eps = self.neural_epsilon
+                        self.metrics['neural_history'].append({
+                            'generation': 0,
+                            'train_time_ms': 0.0,
+                            'epochs': 0,
+                            'beta': init_beta,
+                            'pool_mult': self.neural_pool_mult,
+                            'epsilon': init_eps,
+                            'acq': self.neural_acq_type
+                        })
+                except Exception:
+                    pass
 
             # ============================================================================
             # EVOLUTION LOOP
@@ -939,10 +1147,47 @@ class GAWorker(QThread):
                     # Shrink: keep best
                     if new_size < len(pop):
                         return tools.selBest(pop, new_size)
-                    # Grow: add random individuals
+                    # Grow: add new individuals using current seeding strategy
                     extra = new_size - len(pop)
-                    for _ in range(extra):
-                        pop.append(toolbox.individual())
+                    if extra > 0:
+                        if self.use_neural_seeding and neural_seeder is not None and neural_seeder.size >= max(50, 5 * len(parameter_bounds)):
+                            # Adaptive beta from diversity/stagnation
+                            beta = self.neural_beta_min
+                            try:
+                                if self.adaptive_rates:
+                                    beta = self.neural_beta_min + (self.neural_beta_max - self.neural_beta_min) * min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                            except Exception:
+                                pass
+                            best_y = None
+                            try:
+                                best_y = min(ind.fitness.values[0] for ind in pop if ind.fitness.valid)
+                            except Exception:
+                                best_y = None
+                            # Optionally adapt epsilon based on stagnation/diversity
+                            eps = self.neural_epsilon
+                            try:
+                                if self.neural_adapt_epsilon and self.adaptive_rates:
+                                    # Map stagnation into [0,1]
+                                    stag_ratio = min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                                    # When stagnation high, increase epsilon toward eps_max
+                                    eps = (1.0 - stag_ratio) * self.neural_eps_min + stag_ratio * self.neural_eps_max
+                                    # Clamp
+                                    eps = max(self.neural_eps_min, min(eps, self.neural_eps_max))
+                                    self.current_epsilon = eps
+                            except Exception:
+                                pass
+                            seeds = neural_seeder.propose(count=extra, beta=beta, best_y=best_y, exploration_fraction=eps)
+                            for s in seeds:
+                                pop.append(creator.Individual(list(s)))
+                            # Evaluate new individuals immediately to keep population valid
+                            need_eval = [ind for ind in pop if not ind.fitness.valid]
+                            if need_eval:
+                                fits_new = list(map(toolbox.evaluate, need_eval))
+                                for ind, fit in zip(need_eval, fits_new):
+                                    ind.fitness.values = fit
+                        else:
+                            new_inds = generate_seed_individuals(extra)
+                            pop.extend(new_inds)
                     return pop
             
             # Run for the specified number of generations
@@ -1194,6 +1439,41 @@ class GAWorker(QThread):
                     for ind, fit in zip(invalid_ind, fitnesses):
                         ind.fitness.values = fit
                         evals_this_gen += len(invalid_ind)
+
+                # After evaluation, update NeuralSeeder with fresh data and optionally reseed on stagnation
+                if self.use_neural_seeding and 'invalid_ind' in locals():
+                    try:
+                        if neural_seeder is not None:
+                            # add data
+                            X_batch = [list(ind) for ind in population]
+                            y_batch = [float(ind.fitness.values[0]) for ind in population]
+                            neural_seeder.add_data(X_batch, y_batch)
+                            # adaptive beta via stagnation/diversity
+                            beta = self.neural_beta_min
+                            if self.adaptive_rates:
+                                beta = self.neural_beta_min + (self.neural_beta_max - self.neural_beta_min) * min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                            # optionally adapt epsilon here too (mirrors resize logic)
+                            eps = self.neural_epsilon
+                            if self.neural_adapt_epsilon and self.adaptive_rates:
+                                stag_ratio = min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                                eps = (1.0 - stag_ratio) * self.neural_eps_min + stag_ratio * self.neural_eps_max
+                                eps = max(self.neural_eps_min, min(eps, self.neural_eps_max))
+                                self.current_epsilon = eps
+                            # train
+                            train_time, epochs_done = neural_seeder.train()
+                            # log
+                            if self.track_metrics:
+                                self.metrics['neural_history'].append({
+                                    'generation': gen,
+                                    'train_time_ms': train_time,
+                                    'epochs': epochs_done,
+                                    'beta': beta,
+                                    'pool_mult': self.neural_pool_mult,
+                                    'epsilon': self.current_epsilon if self.neural_adapt_epsilon else self.neural_epsilon,
+                                    'acq': self.neural_acq_type
+                                })
+                    except Exception:
+                        pass
                 
                 if self.track_metrics:
                     evaluation_time = time.time() - evaluation_start
