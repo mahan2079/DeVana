@@ -7,7 +7,6 @@ import numpy as np
 try:
     import torch
     import torch.nn as nn
-    import torch.nn.functional as F
     from torch.utils.data import DataLoader, TensorDataset, random_split
     TORCH_AVAILABLE = True
 except Exception:

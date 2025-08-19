@@ -1,6 +1,3 @@
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -10,12 +7,35 @@ from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
     NavigationToolbar2QT as NavigationToolbar
 )
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                           QSpinBox, QDoubleSpinBox, QComboBox, QTabWidget, QGroupBox,
-                           QFormLayout, QMessageBox, QTableWidget, QTableWidgetItem,
-                           QHeaderView, QAbstractItemView, QSplitter, QTextEdit,
-                           QSizePolicy)
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QDoubleSpinBox,
+    QComboBox,
+    QTabWidget,
+    QGroupBox,
+    QFormLayout,
+    QMessageBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QAbstractItemView,
+    QSplitter,
+    QTextEdit,
+    QSizePolicy,
+    QCheckBox,
+    QRadioButton,
+    QScrollArea,
+    QGridLayout,
+    QProgressBar,
+    QFileDialog,
+)
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtGui import QBrush, QColor
 import os
 import time
 from computational_metrics_new import visualize_all_metrics, ensure_all_visualizations_visible
@@ -279,9 +299,13 @@ class GAOptimizationMixin:
         self.neural_beta_max.setDecimals(2)
         self.neural_beta_max.setSingleStep(0.1)
         self.neural_beta_max.setValue(2.5)
-        beta_row = QWidget(); beta_layout = QHBoxLayout(beta_row); beta_layout.setContentsMargins(0,0,0,0)
-        beta_layout.addWidget(QLabel("Min:")); beta_layout.addWidget(self.neural_beta_min)
-        beta_layout.addWidget(QLabel("Max:")); beta_layout.addWidget(self.neural_beta_max)
+        beta_row = QWidget()
+        beta_layout = QHBoxLayout(beta_row)
+        beta_layout.setContentsMargins(0, 0, 0, 0)
+        beta_layout.addWidget(QLabel("Min:"))
+        beta_layout.addWidget(self.neural_beta_min)
+        beta_layout.addWidget(QLabel("Max:"))
+        beta_layout.addWidget(self.neural_beta_max)
         neural_form.addRow("β (UCB range):", beta_row)
 
         self.neural_eps = QDoubleSpinBox()
@@ -338,7 +362,9 @@ class GAOptimizationMixin:
         self.neural_grad_steps = QSpinBox()
         self.neural_grad_steps.setRange(0, 50)
         self.neural_grad_steps.setValue(0)
-        grad_row = QWidget(); grad_layout = QHBoxLayout(grad_row); grad_layout.setContentsMargins(0,0,0,0)
+        grad_row = QWidget()
+        grad_layout = QHBoxLayout(grad_row)
+        grad_layout.setContentsMargins(0, 0, 0, 0)
         grad_layout.addWidget(self.neural_grad_refine_chk)
         grad_layout.addWidget(QLabel("Steps:"))
         grad_layout.addWidget(self.neural_grad_steps)
@@ -2080,13 +2106,11 @@ class GAOptimizationMixin:
         if not hasattr(self, 'ga_benchmark_data') or not self.ga_benchmark_data:
             return
             
-        import matplotlib.pyplot as plt
         import numpy as np
         import pandas as pd
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
         import seaborn as sns
-        from computational_metrics_new import visualize_all_metrics
         
         # Convert benchmark data to DataFrame for easier analysis
         if not isinstance(self.ga_benchmark_data, list) or len(self.ga_benchmark_data) == 0:
@@ -5265,15 +5289,9 @@ class GAOptimizationMixin:
         """
         try:
             import pandas as pd
-            import numpy as np
-            import matplotlib.pyplot as plt
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-            from computational_metrics_new import ensure_all_visualizations_visible
-            
-            # Create a DataFrame with just this run's data
-            run_df = pd.DataFrame([run_data])
-            
+
             # Update Violin Plot if available
             if hasattr(self, 'violin_plot_widget') and self.violin_plot_widget:
                 self.setup_widget_layout(self.violin_plot_widget)
@@ -5476,14 +5494,11 @@ class GAOptimizationMixin:
             tab_widget: Widget to place the plot in
             run_data: Dictionary containing run data
         """
-        import numpy as np
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
     NavigationToolbar2QT as NavigationToolbar
 )
-        from computational_metrics_new import ensure_all_visualizations_visible
         
         # Create figure for fitness evolution with constrained size to prevent window expansion
         fig = Figure(figsize=(7, 4), tight_layout=True)
@@ -5535,11 +5550,11 @@ class GAOptimizationMixin:
         # Add to widget
         canvas = FigureCanvasQTAgg(fig)
         tab_widget.layout().addWidget(canvas)
-        
+
         # Add toolbar
         toolbar = NavigationToolbar(canvas, tab_widget)
         tab_widget.layout().addWidget(toolbar)
-        
+
         # Ensure visibility
         ensure_all_visualizations_visible(tab_widget)
         
@@ -5552,13 +5567,11 @@ class GAOptimizationMixin:
             run_data: Dictionary containing run data
         """
         import numpy as np
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
     NavigationToolbar2QT as NavigationToolbar
 )
-        from computational_metrics_new import ensure_all_visualizations_visible
         
         # Create figure for parameter convergence with constrained size
         fig = Figure(figsize=(7, 4), tight_layout=True)
@@ -5616,11 +5629,11 @@ class GAOptimizationMixin:
         # Add to widget
         canvas = FigureCanvasQTAgg(fig)
         tab_widget.layout().addWidget(canvas)
-        
+
         # Add toolbar
         toolbar = NavigationToolbar(canvas, tab_widget)
         tab_widget.layout().addWidget(toolbar)
-        
+
         # Ensure visibility
         ensure_all_visualizations_visible(tab_widget)
         
@@ -5632,14 +5645,11 @@ class GAOptimizationMixin:
             tab_widget: Widget to place the plot in
             run_data: Dictionary containing run data
         """
-        import numpy as np
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
     NavigationToolbar2QT as NavigationToolbar
 )
-        from computational_metrics_new import ensure_all_visualizations_visible
         
         # Create figure for adaptive rates with constrained size
         fig = Figure(figsize=(7, 4), tight_layout=True)
@@ -5696,11 +5706,11 @@ class GAOptimizationMixin:
         # Add to widget
         canvas = FigureCanvasQTAgg(fig)
         tab_widget.layout().addWidget(canvas)
-        
+
         # Add toolbar
         toolbar = NavigationToolbar(canvas, tab_widget)
         tab_widget.layout().addWidget(toolbar)
-        
+
         # Ensure visibility
         ensure_all_visualizations_visible(tab_widget)
         
@@ -5713,13 +5723,11 @@ class GAOptimizationMixin:
             run_data: Dictionary containing run data
         """
         import numpy as np
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
     NavigationToolbar2QT as NavigationToolbar
 )
-        from computational_metrics_new import ensure_all_visualizations_visible
         
         # Create figure for computational efficiency with constrained size
         fig = Figure(figsize=(7, 4), tight_layout=True)
@@ -5844,11 +5852,11 @@ class GAOptimizationMixin:
         # Add to widget
         canvas = FigureCanvasQTAgg(fig)
         tab_widget.layout().addWidget(canvas)
-        
+
         # Add toolbar
         toolbar = NavigationToolbar(canvas, tab_widget)
         tab_widget.layout().addWidget(toolbar)
-        
+
         # Ensure visibility
         ensure_all_visualizations_visible(tab_widget)
 
@@ -5951,7 +5959,6 @@ class GAOptimizationMixin:
     
     def create_run_fitness_evolution_plot(self, layout, run_data, metrics):
         """Create fitness evolution plot for selected run"""
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
@@ -6000,7 +6007,6 @@ class GAOptimizationMixin:
     
     def create_run_performance_plot(self, layout, run_data, metrics):
         """Create computational performance plot for selected run"""
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
@@ -6147,7 +6153,6 @@ class GAOptimizationMixin:
     
     def create_run_timing_analysis_plot(self, layout, run_data, metrics):
         """Create genetic operations timing analysis plot"""
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
@@ -6323,7 +6328,6 @@ class GAOptimizationMixin:
     
     def create_run_parameter_convergence_plot(self, layout, run_data, metrics):
         """Create interactive parameter convergence analysis plot with dropdown selection"""
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
@@ -7283,7 +7287,6 @@ All parameters remain constant during optimization.''',
     
     def create_run_adaptive_rates_plot(self, layout, run_data, metrics):
         """Create adaptive rates evolution plot with smart annotation positioning"""
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
@@ -7406,7 +7409,6 @@ All parameters remain constant during optimization.''',
     
     def create_run_generation_breakdown_plot(self, layout, run_data, metrics):
         """Create generation performance breakdown plot"""
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
@@ -7475,7 +7477,6 @@ All parameters remain constant during optimization.''',
     
     def create_run_fitness_components_plot(self, layout, run_data, metrics):
         """Create fitness components analysis plot"""
-        import matplotlib.pyplot as plt
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
