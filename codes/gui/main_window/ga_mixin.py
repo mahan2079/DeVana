@@ -110,16 +110,18 @@ class GAOptimizationMixin:
         self.ga_benchmark_runs_box.setValue(1)
         self.ga_benchmark_runs_box.setToolTip("Number of times to run the GA for benchmarking (1 = single run)")
         
-        # Controller selection (mutually exclusive): None, Adaptive, ML Bandit
+        # Controller selection (mutually exclusive): None, Adaptive, ML Bandit, RL
         controller_group = QGroupBox("Controller (choose one)")
         controller_layout = QHBoxLayout(controller_group)
         self.controller_none_radio = QRadioButton("Fixed")
         self.controller_adaptive_radio = QRadioButton("Adaptive Rates")
         self.controller_ml_radio = QRadioButton("ML Bandit")
+        self.controller_rl_radio = QRadioButton("RL Controller")
         self.controller_none_radio.setChecked(True)
         controller_layout.addWidget(self.controller_none_radio)
         controller_layout.addWidget(self.controller_adaptive_radio)
         controller_layout.addWidget(self.controller_ml_radio)
+        controller_layout.addWidget(self.controller_rl_radio)
         ga_hyper_layout.addRow(controller_group)
         
         # Add adaptive rates checkbox
@@ -243,6 +245,34 @@ class GAOptimizationMixin:
         self.ml_ucb_c_box.setValue(0.60)
         self.ml_ucb_c_box.setToolTip("Exploration strength for UCB (higher explores more)")
         ga_hyper_layout.addRow("ML UCB c:", self.ml_ucb_c_box)
+
+        # RL controller options
+        self.rl_options_widget = QWidget()
+        rl_form = QFormLayout(self.rl_options_widget)
+        rl_form.setContentsMargins(20, 0, 0, 0)
+        self.rl_alpha_box = QDoubleSpinBox()
+        self.rl_alpha_box.setRange(0.0, 1.0)
+        self.rl_alpha_box.setDecimals(3)
+        self.rl_alpha_box.setValue(0.1)
+        rl_form.addRow("RL α (learning rate):", self.rl_alpha_box)
+        self.rl_gamma_box = QDoubleSpinBox()
+        self.rl_gamma_box.setRange(0.0, 1.0)
+        self.rl_gamma_box.setDecimals(3)
+        self.rl_gamma_box.setValue(0.9)
+        rl_form.addRow("RL γ (discount):", self.rl_gamma_box)
+        self.rl_epsilon_box = QDoubleSpinBox()
+        self.rl_epsilon_box.setRange(0.0, 1.0)
+        self.rl_epsilon_box.setDecimals(3)
+        self.rl_epsilon_box.setValue(0.2)
+        rl_form.addRow("RL ε (explore):", self.rl_epsilon_box)
+        self.rl_decay_box = QDoubleSpinBox()
+        self.rl_decay_box.setRange(0.0, 1.0)
+        self.rl_decay_box.setDecimals(3)
+        self.rl_decay_box.setValue(0.95)
+        rl_form.addRow("RL ε decay:", self.rl_decay_box)
+        self.rl_options_widget.setVisible(False)
+        self.controller_rl_radio.toggled.connect(self.rl_options_widget.setVisible)
+        ga_hyper_layout.addRow("RL Options:", self.rl_options_widget)
 
         # Surrogate-assisted screening controls
         self.surrogate_checkbox = QCheckBox("Use Surrogate-Assisted Screening")
@@ -1651,10 +1681,7 @@ class GAOptimizationMixin:
         # Determine controller mode (mutually exclusive)
         use_ml = self.controller_ml_radio.isChecked()
         use_adaptive = self.controller_adaptive_radio.isChecked()
-
-        # Determine controller mode (mutually exclusive)
-        use_ml = self.controller_ml_radio.isChecked()
-        use_adaptive = self.controller_adaptive_radio.isChecked()
+        use_rl = self.controller_rl_radio.isChecked()
 
         # Store alpha used for this run for later reporting
         self._alpha_used_for_run = alpha
@@ -1673,20 +1700,26 @@ class GAOptimizationMixin:
             ga_parameter_data=ga_parameter_data,
             alpha=alpha,
             track_metrics=True,  # Enable metrics tracking for visualization
-            adaptive_rates=bool(use_adaptive and not use_ml),  # ensure mutual exclusivity
+            adaptive_rates=bool(use_adaptive and not (use_ml or use_rl)),  # ensure mutual exclusivity
             stagnation_limit=self.stagnation_limit_box.value(),  # Get stagnation limit from UI
             cxpb_min=self.cxpb_min_box.value(),  # Get min crossover probability
             cxpb_max=self.cxpb_max_box.value(),  # Get max crossover probability
             mutpb_min=self.mutpb_min_box.value(),  # Get min mutation probability
             mutpb_max=self.mutpb_max_box.value(),  # Get max mutation probability
             # ML/Bandit controller params
-            use_ml_adaptive=bool(use_ml and not use_adaptive),  # ensure mutual exclusivity
+            use_ml_adaptive=bool(use_ml and not (use_adaptive or use_rl)),  # ensure mutual exclusivity
             pop_min=int(max(10, self.ga_pop_min_box.value())),
             pop_max=int(max(self.ga_pop_min_box.value(), self.ga_pop_max_box.value())),
             ml_ucb_c=self.ml_ucb_c_box.value(),
             ml_adapt_population=self.ml_pop_adapt_checkbox.isChecked(),
             ml_diversity_weight=self.ml_diversity_weight_box.value(),
             ml_diversity_target=self.ml_diversity_target_box.value(),
+            # RL controller params
+            use_rl_controller=bool(use_rl and not (use_ml or use_adaptive)),
+            rl_alpha=self.rl_alpha_box.value(),
+            rl_gamma=self.rl_gamma_box.value(),
+            rl_epsilon=self.rl_epsilon_box.value(),
+            rl_epsilon_decay=self.rl_decay_box.value(),
             # Surrogate
             use_surrogate=self.surrogate_checkbox.isChecked(),
             surrogate_pool_factor=self.surr_pool_factor_box.value(),
@@ -5237,11 +5270,18 @@ class GAOptimizationMixin:
                 run_analysis_tabs.addTab(rates_tab, "Adaptive Rates")
             
             # 6. ML Bandit Controller (if available)
-            if metrics.get('ml_controller_history') or metrics.get('pop_size_history') or metrics.get('rates_history'):
+            if metrics.get('ml_controller_history'):
                 ml_tab = QWidget()
                 ml_layout = QVBoxLayout(ml_tab)
                 self.create_run_ml_bandit_plots(ml_layout, run_data, metrics)
                 run_analysis_tabs.addTab(ml_tab, "ML Controller")
+
+            # RL Controller (if available)
+            if metrics.get('rl_controller_history'):
+                rl_tab = QWidget()
+                rl_layout = QVBoxLayout(rl_tab)
+                self.create_run_rl_controller_plots(rl_layout, run_data, metrics)
+                run_analysis_tabs.addTab(rl_tab, "RL Controller")
 
             # Surrogate tab (if available)
             if metrics.get('surrogate_info') or run_data.get('benchmark_metrics', {}).get('surrogate_enabled'):
@@ -6000,6 +6040,78 @@ class GAOptimizationMixin:
             ax.text(0.5, 0.5, 'No fitness history data available', 
                    ha='center', va='center', transform=ax.transAxes, fontsize=14)
         
+        canvas = FigureCanvasQTAgg(fig)
+        toolbar = NavigationToolbar(canvas, None)
+        layout.addWidget(toolbar)
+        layout.addWidget(canvas)
+
+    def create_run_rl_controller_plots(self, layout, run_data, metrics):
+        """Create RL controller specific plots: reward, epsilon, rates, population."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import (
+            FigureCanvasQTAgg,
+            NavigationToolbar2QT as NavigationToolbar
+        )
+        import numpy as np
+
+        fig = Figure(figsize=(12, 8), tight_layout=True)
+        ax1 = fig.add_subplot(2, 2, 1)  # Reward
+        ax2 = fig.add_subplot(2, 2, 2)  # Epsilon
+        ax3 = fig.add_subplot(2, 2, 3)  # Rates
+        ax4 = fig.add_subplot(2, 2, 4)  # Population
+
+        rl_hist = metrics.get('rl_controller_history', []) or []
+        rates_hist = metrics.get('rates_history', []) or []
+        pop_hist = metrics.get('pop_size_history', []) or []
+
+        if rl_hist:
+            gens = [r.get('generation', i+1) for i, r in enumerate(rl_hist)]
+            rewards = [r.get('reward', 0.0) for r in rl_hist]
+            epsilons = [r.get('epsilon', 0.0) for r in rl_hist]
+            ax1.plot(gens, rewards, 'm-', marker='o', linewidth=2)
+            ax1.set_title('RL Reward per Generation')
+            ax1.set_xlabel('Generation')
+            ax1.set_ylabel('Reward')
+            ax1.grid(True, alpha=0.3)
+            if len(rewards) >= 5:
+                k = 5
+                ma = np.convolve(rewards, np.ones(k)/k, mode='valid')
+                ax1.plot(gens[k-1:], ma, 'k--', alpha=0.7, label='MA(5)')
+                ax1.legend()
+
+            ax2.plot(gens, epsilons, 'c-', marker='s')
+            ax2.set_title('Epsilon Decay')
+            ax2.set_xlabel('Generation')
+            ax2.set_ylabel('ε')
+            ax2.grid(True, alpha=0.3)
+        else:
+            ax1.text(0.5, 0.5, 'No RL reward history', ha='center', va='center', transform=ax1.transAxes)
+            ax2.text(0.5, 0.5, 'No epsilon history', ha='center', va='center', transform=ax2.transAxes)
+
+        if rates_hist:
+            gens_r = [r.get('generation', i+1) for i, r in enumerate(rates_hist)]
+            cx = [r.get('cxpb', np.nan) for r in rates_hist]
+            mu = [r.get('mutpb', np.nan) for r in rates_hist]
+            ax3.plot(gens_r, cx, 'b-', marker='o', linewidth=2, label='cxpb')
+            ax3.plot(gens_r, mu, 'r-', marker='s', linewidth=2, label='mutpb')
+            ax3.set_title('Rates per Generation')
+            ax3.set_xlabel('Generation')
+            ax3.set_ylabel('Rate')
+            ax3.grid(True, alpha=0.3)
+            ax3.legend()
+        else:
+            ax3.text(0.5, 0.5, 'No rates history', ha='center', va='center', transform=ax3.transAxes)
+
+        if pop_hist:
+            gens_p = range(1, len(pop_hist)+1)
+            ax4.step(list(gens_p), pop_hist, where='mid', color='g')
+            ax4.set_title('Population Size per Generation')
+            ax4.set_xlabel('Generation')
+            ax4.set_ylabel('Population')
+            ax4.grid(True, alpha=0.3)
+        else:
+            ax4.text(0.5, 0.5, 'No population history', ha='center', va='center', transform=ax4.transAxes)
+
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
         layout.addWidget(toolbar)
