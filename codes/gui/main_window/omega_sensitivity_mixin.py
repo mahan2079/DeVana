@@ -185,20 +185,26 @@ class OmegaSensitivityMixin:
         
         # Show result details in a formatted table
         self.sensitivity_results_text.append("--- Detailed Results ---")
-        self.sensitivity_results_text.append("Points | Max Slope | Max Rel Change")
-        self.sensitivity_results_text.append("-------|-----------|----------------")
-        
+        self.sensitivity_results_text.append("Points | Max Slope | Max Rel Change | Peak Pos Δ | Bandwidth Δ")
+        self.sensitivity_results_text.append("-------|-----------|----------------|------------|-------------")
+
+        peak_changes = results.get("peak_position_changes", [])
+        bw_changes = results.get("bandwidth_changes", [])
+
         for i in range(len(results["omega_points"])):
             points = results["omega_points"][i]
             slope = results["max_slopes"][i]
             change = results["relative_changes"][i] if i < len(results["relative_changes"]) else float('nan')
-            
-            if not np.isnan(change):
-                change_str = f"{change:.6f}"
-            else:
-                change_str = "N/A"
-                
-            self.sensitivity_results_text.append(f"{points:6d} | {slope:10.6f} | {change_str}")
+            peak_change = peak_changes[i] if i < len(peak_changes) else float('nan')
+            bw_change = bw_changes[i] if i < len(bw_changes) else float('nan')
+
+            change_str = f"{change:.6f}" if not np.isnan(change) else "N/A"
+            peak_str = f"{peak_change:.6f}" if not np.isnan(peak_change) else "N/A"
+            bw_str = f"{bw_change:.6f}" if not np.isnan(bw_change) else "N/A"
+
+            self.sensitivity_results_text.append(
+                f"{points:6d} | {slope:10.6f} | {change_str} | {peak_str} | {bw_str}"
+            )
                 
         # If user selected to use optimal points, update the FRF omega points setting
         if self.sensitivity_use_optimal.isChecked():

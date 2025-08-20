@@ -789,6 +789,8 @@ class InputTabsMixin:
             omega_points = results.get("omega_points", [])
             max_slopes = results.get("max_slopes", [])
             relative_changes = results.get("relative_changes", [])
+            peak_position_changes = results.get("peak_position_changes", [])
+            bandwidth_changes = results.get("bandwidth_changes", [])
             optimal_points = results.get("optimal_points", 0)
             
             if not omega_points or not max_slopes:
@@ -829,28 +831,31 @@ class InputTabsMixin:
                 ax = self.rel_change_fig.add_subplot(111)
 
                 # Plot relative changes (skip first point as it has no relative change)
-                if len(relative_changes) > 0:
-                    # Remove NaN values for plotting
-                    valid_indices = [i for i, val in enumerate(relative_changes) if not np.isnan(val)]
-                    valid_points = [omega_points[i] for i in valid_indices]
-                    valid_changes = [relative_changes[i] for i in valid_indices]
+                def plot_change_series(changes, label, color, marker='o'):
+                    if len(changes) > 0:
+                        valid_idx = [i for i, val in enumerate(changes) if not np.isnan(val)]
+                        pts = [omega_points[i] for i in valid_idx]
+                        vals = [changes[i] for i in valid_idx]
+                        if pts:
+                            ax.semilogy(pts, vals, marker+'-', linewidth=2, markersize=6,
+                                        color=color, label=label)
 
-                    if valid_points:
-                        ax.semilogy(valid_points, valid_changes, 'o-', linewidth=2, markersize=6,
-                                   color='#ff7f0e', label='Max Relative Change')
+                plot_change_series(relative_changes, 'Max Relative Change', '#ff7f0e', 'o')
+                plot_change_series(peak_position_changes, 'Peak Position Δ', '#2ca02c', '^')
+                plot_change_series(bandwidth_changes, 'Bandwidth Δ', '#9467bd', 's')
 
-                        # Add convergence threshold line
-                        convergence_threshold = self.sensitivity_threshold.value()
-                        ax.axhline(y=convergence_threshold, color='red', linestyle='--',
-                                  linewidth=2, label=f'Convergence Threshold: {convergence_threshold}')
+                # Add convergence threshold line
+                convergence_threshold = self.sensitivity_threshold.value()
+                ax.axhline(y=convergence_threshold, color='red', linestyle='--',
+                          linewidth=2, label=f'Convergence Threshold: {convergence_threshold}')
 
-                        # Highlight convergence point if it exists
-                        convergence_point = results.get("convergence_point")
-                        if convergence_point and convergence_point in omega_points:
-                            conv_idx = omega_points.index(convergence_point)
-                            if conv_idx < len(relative_changes) and not np.isnan(relative_changes[conv_idx]):
-                                ax.plot(convergence_point, relative_changes[conv_idx], 'go',
-                                       markersize=10, label=f'Convergence Point: {convergence_point}')
+                # Highlight convergence point if it exists
+                convergence_point = results.get("convergence_point")
+                if convergence_point and convergence_point in omega_points:
+                    conv_idx = omega_points.index(convergence_point)
+                    if conv_idx < len(relative_changes) and not np.isnan(relative_changes[conv_idx]):
+                        ax.plot(convergence_point, relative_changes[conv_idx], 'go',
+                               markersize=10, label=f'Convergence Point: {convergence_point}')
 
                 ax.set_title('Maximum Relative Change Across Metrics', fontsize=14, fontweight='bold')
                 ax.set_xlabel('Number of Omega Points', fontsize=12)
@@ -870,15 +875,20 @@ class InputTabsMixin:
 
                 ax1.plot(omega_points, max_slopes, 'o-', color='#1f77b4', label='Maximum Slope')
 
-                if len(relative_changes) > 0:
-                    valid_indices = [i for i, val in enumerate(relative_changes) if not np.isnan(val)]
-                    valid_points = [omega_points[i] for i in valid_indices]
-                    valid_changes = [relative_changes[i] for i in valid_indices]
-                    if valid_points:
-                        ax2.semilogy(valid_points, valid_changes, 's-', color='#ff7f0e', label='Max Relative Change')
-                        convergence_threshold = self.sensitivity_threshold.value()
-                        ax2.axhline(y=convergence_threshold, color='red', linestyle='--', linewidth=2,
-                                    label=f'Threshold {convergence_threshold}')
+                def plot_change_series_ax2(changes, label, color, marker='s'):
+                    if len(changes) > 0:
+                        valid_idx = [i for i, val in enumerate(changes) if not np.isnan(val)]
+                        pts = [omega_points[i] for i in valid_idx]
+                        vals = [changes[i] for i in valid_idx]
+                        if pts:
+                            ax2.semilogy(pts, vals, marker+'-', color=color, label=label)
+
+                plot_change_series_ax2(relative_changes, 'Max Relative Change', '#ff7f0e', 's')
+                plot_change_series_ax2(peak_position_changes, 'Peak Position Δ', '#2ca02c', '^')
+                plot_change_series_ax2(bandwidth_changes, 'Bandwidth Δ', '#9467bd', 'd')
+                convergence_threshold = self.sensitivity_threshold.value()
+                ax2.axhline(y=convergence_threshold, color='red', linestyle='--', linewidth=2,
+                            label=f'Threshold {convergence_threshold}')
 
                 ax1.set_xlabel('Number of Omega Points', fontsize=12)
                 ax1.set_ylabel('Maximum Slope', fontsize=12, color='#1f77b4')

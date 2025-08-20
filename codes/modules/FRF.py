@@ -1042,13 +1042,19 @@ def perform_omega_points_sensitivity_analysis(
     Returns:
     --------
     dict
-        Dictionary containing convergence results, optimal points, and figure object if plot_results=True
+        Dictionary containing convergence results, optimal points, and figure object if
+        plot_results=True. The results include the maximum slope, overall maximum
+        relative change across metrics, and category-specific changes for peak
+        positions and bandwidths at each iteration.
     """
     # Initialize empty lists to store results
     point_values = []
     slope_max_values = []
     # Maximum relative change across metrics for each iteration
     relative_changes = []
+    # Track category-specific changes (peak positions, bandwidths)
+    peak_position_changes = []
+    bandwidth_changes = []
     # Store the full metric dictionary for every iteration
     metrics_history = []
     
@@ -1146,11 +1152,25 @@ def perform_omega_points_sensitivity_analysis(
                 max_change = max(changes.values(), default=np.nan)
                 relative_changes.append(max_change)
 
+                # Track category-specific maximum changes
+                peak_pos_change = max(
+                    [v for k, v in changes.items() if k.startswith("peak_positions")],
+                    default=np.nan,
+                )
+                bandwidth_change = max(
+                    [v for k, v in changes.items() if k.startswith("bandwidths")],
+                    default=np.nan,
+                )
+                peak_position_changes.append(peak_pos_change)
+                bandwidth_changes.append(bandwidth_change)
+
                 if max_change < convergence_threshold and not converged:
                     converged = True
                     convergence_point = current_points
             else:
                 relative_changes.append(np.nan)
+                peak_position_changes.append(np.nan)
+                bandwidth_changes.append(np.nan)
 
             prev_metrics = current_metrics
             
@@ -1172,6 +1192,8 @@ def perform_omega_points_sensitivity_analysis(
         "omega_points": point_values,
         "max_slopes": slope_max_values,
         "relative_changes": relative_changes,
+        "peak_position_changes": peak_position_changes,
+        "bandwidth_changes": bandwidth_changes,
         "metrics_history": metrics_history,
         "optimal_points": optimal_points,
         "converged": converged,
