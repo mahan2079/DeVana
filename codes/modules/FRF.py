@@ -1029,7 +1029,9 @@ def perform_omega_points_sensitivity_analysis(
     step_size : int
         Increment in omega points between iterations
     convergence_threshold : float
-        Threshold for determining convergence (relative change in max slope)
+        Threshold for determining convergence.  Convergence is evaluated using the
+        maximum relative change across all available metrics (peak positions,
+        peak values, bandwidths, slopes, area under curve, etc.)
     max_iterations : int
         Maximum number of iterations to run
     mass_of_interest : str
@@ -1045,13 +1047,16 @@ def perform_omega_points_sensitivity_analysis(
     # Initialize empty lists to store results
     point_values = []
     slope_max_values = []
+    # Maximum relative change across metrics for each iteration
     relative_changes = []
+    # Store the full metric dictionary for every iteration
+    metrics_history = []
     
     # Empty target and weight dictionaries for minimal FRF calculation
     empty_dict = {}
     
     # Initialize variables for tracking convergence
-    prev_slope_max = None
+    prev_metrics = None
     optimal_points = max_points  # Default to maximum if convergence is not reached
     converged = False
     convergence_point = None  # Track where convergence was first detected
@@ -1077,6 +1082,24 @@ def perform_omega_points_sensitivity_analysis(
             dva_parameters = [0] * 48
             print("Warning: dva_parameters not in expected format. Using zeros.")
     
+    def _flatten_metrics(mass_dict):
+        """Flatten nested metric dictionaries into a single level"""
+        flat = {}
+        for key, val in mass_dict.items():
+            if key == "magnitude":
+                continue
+            if isinstance(val, dict):
+                for subk, subval in val.items():
+                    if np.isscalar(subval):
+                        flat[f"{key}.{subk}"] = float(subval)
+            elif np.isscalar(val):
+                flat[key] = float(val)
+            elif isinstance(val, (list, tuple, np.ndarray)):
+                for i, subval in enumerate(val):
+                    if np.isscalar(subval):
+                        flat[f"{key}.{i}"] = float(subval)
+        return flat
+
     while current_points <= max_points and iteration < max_iterations:
         # Calculate FRF with current number of omega points
         results = frf(
@@ -1105,28 +1128,31 @@ def perform_omega_points_sensitivity_analysis(
         if mass_of_interest in results:
             mass_data = results[mass_of_interest]
             slope_max = mass_data.get("slope_max", np.nan)
-            
+            current_metrics = _flatten_metrics(mass_data)
+
             # Store current values
             point_values.append(current_points)
             slope_max_values.append(slope_max)
-            
-            # Calculate relative change if we have previous values
-            if prev_slope_max is not None and not np.isnan(prev_slope_max) and not np.isnan(slope_max) and prev_slope_max != 0:
-                rel_change = abs((slope_max - prev_slope_max) / prev_slope_max)
-                relative_changes.append(rel_change)
-                
-                # Check for convergence (but continue running regardless)
-                if rel_change < convergence_threshold and not converged:
-                    # Record the first point where convergence occurs
-                    # But we NEVER set optimal_points here anymore - leave it as max_points
-                    # optimal_points = current_points
+            metrics_history.append(current_metrics)
+
+            if prev_metrics is not None:
+                changes = {}
+                for key in current_metrics.keys() & prev_metrics.keys():
+                    prev_val = prev_metrics[key]
+                    curr_val = current_metrics[key]
+                    if prev_val != 0 and not np.isnan(prev_val) and not np.isnan(curr_val):
+                        changes[key] = abs((curr_val - prev_val) / prev_val)
+
+                max_change = max(changes.values(), default=np.nan)
+                relative_changes.append(max_change)
+
+                if max_change < convergence_threshold and not converged:
                     converged = True
                     convergence_point = current_points
             else:
                 relative_changes.append(np.nan)
-                
-            # Update previous slope max for next iteration
-            prev_slope_max = slope_max
+
+            prev_metrics = current_metrics
             
         # Increment the number of points for next iteration
         current_points += step_size
@@ -1146,6 +1172,7 @@ def perform_omega_points_sensitivity_analysis(
         "omega_points": point_values,
         "max_slopes": slope_max_values,
         "relative_changes": relative_changes,
+        "metrics_history": metrics_history,
         "optimal_points": optimal_points,
         "converged": converged,
         "convergence_point": convergence_point,  # Track where convergence was first detected
@@ -1170,15 +1197,15 @@ def perform_omega_points_sensitivity_analysis(
         ax1.grid(True, linestyle='--', alpha=0.7)
         ax1.legend()
         
-        # Plot relative change
+        # Plot maximum relative change across metrics
         ax2 = fig.add_subplot(2, 1, 2, sharex=ax1)
         if len(relative_changes) > 1:
             ax2.semilogy(point_values[1:], relative_changes[1:], 'o-', linewidth=2)
-            ax2.axhline(y=convergence_threshold, color='r', linestyle='--', 
+            ax2.axhline(y=convergence_threshold, color='r', linestyle='--',
                         label=f'Threshold: {convergence_threshold}')
         ax2.set_xlabel('Number of Omega Points', fontsize=12)
-        ax2.set_ylabel('Relative Change', fontsize=12)
-        ax2.set_title('Relative Change in Maximum Slope', fontsize=14, weight='bold')
+        ax2.set_ylabel('Max Relative Change', fontsize=12)
+        ax2.set_title('Maximum Relative Change Across Metrics', fontsize=14, weight='bold')
         ax2.grid(True, linestyle='--', alpha=0.7)
         ax2.legend()
         

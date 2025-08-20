@@ -139,6 +139,10 @@ class OmegaSensitivityMixin:
         
         # Display results
         self.sensitivity_results_text.append("\n--- Analysis Results ---\n")
+        self.sensitivity_results_text.append(
+            "Convergence is evaluated using the maximum relative change across all available metrics "
+            "(peak positions, peak heights, bandwidths, slopes, area under curve).\n"
+        )
         
         # Show analysis outcome with detailed information
         optimal_points = results["optimal_points"]
@@ -181,7 +185,7 @@ class OmegaSensitivityMixin:
         
         # Show result details in a formatted table
         self.sensitivity_results_text.append("--- Detailed Results ---")
-        self.sensitivity_results_text.append("Points | Max Slope | Relative Change")
+        self.sensitivity_results_text.append("Points | Max Slope | Max Rel Change")
         self.sensitivity_results_text.append("-------|-----------|----------------")
         
         for i in range(len(results["omega_points"])):

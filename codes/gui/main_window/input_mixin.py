@@ -827,34 +827,34 @@ class InputTabsMixin:
             elif current_tab == 1:  # Relative change plot
                 self.rel_change_fig.clear()
                 ax = self.rel_change_fig.add_subplot(111)
-                
+
                 # Plot relative changes (skip first point as it has no relative change)
                 if len(relative_changes) > 0:
                     # Remove NaN values for plotting
                     valid_indices = [i for i, val in enumerate(relative_changes) if not np.isnan(val)]
                     valid_points = [omega_points[i] for i in valid_indices]
                     valid_changes = [relative_changes[i] for i in valid_indices]
-                    
+
                     if valid_points:
-                        ax.semilogy(valid_points, valid_changes, 'o-', linewidth=2, markersize=6, 
-                                   color='#ff7f0e', label='Relative Change')
-                        
+                        ax.semilogy(valid_points, valid_changes, 'o-', linewidth=2, markersize=6,
+                                   color='#ff7f0e', label='Max Relative Change')
+
                         # Add convergence threshold line
                         convergence_threshold = self.sensitivity_threshold.value()
-                        ax.axhline(y=convergence_threshold, color='red', linestyle='--', 
+                        ax.axhline(y=convergence_threshold, color='red', linestyle='--',
                                   linewidth=2, label=f'Convergence Threshold: {convergence_threshold}')
-                        
+
                         # Highlight convergence point if it exists
                         convergence_point = results.get("convergence_point")
                         if convergence_point and convergence_point in omega_points:
                             conv_idx = omega_points.index(convergence_point)
                             if conv_idx < len(relative_changes) and not np.isnan(relative_changes[conv_idx]):
-                                ax.plot(convergence_point, relative_changes[conv_idx], 'go', 
+                                ax.plot(convergence_point, relative_changes[conv_idx], 'go',
                                        markersize=10, label=f'Convergence Point: {convergence_point}')
-                
-                ax.set_title('Relative Change in Maximum Slope', fontsize=14, fontweight='bold')
+
+                ax.set_title('Maximum Relative Change Across Metrics', fontsize=14, fontweight='bold')
                 ax.set_xlabel('Number of Omega Points', fontsize=12)
-                ax.set_ylabel('Relative Change (log scale)', fontsize=12)
+                ax.set_ylabel('Max Relative Change (log scale)', fontsize=12)
                 ax.grid(True, alpha=0.3)
                 ax.legend()
                 
@@ -875,14 +875,14 @@ class InputTabsMixin:
                     valid_points = [omega_points[i] for i in valid_indices]
                     valid_changes = [relative_changes[i] for i in valid_indices]
                     if valid_points:
-                        ax2.semilogy(valid_points, valid_changes, 's-', color='#ff7f0e', label='Relative Change')
+                        ax2.semilogy(valid_points, valid_changes, 's-', color='#ff7f0e', label='Max Relative Change')
                         convergence_threshold = self.sensitivity_threshold.value()
                         ax2.axhline(y=convergence_threshold, color='red', linestyle='--', linewidth=2,
                                     label=f'Threshold {convergence_threshold}')
 
                 ax1.set_xlabel('Number of Omega Points', fontsize=12)
                 ax1.set_ylabel('Maximum Slope', fontsize=12, color='#1f77b4')
-                ax2.set_ylabel('Relative Change (log scale)', fontsize=12, color='#ff7f0e')
+                ax2.set_ylabel('Max Relative Change (log scale)', fontsize=12, color='#ff7f0e')
                 ax1.grid(True, alpha=0.3)
 
                 ax1.tick_params(axis='y', labelcolor='#1f77b4')
