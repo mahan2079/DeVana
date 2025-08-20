@@ -252,6 +252,12 @@ class GAWorker(QThread):
                  ml_adapt_population=True,  # Whether ML controller can resize population
                  ml_diversity_weight=0.02,  # Penalty weight for diversity deviation
                  ml_diversity_target=0.2,
+                 # Reinforcement Learning controller
+                 use_rl_controller=False,
+                 rl_alpha=0.1,
+                 rl_gamma=0.9,
+                 rl_epsilon=0.2,
+                 rl_epsilon_decay=0.95,
                  # Surrogate-assisted screening
                  use_surrogate=False,
                  surrogate_pool_factor=2.0,
@@ -402,6 +408,13 @@ class GAWorker(QThread):
         self.ml_diversity_weight = ml_diversity_weight
         self.ml_diversity_target = ml_diversity_target
 
+        # Reinforcement learning controller configuration
+        self.use_rl_controller = use_rl_controller
+        self.rl_alpha = float(rl_alpha)
+        self.rl_gamma = float(rl_gamma)
+        self.rl_epsilon = float(rl_epsilon)
+        self.rl_epsilon_decay = float(rl_epsilon_decay)
+
         # Surrogate configuration
         self.use_surrogate = use_surrogate
         self.surrogate_pool_factor = max(1.0, float(surrogate_pool_factor))
@@ -491,9 +504,10 @@ class GAWorker(QThread):
             'adaptive_rates_history': [],  # Track how rates change if adaptive rates are used
             # ML/Bandit controller histories
             'ml_controller_history': [],   # Per-generation records of decisions and rewards
+            'rl_controller_history': [],   # RL controller decisions and rewards
             'pop_size_history': [],        # Track population size across generations
             'rates_history': [],           # Track cxpb/mutpb chosen each generation
-            'controller': None,            # Which controller was used: 'fixed' | 'adaptive' | 'ml_bandit'
+            'controller': None,            # Which controller was used: 'fixed' | 'adaptive' | 'ml_bandit' | 'rl'
             # Surrogate metrics
             'surrogate_enabled': bool(use_surrogate),
             'surrogate_pool_factor': float(self.surrogate_pool_factor),
@@ -601,10 +615,13 @@ class GAWorker(QThread):
         # Debug output for adaptive rates / ML controller settings
         self.update.emit(f"DEBUG: adaptive_rates parameter is set to: {self.adaptive_rates}")
         self.update.emit(f"DEBUG: ML bandit controller is set to: {self.use_ml_adaptive}")
+        self.update.emit(f"DEBUG: RL controller is set to: {self.use_rl_controller}")
         self.update.emit(f"DEBUG: GA parameters: crossover={self.ga_cxpb:.4f}, mutation={self.ga_mutpb:.4f}")
         # Record which controller is active for this run
         try:
-            if self.use_ml_adaptive:
+            if self.use_rl_controller:
+                self.metrics['controller'] = 'rl'
+            elif self.use_ml_adaptive:
                 self.metrics['controller'] = 'ml_bandit'
             elif self.adaptive_rates:
                 self.metrics['controller'] = 'adaptive'
@@ -1180,6 +1197,68 @@ class GAWorker(QThread):
                             new_inds = generate_seed_individuals(extra)
                             pop.extend(new_inds)
                     return pop
+            # --- Reinforcement Learning controller setup ---
+            elif self.use_rl_controller:
+                deltas = [-0.25, -0.1, 0.0, 0.1, 0.25]
+                pop_multipliers = [0.5, 0.75, 1.0, 1.25, 1.5]
+                rl_actions = [(dcx, dmu, pm) for dcx in deltas for dmu in deltas for pm in pop_multipliers]
+                rl_q = {0: [0.0 for _ in rl_actions], 1: [0.0 for _ in rl_actions]}
+                rl_state = 0
+
+                def rl_select_action(current_cx, current_mu, current_pop):
+                    if random.random() < self.rl_epsilon:
+                        idx = random.randrange(len(rl_actions))
+                    else:
+                        idx = int(np.argmax(rl_q[rl_state]))
+                    dcx, dmu, pm = rl_actions[idx]
+                    new_cx = min(self.cxpb_max, max(self.cxpb_min, current_cx * (1.0 + dcx)))
+                    new_mu = min(self.mutpb_max, max(self.mutpb_min, current_mu * (1.0 + dmu)))
+                    new_pop = int(min(self.pop_max, max(self.pop_min, round(current_pop * pm))))
+                    return idx, new_cx, new_mu, new_pop
+
+                def rl_update(state, action, reward, next_state):
+                    q_old = rl_q[state][action]
+                    q_next = max(rl_q[next_state])
+                    rl_q[state][action] = q_old + self.rl_alpha * (reward + self.rl_gamma * q_next - q_old)
+
+                def resize_population(pop, new_size):
+                    if new_size < len(pop):
+                        return tools.selBest(pop, new_size)
+                    extra = new_size - len(pop)
+                    if extra > 0:
+                        if self.use_neural_seeding and neural_seeder is not None and neural_seeder.size >= max(50, 5 * len(parameter_bounds)):
+                            beta = self.neural_beta_min
+                            try:
+                                if self.adaptive_rates:
+                                    beta = self.neural_beta_min + (self.neural_beta_max - self.neural_beta_min) * min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                            except Exception:
+                                pass
+                            best_y = None
+                            try:
+                                best_y = min(ind.fitness.values[0] for ind in pop if ind.fitness.valid)
+                            except Exception:
+                                best_y = None
+                            eps = self.neural_epsilon
+                            try:
+                                if self.neural_adapt_epsilon and self.adaptive_rates:
+                                    stag_ratio = min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                                    eps = (1.0 - stag_ratio) * self.neural_eps_min + stag_ratio * self.neural_eps_max
+                                    eps = max(self.neural_eps_min, min(eps, self.neural_eps_max))
+                                    self.current_epsilon = eps
+                            except Exception:
+                                pass
+                            seeds = neural_seeder.propose(count=extra, beta=beta, best_y=best_y, exploration_fraction=eps)
+                            for s in seeds:
+                                pop.append(creator.Individual(list(s)))
+                            need_eval = [ind for ind in pop if not ind.fitness.valid]
+                            if need_eval:
+                                fits_new = list(map(toolbox.evaluate, need_eval))
+                                for ind, fit in zip(need_eval, fits_new):
+                                    ind.fitness.values = fit
+                        else:
+                            new_inds = generate_seed_individuals(extra)
+                            pop.extend(new_inds)
+                    return pop
             
             # Run for the specified number of generations
             for gen in range(1, self.ga_num_generations + 1):
@@ -1211,7 +1290,30 @@ class GAWorker(QThread):
                 
                 # Determine current rates and optionally adjust using ML bandit
                 evals_this_gen = 0
-                if self.use_ml_adaptive:
+                if self.use_rl_controller:
+                    old_pop = len(population)
+                    rl_idx, new_cxpb, new_mutpb, new_pop = rl_select_action(self.current_cxpb, self.current_mutpb, old_pop)
+                    self.current_cxpb = new_cxpb
+                    self.current_mutpb = new_mutpb
+                    if new_pop != old_pop:
+                        population = resize_population(population, new_pop)
+                        need_eval = [ind for ind in population if not ind.fitness.valid]
+                        if need_eval:
+                            self.update.emit(f"  RL ctrl: evaluating {len(need_eval)} new individuals after resize...")
+                            eval_start = time.time()
+                            fits_new = list(map(toolbox.evaluate, need_eval))
+                            for ind, fit in zip(need_eval, fits_new):
+                                ind.fitness.values = fit
+                            if self.track_metrics:
+                                self.metrics['evaluation_times'].append(time.time() - eval_start)
+                            evals_this_gen += len(need_eval)
+                    current_cxpb = self.current_cxpb
+                    current_mutpb = self.current_mutpb
+                    self.update.emit("  Rates type: RL-Controller")
+                    self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
+                    self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
+                    self.update.emit(f"  - Population: {len(population)}")
+                elif self.use_ml_adaptive:
                     # Initial defaults are the current values
                     old_cxpb = self.current_cxpb
                     old_mutpb = self.current_mutpb
@@ -1243,9 +1345,9 @@ class GAWorker(QThread):
                     # Use current adaptive rates if enabled (legacy heuristic)
                     current_cxpb = self.current_cxpb if self.adaptive_rates else self.ga_cxpb
                     current_mutpb = self.current_mutpb if self.adaptive_rates else self.ga_mutpb
-                self.update.emit(f"  Rates type: {'Adaptive' if self.adaptive_rates else 'Fixed'}")
-                self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
-                self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
+                    self.update.emit(f"  Rates type: {'Adaptive' if self.adaptive_rates else 'Fixed'}")
+                    self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
+                    self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
                 
                 if self.adaptive_rates:
                     # Calculate change from previous rates if not first generation
@@ -1672,28 +1774,48 @@ class GAWorker(QThread):
                         else:
                             self.metrics['convergence_rate'].append(0.0)
 
-                    # If ML controller is active, compute and record reward and controller choice
-                    if self.use_ml_adaptive:
-                        # Reward: improvement per second with diversity shaping
+                    # Controller-specific reward logging
+                    if self.use_ml_adaptive or self.use_rl_controller:
                         last_best = self.metrics['best_fitness_per_gen'][-2] if len(self.metrics['best_fitness_per_gen']) > 1 else None
                         imp = (last_best - min_fit) if (last_best is not None and last_best > min_fit) else 0.0
                         cv = std / (abs(mean) + 1e-12)
                         effort = max(1.0, evals_this_gen)
                         reward = (imp / max(gen_time, 1e-6)) / effort - self.ml_diversity_weight * abs(cv - self.ml_diversity_target)
-                        try:
-                            ml_update(idx, reward)
-                        except Exception:
-                            pass
-                        self.metrics['ml_controller_history'].append({
-                            'generation': gen,
-                            'cxpb': current_cxpb,
-                            'mutpb': current_mutpb,
-                            'pop': len(population),
-                            'best_fitness': min_fit,
-                            'mean_fitness': mean,
-                            'std_fitness': std,
-                            'reward': reward
-                        })
+
+                        if self.use_ml_adaptive:
+                            try:
+                                ml_update(idx, reward)
+                            except Exception:
+                                pass
+                            self.metrics['ml_controller_history'].append({
+                                'generation': gen,
+                                'cxpb': current_cxpb,
+                                'mutpb': current_mutpb,
+                                'pop': len(population),
+                                'best_fitness': min_fit,
+                                'mean_fitness': mean,
+                                'std_fitness': std,
+                                'reward': reward
+                            })
+                        elif self.use_rl_controller:
+                            next_state = 1 if imp > 0 else 0
+                            try:
+                                rl_update(rl_state, rl_idx, reward, next_state)
+                                rl_state = next_state
+                                self.rl_epsilon *= self.rl_epsilon_decay
+                            except Exception:
+                                pass
+                            self.metrics['rl_controller_history'].append({
+                                'generation': gen,
+                                'cxpb': current_cxpb,
+                                'mutpb': current_mutpb,
+                                'pop': len(population),
+                                'best_fitness': min_fit,
+                                'mean_fitness': mean,
+                                'std_fitness': std,
+                                'reward': reward,
+                                'epsilon': self.rl_epsilon
+                            })
 
                     # Record surrogate info
                     if self.use_surrogate:
