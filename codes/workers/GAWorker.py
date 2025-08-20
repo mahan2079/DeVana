@@ -1426,9 +1426,10 @@ class GAWorker(QThread):
                     else:
                         # Fallback: evaluate all invalids
                         self.update.emit(f"  Evaluating {len(invalid_ind)} individuals...")
-                    fitnesses = map(toolbox.evaluate, invalid_ind)
-                    for ind, fit in zip(invalid_ind, fitnesses):
-                        ind.fitness.values = fit
+                        fitnesses = map(toolbox.evaluate, invalid_ind)
+                        for ind, fit in zip(invalid_ind, fitnesses):
+                            ind.fitness.values = fit
+                        # Count evaluations once per individual
                         evals_this_gen += len(invalid_ind)
 
                 # After evaluation, update NeuralSeeder with fresh data and optionally reseed on stagnation
