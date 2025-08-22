@@ -33,8 +33,10 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QProgressBar,
     QFileDialog,
+    QDialog,
+    QToolBar,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QDateTime
 from PyQt5.QtGui import QBrush, QColor
 import os
 import time
@@ -103,6 +105,13 @@ class GAOptimizationMixin:
         self.ga_alpha_box.setDecimals(4)
         self.ga_alpha_box.setSingleStep(0.01)
         self.ga_alpha_box.setValue(0.01)
+
+        self.ga_percentage_error_scale_box = QDoubleSpinBox()
+        self.ga_percentage_error_scale_box.setRange(1.0, 100000.0)
+        self.ga_percentage_error_scale_box.setDecimals(2)
+        self.ga_percentage_error_scale_box.setSingleStep(100.0)
+        self.ga_percentage_error_scale_box.setValue(1000.0)
+        self.ga_percentage_error_scale_box.setToolTip("Scaling factor for percentage error in fitness calculation (higher = less influence)")
         
         # Add benchmarking runs box
         self.ga_benchmark_runs_box = QSpinBox()
@@ -206,6 +215,7 @@ class GAOptimizationMixin:
         ga_hyper_layout.addRow("Mutation Probability (mutpb):", self.ga_mutpb_box)
         ga_hyper_layout.addRow("Tolerance (tol):", self.ga_tol_box)
         ga_hyper_layout.addRow("Sparsity Penalty (alpha):", self.ga_alpha_box)
+        ga_hyper_layout.addRow("Percentage Error Scale:", self.ga_percentage_error_scale_box)
         ga_hyper_layout.addRow("Benchmark Runs:", self.ga_benchmark_runs_box)
         ga_hyper_layout.addRow("", self.adaptive_rates_checkbox)
         ga_hyper_layout.addRow("", self.adaptive_rates_options)
@@ -245,6 +255,36 @@ class GAOptimizationMixin:
         self.ml_ucb_c_box.setValue(0.60)
         self.ml_ucb_c_box.setToolTip("Exploration strength for UCB (higher explores more)")
         ga_hyper_layout.addRow("ML UCB c:", self.ml_ucb_c_box)
+
+        # ML reward blending weights
+        self.ml_historical_weight_box = QDoubleSpinBox()
+        self.ml_historical_weight_box.setRange(0.0, 1.0)
+        self.ml_historical_weight_box.setDecimals(2)
+        self.ml_historical_weight_box.setSingleStep(0.05)
+        self.ml_historical_weight_box.setValue(0.70)
+        self.ml_historical_weight_box.setToolTip("Weight for historical average in reward blending (0.0-1.0)")
+        ga_hyper_layout.addRow("ML Historical Weight:", self.ml_historical_weight_box)
+
+        self.ml_current_weight_box = QDoubleSpinBox()
+        self.ml_current_weight_box.setRange(0.0, 1.0)
+        self.ml_current_weight_box.setDecimals(2)
+        self.ml_current_weight_box.setSingleStep(0.05)
+        self.ml_current_weight_box.setValue(0.30)
+        self.ml_current_weight_box.setToolTip("Weight for current reward in reward blending (0.0-1.0)")
+        ga_hyper_layout.addRow("ML Current Weight:", self.ml_current_weight_box)
+
+        # Connect the weight boxes to automatically adjust each other to sum to 1.0
+        def adjust_weights():
+            historical = self.ml_historical_weight_box.value()
+            current = self.ml_current_weight_box.value()
+            total = historical + current
+            if total != 0:
+                # Normalize to sum to 1.0
+                self.ml_historical_weight_box.setValue(historical / total)
+                self.ml_current_weight_box.setValue(current / total)
+        
+        self.ml_historical_weight_box.valueChanged.connect(adjust_weights)
+        self.ml_current_weight_box.valueChanged.connect(adjust_weights)
 
         # RL controller options
         self.rl_options_widget = QWidget()
@@ -1547,7 +1587,8 @@ class GAOptimizationMixin:
         mutation_prob = self.ga_mutpb_box.value()
         tolerance = self.ga_tol_box.value()
         alpha = self.ga_alpha_box.value()
-        
+        percentage_error_scale = self.ga_percentage_error_scale_box.value()
+
         # Get number of benchmark runs
         self.benchmark_runs = self.ga_benchmark_runs_box.value()
         self.current_benchmark_run = 0
@@ -1699,6 +1740,7 @@ class GAOptimizationMixin:
             ga_tol=tolerance,
             ga_parameter_data=ga_parameter_data,
             alpha=alpha,
+            percentage_error_scale=percentage_error_scale,
             track_metrics=True,  # Enable metrics tracking for visualization
             adaptive_rates=bool(use_adaptive and not (use_ml or use_rl)),  # ensure mutual exclusivity
             stagnation_limit=self.stagnation_limit_box.value(),  # Get stagnation limit from UI
@@ -1714,6 +1756,8 @@ class GAOptimizationMixin:
             ml_adapt_population=self.ml_pop_adapt_checkbox.isChecked(),
             ml_diversity_weight=self.ml_diversity_weight_box.value(),
             ml_diversity_target=self.ml_diversity_target_box.value(),
+            ml_historical_weight=self.ml_historical_weight_box.value(),
+            ml_current_weight=self.ml_current_weight_box.value(),
             # RL controller params
             use_rl_controller=bool(use_rl and not (use_ml or use_adaptive)),
             rl_alpha=self.rl_alpha_box.value(),
@@ -1975,7 +2019,8 @@ class GAOptimizationMixin:
         mutation_prob = self.ga_mutpb_box.value()
         tolerance = self.ga_tol_box.value()
         alpha = self.ga_alpha_box.value()
-        
+        percentage_error_scale = self.ga_percentage_error_scale_box.value()
+
         # Get DVA parameter bounds
         dva_bounds = {}
         EPSILON = 1e-6
@@ -2062,6 +2107,7 @@ class GAOptimizationMixin:
             ga_tol=tolerance,
             ga_parameter_data=ga_parameter_data,
             alpha=alpha,
+            percentage_error_scale=percentage_error_scale,
             track_metrics=True,  # Enable metrics tracking for visualization
             adaptive_rates=bool(use_adaptive and not use_ml),  # ensure mutual exclusivity
             stagnation_limit=self.stagnation_limit_box.value(),  # Get stagnation limit from UI
@@ -2077,6 +2123,8 @@ class GAOptimizationMixin:
             ml_adapt_population=self.ml_pop_adapt_checkbox.isChecked(),
             ml_diversity_weight=self.ml_diversity_weight_box.value(),
             ml_diversity_target=self.ml_diversity_target_box.value(),
+            ml_historical_weight=self.ml_historical_weight_box.value(),
+            ml_current_weight=self.ml_current_weight_box.value(),
             # Surrogate
             use_surrogate=self.surrogate_checkbox.isChecked(),
             surrogate_pool_factor=self.surr_pool_factor_box.value(),
