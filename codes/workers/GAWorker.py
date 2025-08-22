@@ -1,376 +1,598 @@
 """
-Genetic Algorithm Worker (GAWorker) Pseudocode
+Comprehensive Flow Chart & Feature Overview of GAWorker.py
 
-CLASS: GAWorker
-    INHERITS: QThread
-    
-    SIGNALS:
-        finished(results_dict: dict, best_individual: list, param_names: list, best_fitness: float)
-        error(error_message: str)
-        update(status_message: str)
-        progress(percentage: int)
-        benchmark_data(dict)
-        generation_metrics(dict)
+[1] Imports & Dependencies
+    |
+    |-- Standard Libraries: sys, os, time, platform, json, traceback, math, datetime, random
+    |-- Data Science Libraries: numpy, pandas, matplotlib, seaborn
+    |-- System Monitoring: psutil
+    |-- GUI: PyQt5.QtWidgets, PyQt5.QtCore, PyQt5.QtGui
+    |-- Evolutionary Algorithms: deap (base, creator, tools)
+    |-- Advanced Sampling: scipy.stats.qmc (Sobol, LatinHypercube)
+    |-- Custom Modules: modules.FRF (frf), .NeuralSeeder (NeuralSeeder)
+    |
+    V
 
-    METHODS:
-        __init__(self, main_params: dict, target_values_dict: dict, weights_dict: dict, 
-                omega_start: float, omega_end: float, omega_points: int,
-                ga_pop_size: int, ga_num_generations: int, ga_cxpb: float, 
-                ga_mutpb: float, ga_tol: float, ga_parameter_data: dict, alpha: float = 0.01, track_metrics=False,
-                adaptive_rates=False, stagnation_limit=5, cxpb_min=0.1, cxpb_max=0.9, mutpb_min=0.05, mutpb_max=0.5)
-            - Initialize GA parameters and thread safety mechanisms
-            - Set up watchdog timer for safety
-            - Store all input parameters as instance variables
+[2] Main Class: GAWorker
+    |
+    |-- __init__():
+    |     |-- Initialize all parameters, options, and data structures
+    |     |-- Set up system info, metrics tracking, and GUI signals
+    |     |-- Support for advanced seeding (QMC, Sobol, LHS, NeuralSeeder)
+    |
+    |-- run():
+    |     |-- Main execution loop for the genetic algorithm
+    |     |-- Handles all evolutionary operations and feature toggles
+    |     |
+    |     |-- Population Initialization:
+    |     |      |-- Supports random, Sobol, LHS, and neural seeding
+    |     |      |-- Handles fixed parameters and parameter bounds
+    |     |
+    |     |-- Fitness Evaluation:
+    |     |      |-- Uses FRF analysis for multi-mass system
+    |     |      |-- Tracks evaluation count and timing
+    |     |
+    |     |-- Selection, Crossover, Mutation:
+    |     |      |-- Tournament selection
+    |     |      |-- Custom mutation with fixed parameter support
+    |     |      |-- Crossover and mutation rates can be adaptive
+    |     |
+    |     |-- Advanced Features:
+    |     |      |-- Adaptive Rates: Dynamically adjust crossover/mutation based on stagnation and diversity
+    |     |      |-- ML Bandit Controller: UCB-based controller for rates and population size (exploration/exploitation)
+    |     |      |-- RL Controller: Reinforcement learning-based control of rates and population size
+    |     |      |-- NeuralSeeder: Neural network-based population seeding and data collection
+    |     |      |-- Diversity Tracking: Monitors population diversity for adaptation
+    |     |      |-- Multi-objective Fitness: Tracks and logs primary objective, sparsity penalty, and percentage error
+    |     |      |-- Metrics Tracking: Real-time and historical tracking of CPU, memory, network, thread count, and evaluation times
+    |     |      |-- Robust Exception Handling: Retries and cleans up DEAP state on errors
+    |     |
+    |     |-- Logging & Visualization:
+    |     |      |-- Emits progress, statistics, and adaptation events to GUI
+    |     |      |-- Tabular display of fitness components and rates
+    |     |      |-- Plots and saves progress if enabled
+    |     |
+    |     |-- Finalization:
+    |     |      |-- Evaluates and emits best solution and metrics
+    |     |      |-- Handles cleanup and error reporting
+    |
+    |-- save_results(): Store results to file or display
+    |-- plot_progress(): Visualize algorithm progress and metrics
+    |-- handle_exceptions(): Error handling and logging
+    |-- _get_system_info(): Collects detailed system info for benchmarking
+    |-- _update_resource_metrics(): Tracks CPU, memory, disk, network, and thread usage
+    |-- _start_metrics_tracking() / _stop_metrics_tracking(): Manage periodic metrics collection
+    |-- cleanup(): Ensures proper resource and state cleanup
 
-        __del__(self)
-            - Cleanup method when object is destroyed
-            - Stop thread and release resources
+[3] Algorithmic Flow (Genetic Algorithm)
+    |
+    |-- [Start]
+    |-- Initialize population (with advanced seeding options)
+    |-- For each generation:
+    |      |-- Evaluate fitness (FRF analysis, multi-objective)
+    |      |-- Select parents (tournament)
+    |      |-- Apply crossover (with adaptive/ML/RL rates)
+    |      |-- Apply mutation (with adaptive/ML/RL rates)
+    |      |-- Form new population (replacement, resizing if needed)
+    |      |-- Log/visualize progress (tabular, plots, GUI)
+    |      |-- Track and adapt rates/population (adaptive, ML bandit, RL)
+    |      |-- Track metrics (CPU, memory, evaluation times, diversity)
+    |-- [End]
+    |-- Output best solution(s), statistics, metrics, and plots
 
-        handle_timeout(self)
-            - Handle watchdog timer timeout
-            - Abort operation if taking too long
+[4] Advanced Features & Integrations
+    |
+    |-- Adaptive Rates: Detects stagnation/diversity and adapts crossover/mutation rates
+    |-- ML Bandit Controller: UCB-based action selection for rates and population size
+    |-- RL Controller: Reinforcement learning for dynamic control of GA parameters
+    |-- NeuralSeeder: Neural network-driven population initialization and data collection
+    |-- Multi-objective Fitness: Tracks and displays multiple fitness components
+    |-- Real-time System Metrics: CPU, memory, disk, network, thread count
+    |-- Robust Exception Handling: Retries, cleans up DEAP state, and emits errors to GUI
+    |-- GUI Integration: Real-time updates, progress, and results via PyQt signals
 
-        cleanup(self)
-            - Clean up DEAP framework types
-            - Stop watchdog timer
-            - Prevent memory leaks
+[5] Utilities & Helpers
+    |
+    |-- Data loading/saving (JSON, CSV, etc.)
+    |-- System resource monitoring (psutil)
+    |-- Exception handling and retry logic (for DEAP and FRF)
+    |-- Parameter bounds and fixed parameter management
+    |-- Population resizing and diversity calculation
+    |-- Metrics aggregation and export
 
-        run(self)
-            - Main execution method for GA optimization
-            - Sets up DEAP toolbox and genetic operators
-            - Implements evolution loop
-            - Handles results processing and error recovery
+[6] GUI Integration
+    |
+    |-- Set up main window and widgets (PyQt5)
+    |-- Display progress, results, and controls for user interaction
+    |-- Emit signals for updates, errors, and metrics to the GUI
 
-    HELPER FUNCTIONS:
-        safe_deap_operation(func: callable) -> callable
-            - Decorator for safe DEAP operations
-            - Implements retry logic with error recovery
-            - Maximum 3 retry attempts
-
-    GENETIC ALGORITHM COMPONENTS:
-        1. Population Initialization
-            - create_initial_population(self) -> list
-            - Each solution is a set of parameters within bounds
-
-        2. Fitness Evaluation
-            - evaluate_fitness(self, individual: list) -> float
-            - Uses frf.analyze() for FRF analysis
-            - calculate_fitness() based on target values and weights
-            - apply_sparsity_penalty() for simpler solutions
-            
-            FITNESS FUNCTION DETAILS:
-            The fitness function evaluates solutions using three components:
-            1. Primary Objective (Distance from Target):
-               - Measures how close the solution is to target value of 1.0
-               - Formula: abs(singular_response - 1.0)
-               - Example: If response is 1.2, objective = 0.2
-            
-            2. Sparsity Penalty:
-               - Encourages simpler solutions by penalizing complexity
-               - Formula: alpha * sum(abs(param) for param in individual)
-               - alpha is a weight factor (default 0.01)
-               - Higher parameter values increase penalty
-            
-            3. Percentage Error Sum:
-               - Sums absolute percentage differences from target values
-               - Formula: sum(abs(percent_diff) for all criteria)
-               - Prevents positive and negative errors from cancelling
-            
-            Final Fitness = Primary Objective + Sparsity Penalty + Percentage Error Sum
-            - Lower fitness values indicate better solutions
-            - Invalid solutions return high penalty (1e6)
-
-        3. Selection
-            - tournament_selection(self, population: list, k: int = 3) -> list
-            - Choose best solutions for reproduction
-
-        4. Crossover
-            - blend_crossover(self, ind1: list, ind2: list, alpha: float = 0.5) -> tuple
-            - Combine pairs of solutions to create new ones
-            - Respect parameter bounds and fixed parameters
-
-        5. Mutation
-            - mutate_parameters(self, individual: list, mutpb: float) -> list
-            - Random parameter changes within bounds
-            - Skip fixed parameters
-            - Maintain solution validity
-
-        6. Evolution Loop
-            - evolve_population(self) -> list
-            - Iterate for specified number of generations
-            - Track best solution found
-            - Check for convergence
-            - Update progress and statistics
-
-    ERROR HANDLING:
-        - retry_deap_operation() for DEAP operations
-        - handle_frf_evaluation_failure() for FRF evaluation failures
-        - timeout_protection() for timeout protection
-        - cleanup_resources() for resource cleanup
-
-    THREAD SAFETY:
-        - mutex_lock: QMutex for critical sections
-        - wait_condition: QWaitCondition for thread coordination
-        - abort_flag: bool for safe abort mechanism
-
-    OUTPUT PROCESSING:
-        - evaluate_best_solution(self, best_individual: list) -> dict
-        - calculate_composite_measures(self, results: dict) -> dict
-        - generate_response_value(self, measures: dict) -> float
-        - report_errors(self, error: Exception) -> None
 """
 
 
 
+
+# Import the sys module, which provides access to system-specific parameters and functions.
 import sys
+
+# Import numpy, a powerful library for numerical computations and working with arrays.
 import numpy as np
+
+# Import os, which allows interaction with the operating system (like file and directory management).
 import os
+
+# Import matplotlib's pyplot module for creating static, interactive, and animated plots.
 import matplotlib.pyplot as plt
+
+# Import seaborn, a statistical data visualization library built on top of matplotlib.
 import seaborn as sns
+
+# Import pandas, a library for data manipulation and analysis, especially with tabular data.
 import pandas as pd
+
+# Import traceback, which helps in printing or retrieving stack traces (useful for debugging errors).
 import traceback
+
+# Import psutil, a library for retrieving information on running processes and system utilization (CPU, memory, etc.).
 import psutil
+
+# Import time, which provides time-related functions (like sleeping, measuring time, etc.).
 import time
+
+# Import platform, which allows you to access underlying platform data (OS, architecture, etc.).
 import platform
+
+# Import json, a module for parsing and creating JSON (JavaScript Object Notation) data.
 import json
+
+# Import datetime from the datetime module, for working with dates and times.
 from datetime import datetime
+
+# Import sqrt and log functions from the math module for mathematical operations.
 from math import sqrt, log
+
+# Import a large set of widgets and GUI components from PyQt5.QtWidgets.
+# These are used to build the application's graphical user interface.
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QDoubleSpinBox, QSpinBox,
-    QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QFormLayout, QGroupBox,
-    QTextEdit, QCheckBox, QScrollArea, QFileDialog, QMessageBox, QDockWidget,
-    QMenuBar, QMenu, QAction, QSplitter, QToolBar, QStatusBar, QLineEdit, QComboBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QSizePolicy, QActionGroup
+    QApplication,      # The main application object
+    QMainWindow,       # The main window class
+    QWidget,           # Base class for all UI objects
+    QLabel,            # Display text or images
+    QDoubleSpinBox,    # Spin box for floating-point numbers
+    QSpinBox,          # Spin box for integers
+    QVBoxLayout,       # Vertical layout manager
+    QHBoxLayout,       # Horizontal layout manager
+    QPushButton,       # Button widget
+    QTabWidget,        # Tabbed widget
+    QFormLayout,       # Form layout manager
+    QGroupBox,         # Group box for grouping widgets
+    QTextEdit,         # Multi-line text editor
+    QCheckBox,         # Checkbox widget
+    QScrollArea,       # Scrollable area
+    QFileDialog,       # File dialog for opening/saving files
+    QMessageBox,       # Message box for dialogs
+    QDockWidget,       # Dockable widget
+    QMenuBar,          # Menu bar
+    QMenu,             # Menu
+    QAction,           # Action for menu/toolbars
+    QSplitter,         # Splitter for resizing widgets
+    QToolBar,          # Toolbar
+    QStatusBar,        # Status bar
+    QLineEdit,         # Single-line text editor
+    QComboBox,         # Drop-down list
+    QTableWidget,      # Table widget
+    QTableWidgetItem,  # Item for table widget
+    QHeaderView,       # Header for tables
+    QAbstractItemView, # Abstract base class for item views
+    QSizePolicy,       # Size policy for widgets
+    QActionGroup       # Grouping actions together
 )
+
+# Import core classes from PyQt5.QtCore for threading, signals, and other core functionality.
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QMutex, QWaitCondition, QTimer
+
+# Import GUI-related classes from PyQt5.QtGui for icons, colors, and fonts.
 from PyQt5.QtGui import QIcon, QPalette, QColor, QFont
+
+# Import a custom function 'frf' from the modules.FRF module.
+# This is likely a user-defined module for a specific purpose (e.g., Frequency Response Function).
 from modules.FRF import frf
 
+# Import the random module for generating random numbers (used in algorithms like genetic algorithms).
 import random
+
+# Import base, creator, and tools from the deap library, which is used for evolutionary algorithms (like genetic algorithms).
 from deap import base, creator, tools
+
+# Import qmc (quasi-Monte Carlo) from scipy.stats for advanced sampling methods.
 from scipy.stats import qmc
+
+# Import NeuralSeeder from a local module in the same package.
+# This is likely a custom class for initializing neural networks or populations.
 from .NeuralSeeder import NeuralSeeder
 
+# -----------------------------------------------------------------------------------------------
 
-# Helper function to safely perform operations involving DEAP
+# Imagine you have a function that does something with the DEAP library (which is used for evolutionary algorithms).
+# Sometimes, DEAP can get into a weird state (for example, if you try to register the same class twice), and your function might crash.
+# This helper function is a "decorator" – a special kind of function in Python that wraps around another function to add extra behavior.
+# In this case, the decorator tries to run your function, and if it fails, it will try up to 3 times.
+# If it fails, it also tries to "clean up" DEAP's global state by deleting certain attributes, so the next attempt has a better chance of working.
+# If it still fails after 3 tries, it gives up and raises the error.
+
+# The science/logic behind this:
+# - DEAP uses global state to register things like "FitnessMin" and "Individual" classes.
+# - If you try to register them again, or if something goes wrong, DEAP can throw errors.
+# - By deleting these attributes, you can "reset" DEAP's state and try again.
+# - The retry loop is a common pattern for handling flaky or stateful errors.
+
+
 def safe_deap_operation(func):
-    """Decorator for safely executing DEAP operations with error recovery"""
+    """
+    Decorator to safely execute functions that use DEAP, with error recovery and retries.
+
+    This decorator wraps a function so that if it fails due to DEAP's global state issues,
+    it will attempt to clean up and retry the operation a few times before giving up.
+
+    Python concepts used here:
+    - Decorators: Functions that modify the behavior of other functions.
+    - Nested functions: Defining a function (wrapper) inside another function.
+    - Exception handling: Using try/except to catch and handle errors.
+    - Loops: Using a for loop to retry the operation multiple times.
+    - Attribute manipulation: Using hasattr and delattr to modify objects at runtime.
+    """
     def wrapper(*args, **kwargs):
-        # Set maximum number of retry attempts for failed operations
-        max_retries = 3
-        
-        # Loop through retry attempts
+        max_retries = 3  # Set the maximum number of times to try running the function
+
+        # Try to run the function up to max_retries times
         for attempt in range(max_retries):
             try:
-                # Try to execute the decorated function with its arguments
+                # Attempt to run the original function with all its arguments
                 return func(*args, **kwargs)
             except Exception as e:
-                # If we haven't reached max retries, attempt recovery
+                # If an error occurs, check if we have more retries left
                 if attempt < max_retries - 1:
-                    # Log the failure and retry attempt
+                    # Print a message to let the user know we're retrying
                     print(f"DEAP operation failed, retrying ({attempt+1}/{max_retries}): {str(e)}")
-                    
-                    # Attempt to clean up DEAP global attributes that might be corrupted
+                    # Try to clean up DEAP's global state, which might be causing the error
                     try:
-                        # Remove FitnessMin attribute if it exists
+                        # If the 'FitnessMin' class is registered in DEAP's creator, remove it
                         if hasattr(creator, "FitnessMin"):
                             delattr(creator, "FitnessMin")
-                        # Remove Individual attribute if it exists
+                        # If the 'Individual' class is registered in DEAP's creator, remove it
                         if hasattr(creator, "Individual"):
                             delattr(creator, "Individual")
                     except Exception:
-                        # If cleanup fails, continue to next retry attempt
+                        # If cleanup itself fails, ignore the error and continue to the next retry
                         pass
                 else:
-                    # If we've exhausted all retries, log final failure and raise the exception
+                    # If we've used up all our retries, print a final error message and raise the exception
                     print(f"DEAP operation failed after {max_retries} attempts: {str(e)}")
-                    raise
-    # Return the wrapper function that will handle the retry logic
+                    raise  # Re-raise the last exception so the caller knows something went wrong
+        # (No explicit return here; if all retries fail, the exception is raised)
+
+    # Return the wrapper function so it can be used as a decorator
     return wrapper
+
+# Python concepts to understand here:
+# - Decorators: Used to add retry/error-handling logic to any function that might have DEAP issues.
+# - Exception handling: try/except blocks let you catch and respond to errors.
+# - Attribute manipulation: 
+#   - The functions hasattr() and delattr() are used here to interact with Python objects at runtime.
+#   - hasattr(object, name) checks if the given object has an attribute with the specified name, returning True or False.
+#   - delattr(object, name) removes the specified attribute from the object if it exists.
+#   - In this context, we use these functions to check if DEAP's global 'creator' object has certain classes (like 'FitnessMin' or 'Individual') registered as attributes, and if so, remove them to clean up the global state before retrying the operation.
+# - Loops: The for loop is used to retry the operation multiple times.
+
+# Suggestions for improvement:
+# 1. You could make the list of attributes to clean up configurable, in case you want to handle other DEAP classes.
+# 2. Instead of printing errors, you could use Python's logging module for better control over error reporting.
+# 3. You could add a small delay (e.g., time.sleep(0.1)) between retries to avoid hammering the system if something is wrong.
+
+# -----------------------------------------------------------------------------------------------
 
 
 class GAWorker(QThread):
-    """
-    Genetic Algorithm Worker Class
-    
-    This class implements a genetic algorithm (GA) optimization process in a separate thread.
-    A genetic algorithm is a search heuristic inspired by natural selection and genetics.
-    It's used to find optimal solutions to complex problems by simulating the process of
-    natural selection.
-    
-    Scientific Explanation:
-    - Genetic algorithms mimic biological evolution by:
-      1. Creating a population of potential solutions
-      2. Evaluating their fitness (how good they solve the problem)
-      3. Selecting the best solutions
-      4. Creating new solutions through crossover (combining good solutions)
-      5. Introducing random mutations to maintain diversity
-      6. Repeating until an optimal solution is found
-    
-    Technical Explanation:
-    - This class inherits from QThread to run the GA in a separate thread
-    - Uses PyQt signals to communicate results back to the main application
-    - Implements thread safety mechanisms to prevent crashes
-    - Includes a watchdog timer to prevent infinite loops
-    """
-    
-    # Define signals that this class can emit to communicate with the main application
-    finished = pyqtSignal(dict, list, list, float)  # Emits: results, best individual, parameter names, best fitness
-    error = pyqtSignal(str)                         # Emits: error messages
-    update = pyqtSignal(str)                        # Emits: status updates
-    progress = pyqtSignal(int)                      # Emits: progress percentage (0-100)
-    # New signals for benchmarking
-    benchmark_data = pyqtSignal(dict)               # Emits: benchmark metrics (CPU, memory, convergence)
-    generation_metrics = pyqtSignal(dict)           # Emits: per-generation metrics for real-time tracking
+    # ---------------------------------------------------------------------------
+    # Step-by-step Explanation (Story Style)
+    #
+    # Imagine you want to solve a really hard puzzle—one where you don't know the answer,
+    # but you can tell when you're getting closer. A genetic algorithm (GA) is like
+    # having a group of "guessers" (solutions) who try different answers, learn from
+    # the best guesses, mix their ideas, and sometimes try something totally random.
+    # Over time, the group gets better and better at solving the puzzle.
+    #
+    # This class, GAWorker, is the "worker bee" that runs this evolutionary process.
+    # It does all the heavy lifting in the background (in a separate thread), so your
+    # main program (like a GUI) stays responsive. It also sends out signals to let
+    # the rest of your program know how things are going, if something went wrong,
+    # or when it's done.
+    #
+    # ---------------------------------------------------------------------------
+    # Scientific/Logical Explanation (The 'Why')
+    #
+    # - Genetic algorithms work because they mimic natural selection: the best solutions
+    #   are more likely to "reproduce" and pass on their traits, while random mutations
+    #   help explore new possibilities and avoid getting stuck.
+    # - Running the GA in a separate thread (using QThread) keeps the user interface
+    #   smooth and responsive, even during long computations.
+    # - Signals (from PyQt) are used to safely communicate between the worker thread
+    #   and the main application, which is crucial for thread safety in GUI programs.
+    #
+    # ---------------------------------------------------------------------------
+    # This is the definition of the GAWorker class, which inherits from QThread.
+    # Inheriting from QThread means this class can run code in a separate thread.
+    # ---------------------------------------------------------------------------
+    class GAWorker(QThread):
+        # -----------------------------------------------------------------------
+        # PyQt Signal Definitions
+        # These are special variables that define "signals" the worker can emit.
+        # Signals are a way for the worker to send messages or data back to the main
+        # application (like a GUI) in a thread-safe way.
+        # -----------------------------------------------------------------------
 
-    def __init__(self, 
-                 main_params,           # Main parameters for the system
-                 target_values_dict,    # Dictionary of target values to optimize towards
-                 weights_dict,          # Dictionary of weights for different objectives
-                 omega_start,           # Starting frequency for analysis
-                 omega_end,             # Ending frequency for analysis
-                 omega_points,          # Number of frequency points to analyze
-                 ga_pop_size,           # Size of the genetic algorithm population
-                 ga_num_generations,    # Number of generations to run the GA
-                 ga_cxpb,               # Crossover probability (chance of combining solutions)
-                 ga_mutpb,              # Mutation probability (chance of random changes)
-                 ga_tol,                # Tolerance for convergence
-                 ga_parameter_data,     # Data about parameters to optimize
-                 alpha=0.01,            # Learning rate or step size
-                 track_metrics=False,   # Whether to track and report computational metrics
-                 adaptive_rates=False,  # Whether to use adaptive crossover and mutation rates
-                 stagnation_limit=5,    # Number of generations without improvement before adapting rates
-                 cxpb_min=0.1,          # Minimum crossover probability
-                 cxpb_max=0.9,          # Maximum crossover probability
-                 mutpb_min=0.05,        # Minimum mutation probability
-                 mutpb_max=0.5,
-                 # ML/Bandit-based adaptive controller for rates + population
-                 use_ml_adaptive=False,
-                 pop_min=None,
-                 pop_max=None,
-                 ml_ucb_c=0.6,         # Exploration strength for UCB
-                 ml_adapt_population=True,  # Whether ML controller can resize population
-                 ml_diversity_weight=0.02,  # Penalty weight for diversity deviation
-                 ml_diversity_target=0.2,
-                 # Reinforcement Learning controller
-                 use_rl_controller=False,
-                 rl_alpha=0.1,
-                 rl_gamma=0.9,
-                 rl_epsilon=0.2,
-                 rl_epsilon_decay=0.95,
-                 # Surrogate-assisted screening
-                 use_surrogate=False,
-                 surrogate_pool_factor=2.0,
-                 surrogate_k=5,
-                  surrogate_explore_frac=0.15,  # fraction evaluated for exploration
-                 # Seeding method for initial population and injections
-                  seeding_method="random",     # "random" | "sobol" | "lhs" | "neural"
-                  seeding_seed=None,
-                  # Neural seeding options
-                  use_neural_seeding=False,
-                  neural_acq_type="ucb",      # "ucb" | "ei"
-                  neural_beta_min=1.0,
-                  neural_beta_max=2.5,
-                  neural_epsilon=0.1,
-                  neural_pool_mult=3.0,
-                  neural_epochs=8,
-                  neural_time_cap_ms=750,
-                  neural_ensemble_n=3,
-                  neural_hidden=96,
-                  neural_layers=2,
-                  neural_dropout=0.1,
-                   neural_weight_decay=1e-4,
-                  neural_enable_grad_refine=False,
-                  neural_grad_steps=0,
-                  neural_device="cpu",
-                  # Optional: adaptive epsilon linkage
-                  neural_adapt_epsilon=False,
-                  neural_eps_min=0.05,
-                  neural_eps_max=0.30):
+        # This signal is emitted when the GA finishes running.
+        # It sends:
+        #   - a dictionary of results (e.g., statistics, logs)
+        #   - the best individual (solution) found (as a list)
+        #   - the names of the parameters (as a list)
+        #   - the best fitness value (as a float)
+        finished = pyqtSignal(dict, list, list, float)
+
+        # This signal is emitted if an error occurs during the GA run.
+        # It sends an error message (as a string).
+        error = pyqtSignal(str)
+
+        # This signal is emitted to provide status updates (e.g., "Generation 5/100").
+        # It sends a status message (as a string).
+        update = pyqtSignal(str)
+
+        # This signal is emitted to report progress as a percentage (0 to 100).
+        # It sends an integer representing the percent complete.
+        progress = pyqtSignal(int)
+
+        # This signal is for sending benchmarking data (e.g., CPU usage, memory usage,
+        # convergence statistics) to the main application for display or logging.
+        # It sends a dictionary of benchmark metrics.
+        benchmark_data = pyqtSignal(dict)
+
+        # This signal is for sending metrics about each generation (e.g., best fitness,
+        # diversity, timing) in real time, so the main application can track progress
+        # and display charts or logs.
+        # It sends a dictionary of per-generation metrics.
+        generation_metrics = pyqtSignal(dict)
+
+    # ---------------------------------------------------------------------------
+    # Python Concepts to Understand Here:
+    # - Classes and Inheritance: GAWorker is a class that inherits from QThread,
+    #   which means it gets all the threading capabilities of QThread.
+    # - PyQt Signals: These are special variables that allow communication between
+    #   threads in PyQt applications. They are declared as class variables using
+    #   pyqtSignal.
+    # - Thread Safety: Signals ensure that data passed between threads is handled
+    #   safely, preventing crashes or data corruption.
+    #
+    # ---------------------------------------------------------------------------
+
+    # Overall Purpose:
+    # This __init__ method initializes a GAWorker object, configuring all parameters needed to run a genetic algorithm (GA) optimization.
+    # It supports advanced features such as adaptive rates, machine learning (ML) and reinforcement learning (RL) controllers, surrogate models, and neural network-based seeding.
+    #
+    # Underlying Python Concepts:
+    # - This is a class constructor (__init__), which is a special method in Python that is automatically called when a new instance of the class is created. It is used to initialize the object's attributes and set up any necessary state.
+    # - The __init__ method can take both required and optional arguments. Required arguments must be provided by the caller, while optional arguments have default values and can be omitted.
+    # - Default arguments (e.g., alpha=0.01) allow the user to create a GAWorker object with minimal parameters for simple use cases, or to override defaults for advanced customization. This makes the class flexible and user-friendly.
+    # - The method signature shows how Python supports both positional and keyword arguments. Positional arguments (like main_params) must be given in order, while keyword arguments (like alpha=0.01) can be specified by name, improving code readability.
+    # - The use of keyword arguments and default values also makes the API more robust to future changes, as new optional parameters can be added without breaking existing code that uses the class.
+    # - This design pattern is common in Python for classes that may have many configuration options, as it balances ease of use with extensibility.
+    # - The docstring and comments within the method provide documentation, helping users and developers understand what each parameter does and how to use the class effectively.
+    #
+    # Key Python Principles:
+    # - Object-Oriented Programming (OOP): This is a method of a class, encapsulating state and behavior.
+    # - Function Arguments: Shows positional, keyword, and default arguments.
+    # - Documentation: Docstrings and comments clarify usage and intent.
+    # ---------------------------------------------------------------------------
+    def __init__(
+        self,
+        main_params,                # Core system parameters
+        target_values_dict,         # Target values for objectives (dict: objective -> target)
+        weights_dict,               # Weights for each objective (dict: objective -> weight)
+        omega_start,                # Start of frequency range for analysis
+        omega_end,                  # End of frequency range for analysis
+        omega_points,               # Number of frequency points to analyze
+        ga_pop_size,                # Population size for the genetic algorithm
+        ga_num_generations,         # Number of generations to run the GA
+        ga_cxpb,                    # Crossover probability (float, 0-1)
+        ga_mutpb,                   # Mutation probability (float, 0-1)
+        ga_tol,                     # Convergence tolerance
+        ga_parameter_data,          # Parameter metadata for optimization
+        alpha=0.01,                 # Learning rate or step size (default: 0.01)
+        percentage_error_scale=1000.0, # Scaling factor for percentage error in fitness calculation
+        track_metrics=False,        # Enable tracking of computational metrics
+        adaptive_rates=False,       # Enable adaptive crossover/mutation rates
+        stagnation_limit=5,         # Generations without improvement before adapting rates
+        cxpb_min=0.1,               # Minimum crossover probability
+        cxpb_max=0.9,               # Maximum crossover probability
+        mutpb_min=0.05,             # Minimum mutation probability
+        mutpb_max=0.5,              # Maximum mutation probability
+        # ML/Bandit-based adaptive controller for rates and population
+        use_ml_adaptive=False,      # Enable ML-based adaptation of rates/population
+        pop_min=None,               # Minimum allowed population size (if adaptive)
+        pop_max=None,               # Maximum allowed population size (if adaptive)
+        ml_ucb_c=0.6,               # UCB exploration parameter for ML controller
+        ml_adapt_population=True,   # Allow ML controller to resize population
+        ml_diversity_weight=0.02,   # Penalty weight for diversity deviation
+        ml_diversity_target=0.2,    # Target diversity for ML controller
+        ml_historical_weight=0.7,   # Weight for historical average in reward blending
+        ml_current_weight=0.3,      # Weight for current reward in reward blending
+        # Reinforcement Learning controller parameters
+        use_rl_controller=False,    # Enable RL-based controller
+        rl_alpha=0.1,               # RL learning rate
+        rl_gamma=0.9,               # RL discount factor
+        rl_epsilon=0.2,             # RL exploration rate
+        rl_epsilon_decay=0.95,      # RL epsilon decay per episode
+        # Surrogate-assisted screening parameters
+        use_surrogate=False,        # Enable surrogate model for screening
+        surrogate_pool_factor=2.0,  # Pool size multiplier for surrogate screening
+        surrogate_k=5,              # Number of nearest neighbors for surrogate
+        surrogate_explore_frac=0.15,# Fraction of pool for exploration (not exploitation)
+        # Seeding method for initial population and injections
+        seeding_method="random",    # Method for seeding ("random", "sobol", "lhs", "neural")
+        seeding_seed=None,          # Random seed for reproducibility
+        # Neural seeding options
+        use_neural_seeding=False,   # Enable neural network-based seeding
+        neural_acq_type="ucb",      # Acquisition function type ("ucb", "ei")
+        neural_beta_min=1.0,        # Minimum beta for UCB acquisition
+        neural_beta_max=2.5,        # Maximum beta for UCB acquisition
+        neural_epsilon=0.1,         # Epsilon for exploration in neural seeding
+        neural_pool_mult=3.0,       # Pool size multiplier for neural seeding
+        neural_epochs=8,            # Number of training epochs for neural network
+        neural_time_cap_ms=750,     # Time cap per neural training (milliseconds)
+        neural_ensemble_n=3,        # Number of models in neural ensemble
+        neural_hidden=96,           # Hidden layer size for neural network
+        neural_layers=2,            # Number of hidden layers
+        neural_dropout=0.1,         # Dropout rate for neural network
+        neural_weight_decay=1e-4,   # Weight decay (L2 regularization) for neural network
+        neural_enable_grad_refine=False, # Enable gradient-based refinement
+        neural_grad_steps=0,        # Number of gradient refinement steps
+        neural_device="cpu",        # Device for neural computation ("cpu" or "cuda")
+        # Optional: adaptive epsilon linkage for neural seeding
+        neural_adapt_epsilon=False, # Enable adaptive epsilon for neural seeding
+        neural_eps_min=0.05,        # Minimum epsilon value
+        neural_eps_max=0.30         # Maximum epsilon value
+    ):
+        # ------------------------------------------------------------------------
+        # Genetic Algorithm Worker Initialization
+        #
+        # This section documents the initialization of a Genetic Algorithm (GA)
+        # worker class. The GA worker is responsible for optimizing a set of
+        # parameters to achieve specified target objectives, using evolutionary
+        # strategies such as selection, crossover, and mutation.
+        #
+        # The constructor accepts a comprehensive set of parameters that define:
+        #   - The system to be optimized (main_params, ga_parameter_data)
+        #   - The optimization objectives and their relative importance (target_values_dict, weights_dict)
+        #   - The search/analysis space (omega_start, omega_end, omega_points)
+        #   - Genetic algorithm configuration (population size, generations, rates, tolerance)
+        #   - Optional adaptive and tracking features
+        #
+        # Underlying Python Concepts:
+        #   - The use of a class constructor (__init__) to encapsulate state and configuration.
+        #   - Parameter passing and default arguments for flexible instantiation.
+        #   - Use of dictionaries and lists for structured data representation.
+        #   - Object-oriented design for modularity and reusability.
+        #   - The principle of encapsulation: all configuration is stored as instance attributes.
+        # ------------------------------------------------------------------------
+
         """
-        Initialize the Genetic Algorithm Worker
-        
-        Parameters:
-        - main_params: Core parameters of the system being optimized
-            # This is like the DNA of your system - all the basic settings that define how it works
-            # For example, if optimizing a car engine, this would include things like cylinder size, fuel type, etc.
-            # In code terms, this is usually a dictionary or object containing all the initial settings
+        Initialize the Genetic Algorithm Worker.
 
-        - target_values_dict: What we're trying to achieve
-            # Think of this as your "goal" - what you want the system to do
-            # Like setting a target speed for a car or a target temperature for a heater
-            # In code, this is a dictionary where keys are what you're measuring and values are your goals
+        Parameters
+        ----------
+        main_params : dict
+            Core configuration of the system to be optimized.
+        target_values_dict : dict
+            Target values for each optimization objective.
+        weights_dict : dict
+            Relative importance (weight) of each objective.
+        omega_start : float
+            Start of frequency range for analysis.
+        omega_end : float
+            End of frequency range for analysis.
+        omega_points : int
+            Number of frequency points to evaluate.
+        ga_pop_size : int
+            Number of candidate solutions in the population.
+        ga_num_generations : int
+            Number of generations (iterations) to run the GA.
+        ga_cxpb : float
+            Probability of crossover (combining two solutions).
+        ga_mutpb : float
+            Probability of mutation (randomly altering a solution).
+        ga_tol : float
+            Acceptable error threshold for convergence.
+        ga_parameter_data : dict or list
+            Parameters subject to optimization.
+        alpha : float, optional
+            Step size for parameter updates (default: 0.01).
+        percentage_error_scale : float, optional
+            Scaling factor for percentage error component in fitness calculation (default: 1000.0).
+        track_metrics : bool, optional
+            If True, collect and report computational metrics.
+        adaptive_rates : bool, optional
+            If True, enable automatic adjustment of crossover/mutation rates.
+        stagnation_limit : int, optional
+            Number of generations without improvement before adapting rates.
+        cxpb_min : float, optional
+            Minimum allowed crossover probability (if adaptive).
+        cxpb_max : float, optional
+            Maximum allowed crossover probability (if adaptive).
+        mutpb_min : float, optional
+            Minimum allowed mutation probability (if adaptive).
+        mutpb_max : float, optional
+            Maximum allowed mutation probability (if adaptive).
 
-        - weights_dict: How important each objective is
-            # This tells the algorithm which goals are more important than others
-            # Like saying "fuel efficiency is twice as important as top speed"
-            # In code, this is a dictionary where higher numbers mean more important objectives
-
-        - omega_start/end/points: Frequency range for analysis
-            # These define the range of frequencies we're analyzing
-            # Like tuning a radio across different stations (frequencies)
-            # In code:
-            #   omega_start: The lowest frequency to check
-            #   omega_end: The highest frequency to check
-            #   omega_points: How many frequencies to check in between
-
-        - ga_pop_size: How many potential solutions to maintain
-            # This is like having multiple different designs to try
-            # More solutions = better chance of finding the best one, but slower
-            # In code, this is just a number (like 100) representing how many solutions to keep
-
-        - ga_num_generations: How long to run the optimization
-            # How many times the algorithm will try to improve the solutions
-            # Like breeding plants for multiple generations to get better crops
-            # In code, this is a number representing how many improvement cycles to run
-
-        - ga_cxpb: Probability of combining solutions (like genetic crossover)
-            # Chance of mixing two good solutions to create a new one
-            # Like breeding two good plants to get a better one
-            # In code, this is a number between 0 and 1 (like 0.7 for 70% chance)
-
-        - ga_mutpb: Probability of random changes (like genetic mutations)
-            # Chance of making random changes to a solution
-            # Like random mutations in DNA that might lead to improvements
-            # In code, this is a number between 0 and 1 (like 0.1 for 10% chance)
-
-        - ga_tol: How close we need to get to consider it solved
-            # How close to the target we need to be to say "good enough"
-            # Like saying "if we're within 1 degree of the target temperature, that's fine"
-            # In code, this is a small number (like 0.001) representing acceptable error
-
-        - ga_parameter_data: What parameters we're trying to optimize
-            # Which parts of the system we're allowed to change
-            # Like saying "we can adjust the engine size but not the fuel type"
-            # In code, this is a dictionary or list of parameters that can be modified
-
-        - alpha: Step size for optimization (default 0.01)
-            # How big of changes to make when trying to improve
-            # Like taking small steps when climbing a mountain to avoid missing the path
-            # In code, this is a small number controlling how much to change things each time
-        - track_metrics: Whether to collect and report computational metrics for benchmarking
-        - adaptive_rates: Whether to automatically adjust crossover and mutation rates
-            # This allows the algorithm to adapt its exploration vs. exploitation balance
-            # When progress stagnates, it will adjust rates to try new search strategies
-            
-        - stagnation_limit: Number of generations without improvement before adapting rates
-            # After this many generations without finding a better solution,
-            # the algorithm will adjust its crossover and mutation rates
-            
-        - cxpb_min/max: Minimum/maximum crossover probability when using adaptive rates
-            # Sets bounds for how much the algorithm can adjust crossover probability
-            
-        - mutpb_min/max: Minimum/maximum mutation probability when using adaptive rates
-            # Sets bounds for how much the algorithm can adjust mutation probability
+        Notes
+        -----
+        - This constructor sets up all configuration for the GA worker.
+        - Parameters are stored as instance attributes for use throughout the optimization process.
+        - Adaptive rates allow the GA to dynamically balance exploration and exploitation.
+        - The design leverages Python's object-oriented features for maintainability and extensibility.
         """
-        # Call the parent class (QThread) constructor
+        # Call the constructor of the parent class (QThread) to ensure that all
+        # thread-related initialization is properly set up. This is necessary so that
+        # our GAWorker class inherits all the threading capabilities and can be run
+        # as a separate thread in the Qt event loop. Without this call, the thread
+        # would not be correctly initialized, which could lead to unexpected behavior.
         super().__init__()
         
 
         
-        # Store all the input parameters as instance variables
+        # Instance variables are variables that are bound to a specific object (instance) of a class.
+        # They are defined using 'self.' and store data unique to each instance.
+        # Here, we will store all the input parameters as instance variables so that
+        # each GAWorker object keeps track of its own configuration and state.
         # These are like the "settings" for our genetic algorithm
         # Think of it like setting up a recipe - we need to know all the ingredients and steps
+        
+        # ---------------------------------------------------------------------------
+        # ---------------------------------------------------------------------------
+
+        # The concept of 'self' in Python is fundamental to understanding how classes and objects work.
+        # 'self' is a reference to the current instance of the class. It allows each object created from a class
+        # to keep track of its own data. When you define a method inside a class, the first parameter is always 'self',
+        # which means "the object that is calling this method."
+        #
+        # For example, if you have:
+        #   class Dog:
+        #       def bark(self):
+        #           print("Woof!")
+        #   my_dog = Dog()
+        #   my_dog.bark()
+        # Here, inside the 'bark' method, 'self' refers to 'my_dog'.
+        #
+        # Why do we need 'self'? Because each object (instance) of a class can have its own data.
+        # For example:
+        #   class Dog:
+        #       def __init__(self, name):
+        #           self.name = name
+        #   dog1 = Dog("Fido")
+        #   dog2 = Dog("Rex")
+        #   print(dog1)        # prints something like "<__main__.Dog object at 0x7f8b2c3e0>"
+        #   print(dog1.name)   # prints "Fido"
+        #   print(dog2.name)   # prints "Rex"
+        # By default, printing an object like 'dog1' shows its type and memory address,
+        # unless the class defines a __str__ or __repr__ method for a custom string representation.
+        # Here, 'self.name' means "the name belonging to this particular dog."
+        #
+        # In summary:
+        # - 'self' is how an object refers to itself.
+        # - It lets each object keep track of its own data and methods.
+        # - When you see 'self.x', it means "the x that belongs to this object."
+        # - You must always include 'self' as the first parameter in instance methods.
+
+        # ---------------------------------------------------------------------------
+        # ---------------------------------------------------------------------------
+
         self.main_params = main_params          # Main system parameters (like engine specifications)
         self.target_values_dict = target_values_dict  # What we're trying to achieve (like target speed)
         self.weights_dict = weights_dict        # How important each goal is (like prioritizing fuel efficiency over speed)
@@ -384,6 +606,7 @@ class GAWorker(QThread):
         self.ga_tol = ga_tol                    # How close we need to get to the target (like acceptable error margin)
         self.ga_parameter_data = ga_parameter_data  # What we can change (like adjustable car parts)
         self.alpha = alpha                      # How big of steps to take (like how much to adjust the engine)
+        self.percentage_error_scale = percentage_error_scale if percentage_error_scale is not None else 1000.0  # Scaling factor for percentage error in fitness calculation
         self.track_metrics = track_metrics      # Whether to track computational metrics
         
         # Adaptive rate parameters
@@ -407,6 +630,8 @@ class GAWorker(QThread):
         self.ml_adapt_population = ml_adapt_population
         self.ml_diversity_weight = ml_diversity_weight
         self.ml_diversity_target = ml_diversity_target
+        self.ml_historical_weight = ml_historical_weight
+        self.ml_current_weight = ml_current_weight
 
         # Reinforcement learning controller configuration
         self.use_rl_controller = use_rl_controller
@@ -464,12 +689,34 @@ class GAWorker(QThread):
         self.condition = QWaitCondition()       # A way for different parts to signal each other
         self.abort = False                      # A flag to safely stop the program if needed
         
-        # Watchdog timer - like a safety timer that stops the program if it runs too long
-        # Similar to how a microwave stops if it runs too long to prevent overheating
-        self.watchdog_timer = QTimer()          # Create a timer object
-        self.watchdog_timer.setSingleShot(True) # Timer only goes off once (like a one-time alarm)
-        self.watchdog_timer.timeout.connect(self.handle_timeout)  # What to do when timer goes off
-        self.last_progress_update = 0           # Keep track of when we last updated progress
+        # ---------------------------------------------------------------------------
+
+        # --- Plain English Explanation ---
+        # This block sets up a watchdog timer using Qt's QTimer class. The timer is configured to fire only once
+        # (single-shot) and, when triggered, will call the 'handle_timeout' method. This mechanism is used to
+        # automatically handle situations where the program runs too long without progress, acting as a safety net.
+        # The 'last_progress_update' variable tracks the last time progress was made, which can be used to reset
+        # or check the timer as needed.
+
+        # --- Python Concepts ---
+        # - QTimer is a Qt class for event-driven programming, allowing you to schedule code execution after a delay.
+        # - The 'setSingleShot' method ensures the timer only triggers once per start.
+        # - The 'timeout.connect' method uses Qt's signal-slot mechanism to bind the timer's event to a handler.
+        # - Instance variables (self.*) are used to maintain state within the class.
+
+        # --- Production-Quality Comments and Code ---
+        self.watchdog_timer = QTimer()  # Instantiate a QTimer for monitoring long-running operations
+        self.watchdog_timer.setSingleShot(True)  # Configure timer to trigger only once per activation
+        self.watchdog_timer.timeout.connect(self.handle_timeout)  # Connect timer expiration to timeout handler
+        self.last_progress_update = 0  # Timestamp or counter for the last recorded progress update
+
+        # --- Python Principles Highlighted ---
+        # - Object-oriented programming: using instance variables and methods within a class.
+        # - Event-driven programming: leveraging Qt's signal-slot system for asynchronous event handling.
+
+        # --- Suggestions for Learning ---
+        # 1. Try making the watchdog timer interval configurable via a class parameter, so you can experiment with different timeout durations.
+        # 2. Add logging inside 'handle_timeout' to record when and why the timeout occurs, helping you learn about debugging and monitoring long-running processes.
         
         # Initialize benchmark metrics tracking
         self.metrics = {
@@ -508,6 +755,10 @@ class GAWorker(QThread):
             'pop_size_history': [],        # Track population size across generations
             'rates_history': [],           # Track cxpb/mutpb chosen each generation
             'controller': None,            # Which controller was used: 'fixed' | 'adaptive' | 'ml_bandit' | 'rl'
+            'ml_blending_weights': {       # Store the blending weights used
+                'historical': float(self.ml_historical_weight),
+                'current': float(self.ml_current_weight)
+            },
             # Surrogate metrics
             'surrogate_enabled': bool(use_surrogate),
             'surrogate_pool_factor': float(self.surrogate_pool_factor),
@@ -590,8 +841,21 @@ class GAWorker(QThread):
         if self.watchdog_timer.isActive():
             self.watchdog_timer.stop()
  
-    @safe_deap_operation  # Decorator that ensures safe execution of DEAP operations
+    # The 'run' method is the main entry point for executing the genetic algorithm (GA) optimization.
+    # It is decorated with @safe_deap_operation to ensure that any exceptions or errors during DEAP (the GA framework) operations
+    # are handled gracefully, preventing crashes and resource leaks.
+    # This method is typically called when the GAWorker thread is started, and it manages the entire optimization process.
+
+    @safe_deap_operation  # Ensures robust error handling for DEAP-related operations
     def run(self):
+        pass  # The actual implementation is provided elsewhere in the class
+
+    # --- Python Concepts Highlighted ---
+    # - Decorators: @safe_deap_operation wraps the 'run' method to add error handling logic.
+    # - Methods: 'run' is an instance method, using 'self' to access instance attributes and methods.
+    # - Classes: This method is part of a class (likely a QThread subclass), enabling concurrent execution.
+    # - Threading: The method is designed to be run in a separate thread, allowing the GA to operate asynchronously.
+
         """
         Main execution method for the Genetic Algorithm (GA) optimization.
         
@@ -612,12 +876,35 @@ class GAWorker(QThread):
         # This is like having a safety net - if the algorithm runs too long, it will stop
         self.watchdog_timer.start(600000)  # 600,000 milliseconds = 10 minutes
         
-        # Debug output for adaptive rates / ML controller settings
-        self.update.emit(f"DEBUG: adaptive_rates parameter is set to: {self.adaptive_rates}")
-        self.update.emit(f"DEBUG: ML bandit controller is set to: {self.use_ml_adaptive}")
-        self.update.emit(f"DEBUG: RL controller is set to: {self.use_rl_controller}")
-        self.update.emit(f"DEBUG: GA parameters: crossover={self.ga_cxpb:.4f}, mutation={self.ga_mutpb:.4f}")
-        # Record which controller is active for this run
+        # ---------------------------------------------------------------------------
+        # --- Plain English Explanation ---
+        # This block emits debug messages to the UI or log, reporting which optimization controllers
+        # (adaptive rates, ML bandit, RL) are enabled and what the initial genetic algorithm (GA)
+        # crossover and mutation probabilities are. This helps track the configuration for each run.
+
+        # --- Python Concepts and Science ---
+        # - Method calls: self.update.emit(...) sends signals/messages, likely to a Qt slot for UI/logging.
+        # - f-strings: Used for readable, formatted output.
+        # - Instance attributes: Accesses self.adaptive_rates, self.use_ml_adaptive, etc., to report current settings.
+        # - This is useful for reproducibility and debugging, as it records the algorithm's configuration.
+
+        # --- Rewritten with Professional Comments ---
+        # Emit current controller configuration for debugging and reproducibility
+        self.update.emit(f"DEBUG: adaptive_rates parameter is set to: {self.adaptive_rates}")  # Adaptive rate control enabled/disabled
+        self.update.emit(f"DEBUG: ML bandit controller is set to: {self.use_ml_adaptive}")     # ML bandit controller enabled/disabled
+        self.update.emit(f"DEBUG: RL controller is set to: {self.use_rl_controller}")          # RL controller enabled/disabled
+
+        # Emit initial GA operator probabilities for traceability
+        self.update.emit(
+            f"DEBUG: GA parameters: crossover={self.ga_cxpb:.4f}, mutation={self.ga_mutpb:.4f}"
+        )
+
+        # --- Python Principles Highlighted ---
+        # - Object-oriented programming: Uses instance attributes and methods.
+        # - String formatting: f-strings for readable, precise output.
+        # - Event-driven programming: Signals/slots (Qt) for asynchronous UI/logging updates.
+
+
         try:
             if self.use_rl_controller:
                 self.metrics['controller'] = 'rl'
@@ -636,7 +923,7 @@ class GAWorker(QThread):
             self.update.emit(f"DEBUG: - Crossover range: {self.cxpb_min:.2f} - {self.cxpb_max:.2f}")
             self.update.emit(f"DEBUG: - Mutation range: {self.mutpb_min:.2f} - {self.mutpb_max:.2f}")
         if self.use_ml_adaptive:
-            self.update.emit(f"DEBUG: ML params: UCB c={self.ml_ucb_c:.2f}, pop_adapt={self.ml_adapt_population}, div_weight={self.ml_diversity_weight:.3f}, div_target={self.ml_diversity_target:.2f}")
+            self.update.emit(f"DEBUG: ML params: UCB c={self.ml_ucb_c:.2f}, pop_adapt={self.ml_adapt_population}, div_weight={self.ml_diversity_weight:.3f}, div_target={self.ml_diversity_target:.2f}, blending=[{self.ml_historical_weight:.2f}, {self.ml_current_weight:.2f}]")
         if self.use_surrogate:
             self.update.emit(f"DEBUG: Surrogate screening enabled → pool_factor={self.surrogate_pool_factor:.2f}, k={self.surrogate_k}, explore_frac={self.surrogate_explore_frac:.2f}")
         
@@ -898,10 +1185,16 @@ class GAWorker(QThread):
                     sparsity_penalty = self.alpha * sum(abs(param) for param in individual)
                     
                     # Calculate sum of percentage differences
+                    # percent_diff is defined as the value in the nested dictionary structure:
+                    # results["percentage_differences"][mass_key][criterion]
+                    # It represents the percentage difference for a given mass_key and criterion.
+                    # It is defined in the FRF.py 
+                    
                     percentage_error_sum = 0.0
                     if "percentage_differences" in results:
                         for mass_key, pdiffs in results["percentage_differences"].items():
                             for criterion, percent_diff in pdiffs.items():
+                                # percent_diff is the value for this criterion under this mass_key
                                 # Use absolute value to prevent positive and negative errors from cancelling
                                 percentage_error_sum += abs(percent_diff)
                     
@@ -914,9 +1207,9 @@ class GAWorker(QThread):
                     # Combine all three components to get final score:
                     # 1. Primary objective: Distance from target value of 1.0
                     # 2. Sparsity penalty: Encourages simpler solutions
-                    # 3. Percentage error sum: Sum of all percentage differences from target values
+                    # 3. Percentage error sum: Sum of all percentage differences from target values (scaled by percentage_error_scale)
                     # Lower score = better solution (like golf scoring)
-                    fitness = primary_objective + sparsity_penalty + percentage_error_sum/1000
+                    fitness = primary_objective + sparsity_penalty + percentage_error_sum/self.percentage_error_scale
                     return (fitness,)
                 except Exception as e:
                     # If anything goes wrong (like  math error or invalid input)
@@ -969,104 +1262,249 @@ class GAWorker(QThread):
             toolbox.register("select", tools.selTournament, tournsize=3)  # Tournament selection with 3 competitors
 
             # ============================================================================
-            # INITIAL POPULATION (with configurable seeding strategy)
+            # INITIAL POPULATION SETUP WITH FLEXIBLE SEEDING STRATEGY
             # ============================================================================
-            # Create our first generation of solutions
-            self.update.emit("Initializing population...")
+            # This section initializes the first generation of candidate solutions for the genetic algorithm (GA).
+            # The seeding method (random, Sobol, or Latin Hypercube Sampling) determines how the initial population is distributed in parameter space.
+            # The code uses a helper function to lazily initialize a Quasi-Monte Carlo (QMC) engine for low-discrepancy sampling if required.
 
-            # Helper to initialize QMC engine lazily
+            # --- Plain English Explanation ---
+            # The code emits a message to indicate that the population initialization is starting.
+            # It defines a helper function to set up a QMC engine (for Sobol or LHS seeding) only when needed.
+            # The QMC engine is used to generate well-distributed initial samples in the parameter space, improving the diversity of the initial population.
+            # If the QMC engine cannot be initialized (e.g., due to an error or unsupported method), the code falls back to random seeding.
+
+            # --- Python Concepts and Science ---
+            # - Uses function definition for modularity and lazy initialization (function is only called if needed).
+            # - Uses exception handling (try/except) to ensure robustness and fallback behavior.
+            # - Uses object attributes (self._qmc_engine) to store state across function calls.
+            # - Applies conditional logic (if/elif/else) to select the appropriate seeding method.
+            # - Utilizes external libraries (e.g., scipy.stats.qmc) for advanced sampling techniques.
+
+            # --- How Population Changes After Each Generation ---
+            # After the initial population is created, the genetic algorithm evolves the population over generations.
+            # In each generation, individuals are selected, mated, and mutated to produce new candidate solutions.
+            # The population thus gradually shifts toward regions of the parameter space with better fitness, guided by the evaluation function and genetic operators.
+
+            self.update.emit("Initializing population...")  # Notify that population initialization is starting
+
             def _ensure_qmc_engine():
+                """
+                Lazily initialize the QMC (Quasi-Monte Carlo) engine for low-discrepancy sampling if required by the seeding method.
+                Sets self._qmc_engine to an appropriate QMC sampler or None if not applicable.
+
+                This function is called only when a QMC-based seeding method (Sobol or LHS) is requested.
+                It ensures that the QMC engine is only created once and reused for subsequent calls.
+                """
+                # Check if the QMC engine has already been initialized
                 if self._qmc_engine is not None:
+                    # If already initialized, do nothing and return immediately
                     return
+
                 try:
-                    dim = len(parameter_bounds)
+                    # Determine the number of parameters (dimensions) in the optimization problem
+                    dim = len(parameter_bounds)  # parameter_bounds is a list of (low, high) tuples for each parameter
+
+                    # If there are no parameters to sample (dim <= 0), set engine to None and return
                     if dim <= 0:
-                        self._qmc_engine = None
+                        self._qmc_engine = None  # No parameters to sample; QMC engine not needed
                         return
+                    # - qmc.Sobol: Implements the Sobol sequence.
+                    # - qmc.LatinHypercube: Implements Latin Hypercube Sampling.
+
+                    # Check which seeding method is requested
                     if self.seeding_method == "sobol":
-                        # scramble for better uniformity; seed for reproducibility if provided
+                        # If Sobol is selected, use the Sobol sequence for quasi-random, low-discrepancy sampling
+                        # scramble=True randomizes the sequence for better uniformity
+                        # self.seeding_seed is used for reproducibility
                         self._qmc_engine = qmc.Sobol(d=dim, scramble=True, seed=self.seeding_seed)
+                        # The Sobol engine will be used to generate initial population samples
+
                     elif self.seeding_method == "lhs":
+                        # If Latin Hypercube Sampling (LHS) is selected, use the LHS engine
+                        # LHS ensures stratified sampling across all dimensions
                         self._qmc_engine = qmc.LatinHypercube(d=dim, seed=self.seeding_seed)
+                        # The LHS engine will be used to generate initial population samples
+
                     else:
+                        # If the seeding method is not supported (e.g., "random" or unknown), do not use a QMC engine
+                        # This ensures that only supported methods use QMC, and others fall back to random sampling
                         self._qmc_engine = None
+
                 except Exception as qe:
-                    self.update.emit(f"Warning: Failed to initialize QMC engine ({self.seeding_method}): {str(qe)}. Falling back to random seeding.")
+                    # If any error occurs during QMC engine initialization (e.g., invalid parameters, library issues)
+                    # Emit a warning message to the user interface or log, including the method and error details
+                    self.update.emit(
+                        f"Warning: Failed to initialize QMC engine ({self.seeding_method}): {str(qe)}. Falling back to random seeding."
+                    )
+                    # Set the QMC engine to None to indicate that random seeding should be used as a fallback
                     self._qmc_engine = None
 
-            # Helper to generate seed individuals according to chosen strategy
+
+            # Helper function to generate initial individuals for the GA population
+            # This function chooses the seeding strategy based on user selection and parameter configuration.
+            # Science: The way the initial population is seeded can have a significant impact on the convergence speed and diversity of a genetic algorithm.
             def generate_seed_individuals(count):
-                # If all parameters are fixed, replicate the fixed vector
+                # Check if all parameters are fixed (i.e., no variables to optimize)
+                # Science: If all parameters are fixed, the search space collapses to a single point, so every individual is identical.
                 all_fixed = len(fixed_parameters) == len(parameter_bounds)
                 if all_fixed:
+                    # Build the fixed vector in the correct order
                     fixed_vec = [fixed_parameters[i] for i in range(len(parameter_bounds))]
+                    # Return a list of identical individuals, each with the fixed parameter values
                     return [creator.Individual(list(fixed_vec)) for _ in range(count)]
 
+                # If random seeding is selected or count is zero or negative, use random individuals
+                # Science: Random seeding provides a uniform, unbiased sampling of the search space, but may not cover it efficiently in high dimensions.
                 if self.seeding_method == "random" or count <= 0:
                     return [toolbox.individual() for _ in range(count)]
 
+                # For QMC-based seeding (Sobol or LHS), ensure the QMC engine is initialized
+                # Science: Quasi-Monte Carlo (QMC) methods like Sobol and LHS generate low-discrepancy sequences, which fill the space more uniformly than pure random sampling.
                 _ensure_qmc_engine()
                 if self._qmc_engine is None:
-                    # Fallback if engine failed
+                    # If QMC engine failed to initialize, fall back to random seeding
                     return [toolbox.individual() for _ in range(count)]
 
-                # Draw low-discrepancy points and scale to bounds
+                # Use QMC engine to generate low-discrepancy samples and scale them to parameter bounds
                 try:
-                    samples = self._qmc_engine.random(count)  # shape (count, d) in [0,1)
+                    # Generate 'count' samples in [0,1)^d, where d is the number of parameters
+                    samples = self._qmc_engine.random(count)  # shape: (count, num_parameters)
+                    # Extract lower and upper bounds for each parameter
                     lows = np.array([b[0] for b in parameter_bounds], dtype=float)
                     highs = np.array([b[1] for b in parameter_bounds], dtype=float)
                     span = (highs - lows)
-                    # Avoid NaNs if any span is zero
+                    # Science: The span is the range for each parameter; multiplying by the QMC sample stretches the [0,1) sample to the parameter's domain.
+                    # Avoid NaNs if any parameter is fixed (span == 0)
                     span[span == 0.0] = 0.0
+                    # Scale samples from [0,1) to [low, high) for each parameter
                     scaled = lows + samples * span
-                    # Enforce fixed parameters exactly
+                    # Enforce fixed parameters exactly (overwriting the sampled value)
                     for idx, val in fixed_parameters.items():
                         scaled[:, idx] = val
+                    # Convert each row of scaled samples into a DEAP Individual
                     individuals = []
                     for row in scaled:
+                        # Each individual is a list of parameter values (floats)
                         ind = creator.Individual([float(row[i]) for i in range(len(parameter_bounds))])
                         individuals.append(ind)
                     return individuals
                 except Exception as gen_err:
+                    # If any error occurs during QMC sampling, emit a warning and fall back to random seeding
                     self.update.emit(f"Warning: QMC sampling error: {str(gen_err)}. Falling back to random seeding.")
                     return [toolbox.individual() for _ in range(count)]
 
-            # Prepare neural seeder if enabled
+            # ---------------------------------------------------------------------------
+            # ---------------------------------------------------------------------------
+
+            # --- Plain English Explanation ---
+            # This block initializes the population for the genetic algorithm (GA), using either a neural network-based seeder
+            # or a classical seeding method (random, Sobol, or LHS). If neural seeding is enabled, it prepares the neural seeder
+            # with parameter bounds and fixed values, then emits a message about the chosen method. The initial population is generated,
+            # evaluated, and, if neural seeding is used, the results are fed back to the neural seeder for future use. Metrics and
+            # history are updated for tracking and visualization.
+
+            # --- Python Concepts and Science ---
+            # - Conditional logic (if/else) is used to select the seeding strategy.
+            # - Numpy arrays are used for efficient numerical operations on parameter bounds.
+            # - Loops and array indexing set up masks and values for fixed/variable parameters.
+            # - Object instantiation (NeuralSeeder) demonstrates OOP principles.
+            # - The population is generated via a helper function, and fitness is evaluated using map and a toolbox function.
+            # - Data is collected and stored for metrics and history, supporting reproducibility and analysis.
+            # - Exception handling ensures robustness if neural seeder data feeding fails.
+
+            # --- Rewritten with Professional Comments ---
+
+            # Decide which seeding strategy to use for the initial population.
+            # The code chooses the neural seeder if self.use_neural_seeding is True.
+            # This is set during initialization based on the seeding_method argument or use_neural_seeding flag.
+            # If neural seeding is not enabled, it falls back to the method specified by self.seeding_method
+            # (which can be "random", "sobol", or "lhs").
+            #
+            # The logic is:
+            # - If self.use_neural_seeding is True, use the neural seeder.
+            # - Else, use the classical seeding method as specified.
+            #
+            # This is determined by the following lines in __init__:
+            #   self.seeding_method = (seeding_method or "random").lower()
+            #   if self.seeding_method not in ("random", "sobol", "lhs", "neural"):
+            #       self.seeding_method = "random"
+            #   if use_neural_seeding:
+            #       self.seeding_method = "neural"
+            #   self.use_neural_seeding = (self.seeding_method == "neural")
+            #
+            # So, if the user requests "neural" or sets use_neural_seeding=True, neural seeder is used.
+            # Otherwise, the code uses the method in self.seeding_method ("random", "sobol", or "lhs").
+
+        
+            # ---------------------------------------------------------------------------
+            # ---------------------------------------------------------------------------
+
+            # This block is responsible for generating the initial population for the genetic algorithm (GA).
+            # The initial population can be seeded using either a neural network-based approach (neural seeder)
+            # or a classical statistical method (random, Sobol, or Latin Hypercube Sampling).
+            # The choice of seeding method is determined by the configuration set during initialization.
+
+            # 1. Initialize the neural seeder reference to None.
+            #    This will be used only if neural seeding is enabled.
             neural_seeder = None
+
+            # 2. Decide which seeding strategy to use.
+            #    If neural seeding is enabled, prepare all the necessary data and instantiate the neural seeder.
             if self.use_neural_seeding:
+                # --- Neural Seeder Preparation ---
+
+                # a. Convert parameter bounds to numpy arrays for efficient numerical operations.
+                #    - 'lows' contains the lower bounds for each parameter.
+                #    - 'highs' contains the upper bounds for each parameter.
                 lows = np.array([b[0] for b in parameter_bounds], dtype=float)
                 highs = np.array([b[1] for b in parameter_bounds], dtype=float)
+
+                # b. Prepare arrays to indicate which parameters are fixed and their fixed values.
+                #    - 'fixed_mask' is a boolean array: True if the parameter is fixed, False otherwise.
+                #    - 'fixed_values' contains the fixed value for each parameter if fixed, or a default (midpoint) otherwise.
                 fixed_mask = np.zeros(len(parameter_bounds), dtype=bool)
                 fixed_values = np.zeros(len(parameter_bounds), dtype=float)
                 for i in range(len(parameter_bounds)):
                     if i in fixed_parameters:
+                        # If the parameter is fixed, mark it and set its value.
                         fixed_mask[i] = True
                         fixed_values[i] = float(fixed_parameters[i])
                     else:
+                        # If not fixed, use the midpoint of the bounds as a placeholder.
                         fixed_values[i] = float((lows[i] + highs[i]) * 0.5)
+
+                # c. Instantiate the NeuralSeeder object with all relevant hyperparameters.
+                #    The neural seeder is a model that learns to generate diverse and promising initial solutions.
+                #    It is configured with architecture, training, and acquisition parameters.
                 neural_seeder = NeuralSeeder(
-                    lows=lows,
-                    highs=highs,
-                    fixed_mask=fixed_mask,
-                    fixed_values=fixed_values,
-                    ensemble_n=self.neural_ensemble_n,
-                    hidden=self.neural_hidden,
-                    layers=self.neural_layers,
-                    dropout=self.neural_dropout,
-                    weight_decay=self.neural_weight_decay,
-                    epochs=self.neural_epochs,
-                    time_cap_ms=self.neural_time_cap_ms,
-                    pool_mult=self.neural_pool_mult,
-                    epsilon=self.neural_epsilon,
-                    acq_type=self.neural_acq_type,
-                    device=self.neural_device,
-                    seed=self.seeding_seed if isinstance(self.seeding_seed, (int, np.integer)) else None,
-                    diversity_min_dist=0.03,
-                    enable_grad_refine=self.neural_enable_grad_refine,
-                    grad_steps=self.neural_grad_steps,
+                    lows=lows,                                 # Lower bounds for each parameter
+                    highs=highs,                               # Upper bounds for each parameter
+                    fixed_mask=fixed_mask,                     # Boolean mask for fixed parameters
+                    fixed_values=fixed_values,                 # Values for fixed parameters
+                    ensemble_n=self.neural_ensemble_n,         # Number of models in the ensemble
+                    hidden=self.neural_hidden,                 # Hidden layer size
+                    layers=self.neural_layers,                 # Number of layers
+                    dropout=self.neural_dropout,               # Dropout rate for regularization
+                    weight_decay=self.neural_weight_decay,     # Weight decay for regularization
+                    epochs=self.neural_epochs,                 # Number of training epochs
+                    time_cap_ms=self.neural_time_cap_ms,       # Time cap for training (ms)
+                    pool_mult=self.neural_pool_mult,           # Pool multiplier for candidate generation
+                    epsilon=self.neural_epsilon,               # Exploration parameter for acquisition
+                    acq_type=self.neural_acq_type,             # Acquisition function type (e.g., UCB, EI)
+                    device=self.neural_device,                 # Device for computation (e.g., 'cpu', 'cuda')
+                    seed=self.seeding_seed if isinstance(self.seeding_seed, (int, np.integer)) else None,  # Random seed
+                    diversity_min_dist=0.03,                   # Minimum diversity distance for generated samples
+                    enable_grad_refine=self.neural_enable_grad_refine,  # Whether to use gradient refinement
+                    grad_steps=self.neural_grad_steps,         # Number of gradient refinement steps
                 )
+
+                # d. Inform the user (via UI or log) that neural surrogate seeding is being used.
                 self.update.emit("Seeding method: Neural surrogate (UCB/EI)")
+
             else:
+                # --- Classical Seeding Methods ---
+                # If neural seeding is not enabled, emit a message about the classical seeding method in use.
                 if self.seeding_method == "random":
                     self.update.emit("Seeding method: Random uniform within bounds")
                 elif self.seeding_method == "sobol":
@@ -1074,229 +1512,589 @@ class GAWorker(QThread):
                 elif self.seeding_method == "lhs":
                     self.update.emit("Seeding method: Latin Hypercube Sampling (LHS)")
 
-            # For gen 0: if neural enabled, bootstrap with classical seeds; model will train after first eval
+            # 3. Generate the initial population using the selected seeding strategy.
+            #    - The function 'generate_seed_individuals' encapsulates the logic for both neural and classical seeding.
+            #    - The population size is determined by self.ga_pop_size.
             population = generate_seed_individuals(self.ga_pop_size)
-            # Track initial population size
+
+            # 4. Record the initial population size for metrics tracking, if enabled.
+            #    - This helps track how the population size evolves over generations.
             if self.track_metrics:
                 self.metrics['pop_size_history'].append(len(population))
-            
-            # Score each solution in our initial population
+
+            # 5. Evaluate the fitness of each individual in the initial population.
+            #    - The fitness function is applied to each individual using the DEAP toolbox.
+            #    - The results are assigned to the individual's fitness attribute.
             self.update.emit("Evaluating initial population...")
             fitnesses = list(map(toolbox.evaluate, population))
             for ind, fit in zip(population, fitnesses):
-                ind.fitness.values = fit
+                ind.fitness.values = fit  # Assign the computed fitness to the individual
 
-            # Feed evaluated data to neural seeder (if enabled)
+            # 6. If neural seeding was used, feed the evaluated data back to the neural seeder for training.
+            #    - This allows the neural seeder to learn from the initial population and improve future suggestions.
+            #    - The data consists of parameter vectors (X_data) and their corresponding fitness values (y_data).
+            #    - If metrics tracking is enabled, log the initial state of the neural seeder for generation 0.
             if self.use_neural_seeding and neural_seeder is not None:
                 try:
-                    X_data = [list(ind) for ind in population]
-                    y_data = [float(ind.fitness.values[0]) for ind in population]
+                    # a. Extract parameter vectors and fitness values from the population.
+                    X_data = [list(ind) for ind in population]  # Each individual's parameter vector
+                    y_data = [float(ind.fitness.values[0]) for ind in population]  # Each individual's fitness
+
+                    # b. Add the data to the neural seeder for training.
                     neural_seeder.add_data(X_data, y_data)
-                    # Log an initial (generation 0) neural history record so visuals have data immediately
+
+                    # c. Log the initial neural seeder state for metrics/history (generation 0).
                     if self.track_metrics:
                         init_beta = self.neural_beta_min
                         init_eps = self.neural_epsilon
                         self.metrics['neural_history'].append({
                             'generation': 0,
-                            'train_time_ms': 0.0,
-                            'epochs': 0,
-                            'beta': init_beta,
+                            'train_time_ms': 0.0,         # No training yet at generation 0
+                            'epochs': 0,                  # No epochs yet
+                            'beta': init_beta,            # Initial beta value for acquisition
                             'pool_mult': self.neural_pool_mult,
-                            'epsilon': init_eps,
-                            'acq': self.neural_acq_type
+                            'epsilon': init_eps,          # Initial epsilon value
+                            'acq': self.neural_acq_type   # Acquisition function type
                         })
                 except Exception:
+                    # Silently ignore any errors in neural seeder data feeding.
+                    # This ensures that a failure in the neural seeder does not crash the optimization.
                     pass
+
+            # --- Summary of Key Concepts ---
+            # - This block demonstrates conditional logic for feature toggling (neural vs. classical seeding).
+            # - It uses numpy for efficient numerical operations and array management.
+            # - Object-oriented programming is shown via NeuralSeeder instantiation and method calls.
+            # - List comprehensions and mapping are used for data extraction and fitness evaluation.
+            # - Exception handling ensures robustness and fault tolerance.
+            # - Emitting signals (self.update.emit) supports UI/logging for transparency and debugging.
+            # - Metrics tracking enables reproducibility and analysis of the optimization process.
+
 
             # ============================================================================
             # EVOLUTION LOOP
             # ============================================================================
-            # This is where the magic happens! We'll evolve our solutions over multiple generations
-            self.update.emit("Starting evolution...")
-            best_fitness_overall = float('inf')  # Track the best solution we've found
-            best_ind_overall = None  # Store the best solution
-            
+            # This is the main loop where the genetic algorithm evolves the population
+            # over multiple generations to search for optimal solutions.
+            # The following variables and logic set up the tracking and adaptive control
+            # mechanisms for the evolutionary process.
+
+            self.update.emit("Starting evolution...")  # Notify UI/log that evolution is starting
+
+            # Initialize variables to track the best solution found so far.
+            best_fitness_overall = float('inf')  # Best (lowest) fitness value seen across all generations
+            best_ind_overall = None              # The individual (solution) with the best fitness
+
             # --- ML Bandit Controller setup ---
+            # If enabled, use a multi-armed bandit (MAB) controller to adaptively tune
+            # genetic algorithm hyperparameters (crossover/mutation probabilities, population size)
+            # using an Upper Confidence Bound (UCB) strategy.
             if self.use_ml_adaptive:
-                # Define a simple UCB-based controller over discrete action space
-                # Actions are relative multipliers for cxpb/mutpb and a population multiplier
-                deltas = [-0.25, -0.1, 0.0, 0.1, 0.25]
-                pop_multipliers = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+                # Define the discrete action space for the bandit controller:
+                # - deltas: relative changes to crossover (cxpb) and mutation (mutpb) probabilities
+                # - pop_multipliers: relative changes to population size
+                # Each action is a tuple: (delta_cxpb, delta_mutpb, pop_multiplier)
+                # Make the action space for deltas and population multipliers much more extensive and comprehensive
+                # - deltas: even finer granularity and much wider range for crossover/mutation probability changes
+                deltas = [
+                    -1.0, -0.9, -0.8, -0.7, -0.6, -0.55, -0.5, -0.45, -0.4, -0.35, -0.3, -0.28, -0.26, -0.25, -0.22, -0.2, -0.18, -0.16, -0.15, -0.13, -0.12, -0.11, -0.1, -0.09, -0.08, -0.07, -0.06, -0.05, -0.04, -0.03, -0.025, -0.02, -0.015, -0.01,
+                    0.0,
+                    0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.15, 0.16, 0.18, 0.2, 0.22, 0.25, 0.26, 0.28, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8, 0.9, 1.0
+                ]  # Much more granular and wider range of possible relative changes for cxpb/mutpb
+
+                # - pop_multipliers: much broader and finer set of possible population size multipliers, including more small and large values
+                pop_multipliers = [
+                    0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09,
+                    0.1, 0.12, 0.14, 0.16, 0.18, 0.2, 0.22, 0.24, 0.26, 0.28, 0.3, 0.32, 0.34, 0.36, 0.38, 0.4,
+                    0.42, 0.44, 0.46, 0.48, 0.5, 0.52, 0.54, 0.56, 0.58, 0.6, 0.62, 0.64, 0.66, 0.68, 0.7,
+                    0.72, 0.74, 0.76, 0.78, 0.8, 0.82, 0.84, 0.86, 0.88, 0.9, 0.92, 0.94, 0.96, 0.98,
+                    1.0,
+                    1.02, 1.04, 1.06, 1.08, 1.1, 1.12, 1.14, 1.16, 1.18, 1.2, 1.22, 1.24, 1.26, 1.28, 1.3,
+                    1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.95, 2.0,
+                    2.2, 2.4, 2.6, 2.8, 3.0, 3.5, 4.0, 5.0, 7.5, 10.0
+                ]  # Much more comprehensive and fine-grained set of multipliers for population size
+
+                # Create the full action space as a Cartesian product of deltas and multipliers
                 ml_actions = [(dcx, dmu, pm) for dcx in deltas for dmu in deltas for pm in pop_multipliers]
+
+                # Initialize tracking for each action:
+                # - ml_counts: how many times each action has been selected
+                # - ml_sums: cumulative reward (e.g., improvement in fitness) for each action
+                # - ml_t: total number of action selections (time step)
                 ml_counts = [0 for _ in ml_actions]
                 ml_sums = [0.0 for _ in ml_actions]
                 ml_t = 0
 
                 def ml_select_action(current_cx, current_mu, current_pop):
+                    """
+                    Select an action (i.e., a set of hyperparameter adjustments) using the UCB algorithm.
+
+                    Args:
+                        current_cx (float): Current crossover probability.
+                        current_mu (float): Current mutation probability.
+                        current_pop (int): Current population size.
+
+                    Returns:
+                        idx (int): Index of the selected action in ml_actions.
+                        new_cx (float): New crossover probability after applying the action.
+                        new_mu (float): New mutation probability after applying the action.
+                        new_pop (int): New population size after applying the action.
+                    """
                     nonlocal ml_t
-                    ml_t += 1
-                    # UCB score
+                    ml_t += 1  # Increment the time step (number of action selections)
+
+                    # Compute UCB scores for each action:
+                    # - If an action has never been tried, assign it infinite score to ensure exploration.
+                    # - Otherwise, compute a comprehensive reward that considers improvement, speed, diversity, and effort,
+                    #   similar to the RL reward system, plus the UCB exploration bonus.
                     scores = []
+                    # --- Extensive Explanation and Comments for ML Bandit Action Selection (UCB) ---
+
+                    # Loop over all possible actions in the ML bandit action space.
+                    # Each action is a tuple (dcx, dmu, pm) representing:
+                    #   - dcx: relative change to crossover probability (cxpb)
+                    #   - dmu: relative change to mutation probability (mutpb)
+                    #   - pm:  population size multiplier
+                    # For each action, we will compute a "score" that combines:
+                    #   - The average reward observed for this action so far (exploitation)
+                    #   - An exploration bonus (UCB) to encourage trying less-tested actions
+                    # The action with the highest score will be selected for the next generation.
                     for i, _ in enumerate(ml_actions):
                         if ml_counts[i] == 0:
+                            # --- Exploration: If this action has never been tried, assign it infinite score ---
+                            # This ensures that every action is tried at least once before the algorithm
+                            # starts to favor actions with higher observed rewards.
                             scores.append((float('inf'), i))
                         else:
+                            # --- Exploitation: Compute the average reward for this action so far ---
+                            # ml_sums[i]: cumulative reward for this action
+                            # ml_counts[i]: number of times this action has been selected
                             avg = ml_sums[i] / ml_counts[i]
+
+                            # --- Reward Calculation: Incorporate current generation statistics if available ---
+                            # The reward is designed to reflect not just improvement in fitness,
+                            # but also speed, diversity, and efficiency, similar to RL reward shaping.
+                            # This makes the bandit controller sensitive to multiple objectives.
+                            try:
+                                # The following variables are expected to be available in the local scope:
+                                #   - mean: mean fitness of the current generation
+                                #   - std: standard deviation of fitness (diversity)
+                                #   - min_fit: best (lowest) fitness in the current generation
+                                #   - gen_time: time taken for the current generation
+                                #   - evals_this_gen: number of fitness evaluations in this generation
+                                #   - self.ml_diversity_weight: weight for diversity penalty
+                                #   - self.ml_diversity_target: target coefficient of variation for diversity
+                                #   - self.metrics['best_fitness_per_gen']: history of best fitness per generation
+                                # The reward is calculated as follows:
+                                #   - imp: improvement in best fitness compared to previous generation
+                                #   - cv: coefficient of variation (std/mean), a measure of diversity
+                                #   - effort: number of evaluations (to penalize expensive actions)
+                                #   - reward: improvement per unit time, normalized by effort, minus diversity penalty
+                                last_best = self.metrics['best_fitness_per_gen'][-2] if len(self.metrics['best_fitness_per_gen']) > 1 else None
+                                # Calculate improvement: how much did the best fitness improve this generation?
+                                imp = (last_best - min_fit) if (last_best is not None and last_best > min_fit) else 0.0
+                                # Calculate coefficient of variation (diversity measure)
+                                cv = std / (abs(mean) + 1e-12)
+                                # Calculate effort: number of fitness evaluations (avoid division by zero)
+                                effort = max(1.0, evals_this_gen)
+                                # Calculate reward:
+                                #   - (imp / gen_time): improvement per second
+                                #   - / effort: normalized by number of evaluations (efficiency)
+                                #   - - diversity penalty: penalize deviation from target diversity
+                                reward = (imp / max(gen_time, 1e-6)) / effort - self.ml_diversity_weight * abs(cv - self.ml_diversity_target)
+                                # Blend the running average reward with the current reward for stability:
+                                #   - Use user-defined weights for historical average and current reward
+                                blended = self.ml_historical_weight * avg + self.ml_current_weight * reward
+                            except Exception:
+                                # If any variable is missing or an error occurs, fall back to average reward only
+                                blended = avg
+
+                            # --- UCB (Upper Confidence Bound) Exploration Bonus ---
+                            # The UCB bonus encourages exploration of less-tried actions.
+                            # It is proportional to sqrt(log(total_selections) / action_selections).
+                            #   - self.ml_ucb_c: exploration parameter (higher = more exploration)
+                            #   - ml_t: total number of action selections so far (time step)
+                            #   - ml_counts[i]: number of times this action has been selected
+                            # The bonus decreases as an action is selected more often.
                             bonus = self.ml_ucb_c * sqrt(log(max(ml_t, 1)) / ml_counts[i])
-                            scores.append((avg + bonus, i))
+
+                            # --- Final Score: Blended reward + UCB bonus ---
+                            # The action's score is the sum of exploitation (reward) and exploration (bonus).
+                            scores.append((blended + bonus, i))
+
+                    # --- Action Selection: Choose the action with the highest score ---
+                    # Sort the scores in descending order and select the top one.
+                    # Each score is a tuple (score_value, action_index).
                     scores.sort(key=lambda t: t[0], reverse=True)
-                    _, idx = scores[0]
+                    _, idx = scores[0]  # idx: index of the selected action in ml_actions
+
+                    # --- Retrieve the Action Parameters ---
+                    # Each action is a tuple (dcx, dmu, pm):
+                    #   - dcx: relative change to crossover probability (e.g., +0.05 means increase by 5%)
+                    #   - dmu: relative change to mutation probability
+                    #   - pm:  population size multiplier (e.g., 1.2 means increase pop size by 20%)
                     dcx, dmu, pm = ml_actions[idx]
+
+                    # --- Apply the Action to Current Hyperparameters ---
+                    # Update the hyperparameters by applying the selected action, ensuring they remain within allowed bounds:
+                    #   - Crossover probability (cxpb): must be between self.cxpb_min and self.cxpb_max
+                    #   - Mutation probability (mutpb): must be between self.mutpb_min and self.mutpb_max
+                    #   - Population size (pop): must be between self.pop_min and self.pop_max, and is rounded to int
+                    # The new values are calculated as:
+                    #   - new_cx = current_cx * (1 + dcx)
+                    #   - new_mu = current_mu * (1 + dmu)
+                    #   - new_pop = current_pop * pm
                     new_cx = min(self.cxpb_max, max(self.cxpb_min, current_cx * (1.0 + dcx)))
                     new_mu = min(self.mutpb_max, max(self.mutpb_min, current_mu * (1.0 + dmu)))
                     new_pop = int(min(self.pop_max, max(self.pop_min, round(current_pop * pm))))
+
+                    # --- Return the Selected Action and New Hyperparameter Values ---
+                    # idx: index of the selected action (for updating statistics later)
+                    # new_cx: new crossover probability
+                    # new_mu: new mutation probability
+                    # new_pop: new population size
                     return idx, new_cx, new_mu, new_pop
 
+                # --- Extensive Comments for ml_update and resize_population ---
+
                 def ml_update(idx, reward):
-                    ml_counts[idx] += 1
-                    ml_sums[idx] += float(reward)
+                    """
+                    Update the statistics for a given ML bandit action after observing its reward.
+
+                    Args:
+                        idx (int): The index of the action that was taken.
+                        reward (float): The reward received for this action (e.g., improvement in fitness).
+
+                    This function implements the standard update for a multi-armed bandit algorithm:
+                    - It increments the count of times this action has been selected.
+                    - It adds the observed reward to the running sum for this action.
+                    These statistics are later used to compute the average reward and guide future action selection.
+                    """
+                    ml_counts[idx] += 1  # Increment the count for this action
+                    ml_sums[idx] += float(reward)  # Add the reward to the running sum for this action
 
                 def resize_population(pop, new_size):
-                    # Shrink: keep best
+                    """
+                    Adjust the population size to match new_size, either by shrinking or growing.
+
+                    Args:
+                        pop (list): The current population (list of individuals).
+                        new_size (int): The desired population size.
+
+                    Returns:
+                        list: The resized population.
+
+                    This function handles both shrinking and growing the population:
+                    - If shrinking, it selects the best individuals to keep (elitism).
+                    - If growing, it generates new individuals using the current seeding strategy.
+                      - If neural seeding is enabled and the neural seeder is sufficiently trained, it uses the neural seeder.
+                      - Otherwise, it falls back to the default seeding method.
+
+                    The function also adapts neural seeding parameters (beta and epsilon) based on stagnation and diversity,
+                    and ensures that all new individuals are evaluated immediately to maintain a valid population.
+                    """
+
+                    # --- Shrinking the population (reduce size) ---
                     if new_size < len(pop):
+                        # Use DEAP's selBest to keep the top-performing individuals
                         return tools.selBest(pop, new_size)
-                    # Grow: add new individuals using current seeding strategy
-                    extra = new_size - len(pop)
+
+                    # --- Growing the population (increase size) ---
+                    extra = new_size - len(pop)  # Number of new individuals needed
                     if extra > 0:
-                        if self.use_neural_seeding and neural_seeder is not None and neural_seeder.size >= max(50, 5 * len(parameter_bounds)):
-                            # Adaptive beta from diversity/stagnation
+                        # --- Use neural seeding if enabled and neural seeder is ready ---
+                        if (
+                            self.use_neural_seeding and
+                            neural_seeder is not None and
+                            neural_seeder.size >= max(50, 5 * len(parameter_bounds))
+                        ):
+                            # --- Adapt beta parameter for neural seeding based on stagnation ---
+                            # beta controls the exploration/exploitation tradeoff in neural seeding
                             beta = self.neural_beta_min
                             try:
                                 if self.adaptive_rates:
-                                    beta = self.neural_beta_min + (self.neural_beta_max - self.neural_beta_min) * min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                                    # Linearly interpolate beta between min and max based on stagnation
+                                    # More stagnation → higher beta (more exploration)
+                                    beta = self.neural_beta_min + (
+                                        (self.neural_beta_max - self.neural_beta_min) *
+                                        min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                                    )
                             except Exception:
+                                # If anything goes wrong, just use the minimum beta
                                 pass
+
+                            # --- Find the best fitness in the current population (for neural seeder guidance) ---
                             best_y = None
                             try:
+                                # Only consider individuals with valid fitness
                                 best_y = min(ind.fitness.values[0] for ind in pop if ind.fitness.valid)
                             except Exception:
+                                # If no valid fitness values, leave as None
                                 best_y = None
-                            # Optionally adapt epsilon based on stagnation/diversity
+
+                            # --- Optionally adapt epsilon (exploration fraction) for neural seeding ---
+                            # Epsilon controls how much randomness/exploration is used in neural seeding
                             eps = self.neural_epsilon
                             try:
                                 if self.neural_adapt_epsilon and self.adaptive_rates:
-                                    # Map stagnation into [0,1]
+                                    # Map stagnation into [0,1] (0 = no stagnation, 1 = max stagnation)
                                     stag_ratio = min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
-                                    # When stagnation high, increase epsilon toward eps_max
+                                    # As stagnation increases, move epsilon toward eps_max (more exploration)
                                     eps = (1.0 - stag_ratio) * self.neural_eps_min + stag_ratio * self.neural_eps_max
-                                    # Clamp
+                                    # Clamp epsilon to allowed range
                                     eps = max(self.neural_eps_min, min(eps, self.neural_eps_max))
+                                    # Store the current epsilon for reference/metrics
                                     self.current_epsilon = eps
                             except Exception:
+                                # If adaptation fails, just use the default epsilon
                                 pass
-                            seeds = neural_seeder.propose(count=extra, beta=beta, best_y=best_y, exploration_fraction=eps)
+
+                            # --- Generate new individuals using the neural seeder ---
+                            # The neural seeder proposes new parameter vectors based on learned model
+                            seeds = neural_seeder.propose(
+                                count=extra,
+                                beta=beta,
+                                best_y=best_y,
+                                exploration_fraction=eps
+                            )
+                            # Convert each seed (parameter vector) into a DEAP Individual and add to population
                             for s in seeds:
                                 pop.append(creator.Individual(list(s)))
-                            # Evaluate new individuals immediately to keep population valid
+
+                            # --- Evaluate new individuals immediately ---
+                            # This ensures that all individuals in the population have valid fitness values,
+                            # which is important for selection and statistics.
                             need_eval = [ind for ind in pop if not ind.fitness.valid]
                             if need_eval:
                                 fits_new = list(map(toolbox.evaluate, need_eval))
                                 for ind, fit in zip(need_eval, fits_new):
                                     ind.fitness.values = fit
                         else:
+                            # --- Fallback: Use default seeding method if neural seeding is not available ---
                             new_inds = generate_seed_individuals(extra)
                             pop.extend(new_inds)
+                    # Return the resized population (either shrunk or grown)
                     return pop
-            # --- Reinforcement Learning controller setup ---
-            elif self.use_rl_controller:
-                deltas = [-0.25, -0.1, 0.0, 0.1, 0.25]
-                pop_multipliers = [0.5, 0.75, 1.0, 1.25, 1.5]
-                rl_actions = [(dcx, dmu, pm) for dcx in deltas for dmu in deltas for pm in pop_multipliers]
-                rl_q = {0: [0.0 for _ in rl_actions], 1: [0.0 for _ in rl_actions]}
-                rl_state = 0
+            
+            
+            # --- Reinforcement Learning (RL) Controller Setup ---
+            #
+            # This section configures and implements a Reinforcement Learning controller for adaptive
+            # adjustment of genetic algorithm (GA) parameters: crossover probability, mutation probability,
+            # and population size. The RL controller learns to select parameter adjustments that improve
+            # optimization performance over time, using a simple Q-learning approach.
+            #
+            # The RL controller is only activated if self.use_rl_controller is True.
 
+            elif self.use_rl_controller:
+                # --- Define the action space for the RL agent ---
+                # deltas: Much finer granularity and wider range for crossover/mutation probability changes
+                #   - For example, a delta of 0.1 means "increase by 10%", -0.25 means "decrease by 25%", etc.
+                deltas = [
+                    -1.0, -0.9, -0.8, -0.7, -0.6, -0.55, -0.5, -0.45, -0.4, -0.35, -0.3, -0.28, -0.26, -0.25, -0.22, -0.2, -0.18, -0.16, -0.15, -0.13, -0.12, -0.11, -0.1, -0.09, -0.08, -0.07, -0.06, -0.05, -0.04, -0.03, -0.025, -0.02, -0.015, -0.01,
+                    0.0,
+                    0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.15, 0.16, 0.18, 0.2, 0.22, 0.25, 0.26, 0.28, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8, 0.9, 1.0
+                ]  # Much more granular and wider range of possible relative changes for cxpb/mutpb
+
+                # pop_multipliers: Much broader and finer set of possible population size multipliers, including more small and large values
+                #   - For example, 0.5 means "halve the population", 1.5 means "increase by 50%", etc.
+                pop_multipliers = [
+                    0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09,
+                    0.1, 0.12, 0.14, 0.16, 0.18, 0.2, 0.22, 0.24, 0.26, 0.28, 0.3, 0.32, 0.34, 0.36, 0.38, 0.4,
+                    0.42, 0.44, 0.46, 0.48, 0.5, 0.52, 0.54, 0.56, 0.58, 0.6, 0.62, 0.64, 0.66, 0.68, 0.7,
+                    0.72, 0.74, 0.76, 0.78, 0.8, 0.82, 0.84, 0.86, 0.88, 0.9, 0.92, 0.94, 0.96, 0.98,
+                    1.0,
+                    1.02, 1.04, 1.06, 1.08, 1.1, 1.12, 1.14, 1.16, 1.18, 1.2, 1.22, 1.24, 1.26, 1.28, 1.3,
+                    1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.95, 2.0,
+                    2.2, 2.4, 2.6, 2.8, 3.0, 3.5, 4.0, 5.0, 7.5, 10.0
+                ]  # Much more comprehensive and fine-grained set of multipliers for population size
+
+                # rl_actions: All possible combinations of (crossover delta, mutation delta, pop multiplier).
+                #   - This forms the discrete action space for the RL agent.
+                rl_actions = [(dcx, dmu, pm) for dcx in deltas for dmu in deltas for pm in pop_multipliers]
+
+                # --- Q-table Initialization ---
+                # The Q-table stores the expected reward for each action in each state.
+                # Here, we use a very simple state space: just two states (0 and 1).
+                #   - In a more advanced implementation, the state could encode more information (e.g., stagnation, diversity).
+                # Each state maps to a list of Q-values, one for each action.
+                rl_q = {0: [0.0 for _ in rl_actions], 1: [0.0 for _ in rl_actions]}
+                rl_state = 0  # Start in state 0 (could be extended for more complex state tracking)
+
+                # --- RL Action Selection Function ---
                 def rl_select_action(current_cx, current_mu, current_pop):
+                    """
+                    Select an action (parameter adjustment) using an epsilon-greedy policy:
+                    - With probability epsilon, pick a random action (exploration).
+                    - Otherwise, pick the action with the highest Q-value for the current state (exploitation).
+                    The selected action determines how to adjust crossover, mutation, and population size.
+                    """
                     if random.random() < self.rl_epsilon:
+                        # Exploration: choose a random action index
                         idx = random.randrange(len(rl_actions))
                     else:
+                        # Exploitation: choose the best-known action for the current state
                         idx = int(np.argmax(rl_q[rl_state]))
+                    # Unpack the action: (delta_cx, delta_mu, pop_multiplier)
                     dcx, dmu, pm = rl_actions[idx]
+                    # Compute new crossover probability, clamped to allowed range
                     new_cx = min(self.cxpb_max, max(self.cxpb_min, current_cx * (1.0 + dcx)))
+                    # Compute new mutation probability, clamped to allowed range
                     new_mu = min(self.mutpb_max, max(self.mutpb_min, current_mu * (1.0 + dmu)))
+                    # Compute new population size, clamped to allowed range and rounded to integer
                     new_pop = int(min(self.pop_max, max(self.pop_min, round(current_pop * pm))))
                     return idx, new_cx, new_mu, new_pop
 
+                # --- RL Q-table Update Function (Q-learning) ---
                 def rl_update(state, action, reward, next_state):
+                    """
+                    Update the Q-table using the Q-learning rule:
+                    Q(s, a) ← Q(s, a) + α * [reward + γ * max_a' Q(s', a') - Q(s, a)]
+                    - state: current state (int)
+                    - action: action index taken (int)
+                    - reward: observed reward (float)
+                    - next_state: state after action (int)
+                    """
                     q_old = rl_q[state][action]
                     q_next = max(rl_q[next_state])
                     rl_q[state][action] = q_old + self.rl_alpha * (reward + self.rl_gamma * q_next - q_old)
 
+                # --- Population Resizing Function (with Neural Seeding Support) ---
                 def resize_population(pop, new_size):
+                    """
+                    Adjust the population to the desired new_size.
+                    - If shrinking, select the best individuals to keep.
+                    - If growing, generate new individuals using neural seeding (if enabled and available),
+                      otherwise use the default seeding method.
+                    - All new individuals are evaluated immediately to ensure valid fitness values.
+                    """
                     if new_size < len(pop):
+                        # Shrink: select the best individuals to keep
                         return tools.selBest(pop, new_size)
                     extra = new_size - len(pop)
                     if extra > 0:
-                        if self.use_neural_seeding and neural_seeder is not None and neural_seeder.size >= max(50, 5 * len(parameter_bounds)):
+                        # Grow: need to add 'extra' new individuals
+                        # --- Use neural seeding if enabled and neural_seeder is sufficiently trained ---
+                        if (
+                            self.use_neural_seeding
+                            and neural_seeder is not None
+                            and neural_seeder.size >= max(50, 5 * len(parameter_bounds))
+                        ):
+                            # Set the beta parameter for neural seeding (controls exploration/exploitation)
                             beta = self.neural_beta_min
                             try:
+                                # If adaptive rates are enabled, interpolate beta based on stagnation
                                 if self.adaptive_rates:
-                                    beta = self.neural_beta_min + (self.neural_beta_max - self.neural_beta_min) * min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                                    beta = self.neural_beta_min + (
+                                        self.neural_beta_max - self.neural_beta_min
+                                    ) * min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
                             except Exception:
+                                # If anything goes wrong, fall back to minimum beta
                                 pass
+                            # Find the best fitness value in the current population (for neural seeder guidance)
                             best_y = None
                             try:
                                 best_y = min(ind.fitness.values[0] for ind in pop if ind.fitness.valid)
                             except Exception:
                                 best_y = None
+                            # Set the exploration fraction (epsilon) for neural seeding
                             eps = self.neural_epsilon
                             try:
+                                # If adaptive epsilon is enabled, interpolate based on stagnation
                                 if self.neural_adapt_epsilon and self.adaptive_rates:
-                                    stag_ratio = min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
+                                    stag_ratio = min(
+                                        1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit))
+                                    )
                                     eps = (1.0 - stag_ratio) * self.neural_eps_min + stag_ratio * self.neural_eps_max
                                     eps = max(self.neural_eps_min, min(eps, self.neural_eps_max))
                                     self.current_epsilon = eps
                             except Exception:
+                                # If adaptation fails, use the default epsilon
                                 pass
-                            seeds = neural_seeder.propose(count=extra, beta=beta, best_y=best_y, exploration_fraction=eps)
+                            # --- Generate new individuals using the neural seeder ---
+                            seeds = neural_seeder.propose(
+                                count=extra, beta=beta, best_y=best_y, exploration_fraction=eps
+                            )
+                            # Convert each seed (parameter vector) into a DEAP Individual and add to population
                             for s in seeds:
                                 pop.append(creator.Individual(list(s)))
+                            # Evaluate all new individuals immediately to ensure valid fitness
                             need_eval = [ind for ind in pop if not ind.fitness.valid]
                             if need_eval:
                                 fits_new = list(map(toolbox.evaluate, need_eval))
                                 for ind, fit in zip(need_eval, fits_new):
                                     ind.fitness.values = fit
                         else:
+                            # --- Fallback: Use default seeding method if neural seeding is not available ---
                             new_inds = generate_seed_individuals(extra)
                             pop.extend(new_inds)
+                    # Return the resized population (either shrunk or grown)
                     return pop
-            
-            # Run for the specified number of generations
+            # =========================
+            # Main Evolutionary Loop
+            # =========================
+            # This loop runs the genetic algorithm for a specified number of generations.
+            # Each generation consists of selection, crossover, mutation, and evaluation steps.
             for gen in range(1, self.ga_num_generations + 1):
-                # Check if we should stop
+                # ----------------------------------------
+                # Early Exit: Check for User Abort Signal
+                # ----------------------------------------
+                # If the user has requested to abort the optimization, emit a message and break out of the loop.
                 if self.abort:
                     self.update.emit("Optimization aborted by user")
                     break
-                
-                # Track generation start time for benchmarking
+
+                # ----------------------------------------
+                # Metrics Tracking: Generation Timing
+                # ----------------------------------------
+                # If metrics tracking is enabled, record the start time of this generation for benchmarking.
                 if self.track_metrics:
                     gen_start_time = time.time()
+                    # Dictionary to store timing breakdown for each evolutionary step in this generation.
                     generation_time_breakdown = {}
-                    
-                    # Track selection time
+
+                    # Record the start time of the selection step.
                     selection_start = time.time()
-                
-                # Show progress
+
+                # ----------------------------------------
+                # Progress Reporting
+                # ----------------------------------------
+                # Emit a message to update the user interface with the current generation number.
                 self.update.emit(f"-- Generation {gen} / {self.ga_num_generations} --")
-                
-                # Update progress bar
+
+                # Calculate and emit the progress percentage for a progress bar.
                 progress_percent = int((gen / self.ga_num_generations) * 100)
                 self.progress.emit(progress_percent)
                 self.last_progress_update = progress_percent
-                
-                # Reset watchdog timer (safety feature to prevent infinite loops)
+
+                # ----------------------------------------
+                # Watchdog Timer Reset
+                # ----------------------------------------
+                # The watchdog timer is a safety feature to prevent infinite loops or hangs.
+                # It is reset at the start of each generation.
                 if self.watchdog_timer.isActive():
                     self.watchdog_timer.stop()
-                self.watchdog_timer.start(600000)  # 10 minutes
-                
-                # Determine current rates and optionally adjust using ML bandit
-                evals_this_gen = 0
+                self.watchdog_timer.start(600000)  # 10 minutes in milliseconds
+
+                # ----------------------------------------
+                # Adaptive Rate Control
+                # ----------------------------------------
+                # The algorithm can adapt its crossover and mutation rates (and population size)
+                # using either a reinforcement learning (RL) controller, a machine learning (ML) bandit,
+                # or a legacy heuristic. This section determines which method to use and updates the rates accordingly.
+                evals_this_gen = 0  # Counter for the number of evaluations performed this generation
+
+                # --- RL Controller: Use a reinforcement learning agent to select rates and population size
                 if self.use_rl_controller:
-                    old_pop = len(population)
+                    old_pop = len(population)  # Store the current population size
+                    # The RL controller selects new crossover/mutation rates and possibly a new population size.
                     rl_idx, new_cxpb, new_mutpb, new_pop = rl_select_action(self.current_cxpb, self.current_mutpb, old_pop)
                     self.current_cxpb = new_cxpb
                     self.current_mutpb = new_mutpb
+                    # If the RL controller changed the population size, resize and evaluate new individuals.
                     if new_pop != old_pop:
                         population = resize_population(population, new_pop)
+                        # Find individuals that need evaluation (i.e., new or unevaluated)
                         need_eval = [ind for ind in population if not ind.fitness.valid]
                         if need_eval:
                             self.update.emit(f"  RL ctrl: evaluating {len(need_eval)} new individuals after resize...")
@@ -1307,23 +2105,29 @@ class GAWorker(QThread):
                             if self.track_metrics:
                                 self.metrics['evaluation_times'].append(time.time() - eval_start)
                             evals_this_gen += len(need_eval)
+                    # Set the current rates for this generation
                     current_cxpb = self.current_cxpb
                     current_mutpb = self.current_mutpb
+                    # Log the chosen rates and population size
                     self.update.emit("  Rates type: RL-Controller")
                     self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
                     self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
                     self.update.emit(f"  - Population: {len(population)}")
+
+                # --- ML Bandit: Use a machine learning bandit to adapt rates and (optionally) population size
                 elif self.use_ml_adaptive:
-                    # Initial defaults are the current values
+                    # Store the current rates and population size for reference
                     old_cxpb = self.current_cxpb
                     old_mutpb = self.current_mutpb
                     old_pop_size = len(population)
+                    # The ML bandit selects new rates and possibly a new population size
                     idx, new_cx, new_mu, new_pop = ml_select_action(self.current_cxpb, self.current_mutpb, len(population))
                     self.current_cxpb = new_cx
                     self.current_mutpb = new_mu
+                    # If population size adaptation is enabled and the size changed, resize and evaluate new individuals
                     if self.ml_adapt_population and new_pop != len(population):
                         population = resize_population(population, new_pop)
-                        # Evaluate any individuals missing fitness (new ones)
+                        # Evaluate any new or unevaluated individuals
                         need_eval = [ind for ind in population if not ind.fitness.valid]
                         if need_eval:
                             self.update.emit(f"  ML ctrl: evaluating {len(need_eval)} new individuals after resize...")
@@ -1334,31 +2138,43 @@ class GAWorker(QThread):
                             if self.track_metrics:
                                 self.metrics['evaluation_times'].append(time.time() - eval_start)
                             evals_this_gen += len(need_eval)
+                    # Set the current rates for this generation
                     current_cxpb = self.current_cxpb
                     current_mutpb = self.current_mutpb
-                    # Log
+                    # Log the chosen rates and population size
                     self.update.emit("  Rates type: ML-Bandit")
                     self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
                     self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
                     self.update.emit(f"  - Population: {len(population)}")
+
+                # --- Legacy/Heuristic: Use fixed or legacy adaptive rates
                 else:
-                    # Use current adaptive rates if enabled (legacy heuristic)
+                    # If adaptive rates are enabled, use the current adaptive values; otherwise, use fixed defaults.
                     current_cxpb = self.current_cxpb if self.adaptive_rates else self.ga_cxpb
                     current_mutpb = self.current_mutpb if self.adaptive_rates else self.ga_mutpb
                     self.update.emit(f"  Rates type: {'Adaptive' if self.adaptive_rates else 'Fixed'}")
                     self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
                     self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
-                
+
+                # ----------------------------------------
+                # Adaptive Rate Change Reporting
+                # ----------------------------------------
+                # If adaptive rates are enabled, report any changes in rates from the previous generation.
                 if self.adaptive_rates:
-                    # Calculate change from previous rates if not first generation
+                    # Only report changes if this is not the first generation and previous rates are available.
                     if gen > 1 and hasattr(self, 'prev_cxpb') and hasattr(self, 'prev_mutpb'):
                         cxpb_change = current_cxpb - self.prev_cxpb
                         mutpb_change = current_mutpb - self.prev_mutpb
+                        # Emit a message if there was any change in crossover or mutation rates.
                         if cxpb_change != 0 or mutpb_change != 0:
-                            self.update.emit(f"  - Changes: cx {'+' if cxpb_change > 0 else ''}{cxpb_change:.4f}, mut {'+' if mutpb_change > 0 else ''}{mutpb_change:.4f}")
+                            self.update.emit(
+                                f"  - Changes: cx {'+' if cxpb_change > 0 else ''}{cxpb_change:.4f}, "
+                                f"mut {'+' if mutpb_change > 0 else ''}{mutpb_change:.4f}"
+                            )
+                    # Report the current stagnation counter (used for adaptive logic)
                     self.update.emit(f"  - Stagnation counter: {self.stagnation_counter}/{self.stagnation_limit}")
-                    
-                    # Store current rates for next generation comparison
+
+                    # Store the current rates for comparison in the next generation
                     self.prev_cxpb = current_cxpb
                     self.prev_mutpb = current_mutpb
 
@@ -1796,7 +2612,11 @@ class GAWorker(QThread):
                                 'best_fitness': min_fit,
                                 'mean_fitness': mean,
                                 'std_fitness': std,
-                                'reward': reward
+                                'reward': reward,
+                                'blending_weights': {
+                                    'historical': self.ml_historical_weight,
+                                    'current': self.ml_current_weight
+                                }
                             })
                         elif self.use_rl_controller:
                             next_state = 1 if imp > 0 else 0
