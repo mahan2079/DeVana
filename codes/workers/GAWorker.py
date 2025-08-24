@@ -633,6 +633,7 @@ class GAWorker(QThread):
         self.mutex = QMutex()                   # A lock that only one part of the program can hold at a time
         self.condition = QWaitCondition()       # A way for different parts to signal each other
         self.abort = False                      # A flag to safely stop the program if needed
+        self.paused = False                     # Flag used to pause/resume the algorithm
         
         # ---------------------------------------------------------------------------
 
@@ -746,10 +747,11 @@ class GAWorker(QThread):
         """
         self.mutex.lock()                       # Get exclusive access to prevent other parts from interfering
         self.abort = True                       # Tell the program to stop
+        self.paused = False                     # Ensure we are not left in a paused state
         self.condition.wakeAll()                # Wake up any waiting parts of the program
         self.mutex.unlock()                     # Release the lock
         self.wait()                             # Wait for everything to finish
-        
+
     def handle_timeout(self):
         """
         What to do if the program runs too long
@@ -758,10 +760,44 @@ class GAWorker(QThread):
         self.mutex.lock()                       # Get exclusive access
         if not self.abort:                      # If we haven't already stopped
             self.abort = True                   # Tell the program to stop
+            self.paused = False                 # Clear paused state on timeout
             self.mutex.unlock()                 # Release the lock
             self.error.emit("Genetic algorithm optimization timed out. The operation was taking too long.")
         else:
             self.mutex.unlock()                 # Release the lock
+
+    # ------------------------------------------------------------------
+    # Control methods for pause/resume/stop functionality
+    # ------------------------------------------------------------------
+    def pause(self):
+        """Pause the optimization thread"""
+        self.mutex.lock()
+        self.paused = True
+        self.mutex.unlock()
+
+    def resume(self):
+        """Resume the optimization thread if paused"""
+        self.mutex.lock()
+        self.paused = False
+        self.condition.wakeAll()
+        self.mutex.unlock()
+
+    def stop(self):
+        """Request termination of the optimization thread"""
+        self.mutex.lock()
+        self.abort = True
+        self.paused = False
+        self.condition.wakeAll()
+        self.mutex.unlock()
+
+    def _check_pause_abort(self):
+        """Helper to block while paused and report abort state"""
+        self.mutex.lock()
+        while self.paused and not self.abort:
+            self.condition.wait(self.mutex)
+        aborted = self.abort
+        self.mutex.unlock()
+        return aborted
             
     def cleanup(self):
         """
@@ -1016,8 +1052,8 @@ class GAWorker(QThread):
                 4. It runs the test and calculates a score
                 5. It returns the score as a tuple (a special type of list that can't be changed)
                 """
-                # Check if we should stop the evaluation
-                if self.abort:
+                # Check for pause or abort requests
+                if self._check_pause_abort():
                     return (1e6,)  # Return a very bad score (1 million) to signal we should stop
 
                 # Track evaluation count for benchmark metrics
@@ -1182,8 +1218,8 @@ class GAWorker(QThread):
             # This function randomly changes some parameters of a solution
             # Think of it like making small random adjustments to a recipe
             def mutate_individual(individual, indpb=0.1):
-                # First, check if we should stop (like if someone called timeout)
-                if self.abort:
+                # First, check if we should stop or pause (like if someone called timeout)
+                if self._check_pause_abort():
                     return (individual,)
                     
                 # Go through each parameter in our solution
@@ -1982,10 +2018,10 @@ class GAWorker(QThread):
             # Each generation consists of selection, crossover, mutation, and evaluation steps.
             for gen in range(1, self.ga_num_generations + 1):
                 # ----------------------------------------
-                # Early Exit: Check for User Abort Signal
+                # Early Exit or Pause Handling
                 # ----------------------------------------
-                # If the user has requested to abort the optimization, emit a message and break out of the loop.
-                if self.abort:
+                # Check if the user has paused or aborted the optimization.
+                if self._check_pause_abort():
                     self.update.emit("Optimization aborted by user")
                     break
 
