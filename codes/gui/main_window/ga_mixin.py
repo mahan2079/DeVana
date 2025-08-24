@@ -453,11 +453,34 @@ class GAOptimizationMixin:
         self.seeding_method_combo.currentTextChanged.connect(_toggle_neural_group)
         _toggle_neural_group()
 
-        # Add a small Run GA button in the hyperparameters sub-tab
-        self.hyper_run_ga_button = QPushButton("Run GA")
-        self.hyper_run_ga_button.setFixedWidth(100)
-        self.hyper_run_ga_button.clicked.connect(self.run_ga)
-        ga_hyper_layout.addRow("Run GA:", self.hyper_run_ga_button)
+        # Add GA control buttons (Run/Pause/Resume/Terminate)
+        self.run_ga_button = QPushButton("Run GA")
+        self.run_ga_button.setFixedWidth(100)
+        self.run_ga_button.clicked.connect(self.run_ga)
+
+        self.pause_ga_button = QPushButton("Pause")
+        self.pause_ga_button.setFixedWidth(100)
+        self.pause_ga_button.setEnabled(False)
+        self.pause_ga_button.clicked.connect(self.pause_ga)
+
+        self.resume_ga_button = QPushButton("Resume")
+        self.resume_ga_button.setFixedWidth(100)
+        self.resume_ga_button.setEnabled(False)
+        self.resume_ga_button.clicked.connect(self.resume_ga)
+
+        self.stop_ga_button = QPushButton("Terminate")
+        self.stop_ga_button.setFixedWidth(100)
+        self.stop_ga_button.setEnabled(False)
+        self.stop_ga_button.clicked.connect(self.stop_ga)
+
+        ga_control_widget = QWidget()
+        ga_control_layout = QHBoxLayout(ga_control_widget)
+        ga_control_layout.setContentsMargins(0,0,0,0)
+        ga_control_layout.addWidget(self.run_ga_button)
+        ga_control_layout.addWidget(self.pause_ga_button)
+        ga_control_layout.addWidget(self.resume_ga_button)
+        ga_control_layout.addWidget(self.stop_ga_button)
+        ga_hyper_layout.addRow("GA Control:", ga_control_widget)
 
         # -------------------- Sub-tab 2: DVA Parameters --------------------
         ga_param_tab = QWidget()
@@ -1637,13 +1660,13 @@ class GAOptimizationMixin:
             self.zeta_dc_box.value()
         )
         
-        # Update button reference to match the actual button in the UI
-        self.run_ga_button = self.hyper_run_ga_button
-        
         # Disable run buttons during optimization
         self.run_frf_button.setEnabled(False)
         self.run_sobol_button.setEnabled(False)
         self.run_ga_button.setEnabled(False)
+        self.pause_ga_button.setEnabled(True)
+        self.resume_ga_button.setEnabled(False)
+        self.stop_ga_button.setEnabled(True)
         
         # Create progress bar if it doesn't exist
         if not hasattr(self, 'ga_progress_bar'):
@@ -1810,7 +1833,32 @@ class GAOptimizationMixin:
         
         # Start the worker
         self.ga_worker.start()
-        
+
+    def pause_ga(self):
+        """Pause the GA optimization"""
+        if hasattr(self, 'ga_worker') and self.ga_worker.isRunning():
+            self.ga_worker.pause()
+            self.pause_ga_button.setEnabled(False)
+            self.resume_ga_button.setEnabled(True)
+            self.status_bar.showMessage("GA optimization paused")
+
+    def resume_ga(self):
+        """Resume a paused GA optimization"""
+        if hasattr(self, 'ga_worker') and self.ga_worker.isRunning():
+            self.ga_worker.resume()
+            self.pause_ga_button.setEnabled(True)
+            self.resume_ga_button.setEnabled(False)
+            self.status_bar.showMessage("GA optimization resumed")
+
+    def stop_ga(self):
+        """Terminate the GA optimization"""
+        if hasattr(self, 'ga_worker') and self.ga_worker.isRunning():
+            self.ga_worker.stop()
+            self.pause_ga_button.setEnabled(False)
+            self.resume_ga_button.setEnabled(False)
+            self.stop_ga_button.setEnabled(False)
+            self.status_bar.showMessage("Stopping GA optimization...")
+
     def check_ga_worker_health(self):
         """Check if the GA worker is still responsive"""
         if hasattr(self, 'ga_worker') and self.ga_worker.isRunning():
@@ -1932,6 +1980,9 @@ class GAOptimizationMixin:
         self.run_frf_button.setEnabled(True)
         self.run_sobol_button.setEnabled(True)
         self.run_ga_button.setEnabled(True)
+        self.pause_ga_button.setEnabled(False)
+        self.resume_ga_button.setEnabled(False)
+        self.stop_ga_button.setEnabled(False)
         
         self.status_bar.showMessage("GA optimization completed")
         
@@ -1978,6 +2029,9 @@ class GAOptimizationMixin:
         self.run_frf_button.setEnabled(True)
         self.run_sobol_button.setEnabled(True)
         self.run_ga_button.setEnabled(True)
+        self.pause_ga_button.setEnabled(False)
+        self.resume_ga_button.setEnabled(False)
+        self.stop_ga_button.setEnabled(False)
         
         # Try to recover by cleaning up any residual state
         if hasattr(self, 'ga_worker'):
@@ -2020,6 +2074,12 @@ class GAOptimizationMixin:
         tolerance = self.ga_tol_box.value()
         alpha = self.ga_alpha_box.value()
         percentage_error_scale = self.ga_percentage_error_scale_box.value()
+
+        # Ensure control buttons reflect running state
+        self.run_ga_button.setEnabled(False)
+        self.pause_ga_button.setEnabled(True)
+        self.resume_ga_button.setEnabled(False)
+        self.stop_ga_button.setEnabled(True)
 
         # Get DVA parameter bounds
         dva_bounds = {}
