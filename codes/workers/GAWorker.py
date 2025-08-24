@@ -292,74 +292,19 @@ def safe_deap_operation(func):
 
 
 class GAWorker(QThread):
-    # ---------------------------------------------------------------------------
-    # Step-by-step Explanation (Story Style)
-    #
-    # Imagine you want to solve a really hard puzzle—one where you don't know the answer,
-    # but you can tell when you're getting closer. A genetic algorithm (GA) is like
-    # having a group of "guessers" (solutions) who try different answers, learn from
-    # the best guesses, mix their ideas, and sometimes try something totally random.
-    # Over time, the group gets better and better at solving the puzzle.
-    #
-    # This class, GAWorker, is the "worker bee" that runs this evolutionary process.
-    # It does all the heavy lifting in the background (in a separate thread), so your
-    # main program (like a GUI) stays responsive. It also sends out signals to let
-    # the rest of your program know how things are going, if something went wrong,
-    # or when it's done.
-    #
-    # ---------------------------------------------------------------------------
-    # Scientific/Logical Explanation (The 'Why')
-    #
-    # - Genetic algorithms work because they mimic natural selection: the best solutions
-    #   are more likely to "reproduce" and pass on their traits, while random mutations
-    #   help explore new possibilities and avoid getting stuck.
-    # - Running the GA in a separate thread (using QThread) keeps the user interface
-    #   smooth and responsive, even during long computations.
-    # - Signals (from PyQt) are used to safely communicate between the worker thread
-    #   and the main application, which is crucial for thread safety in GUI programs.
-    #
-    # ---------------------------------------------------------------------------
-    # This is the definition of the GAWorker class, which inherits from QThread.
-    # Inheriting from QThread means this class can run code in a separate thread.
-    # ---------------------------------------------------------------------------
-    class GAWorker(QThread):
-        # -----------------------------------------------------------------------
-        # PyQt Signal Definitions
-        # These are special variables that define "signals" the worker can emit.
-        # Signals are a way for the worker to send messages or data back to the main
-        # application (like a GUI) in a thread-safe way.
-        # -----------------------------------------------------------------------
+    """Background worker thread that executes the Genetic Algorithm (GA).
 
-        # This signal is emitted when the GA finishes running.
-        # It sends:
-        #   - a dictionary of results (e.g., statistics, logs)
-        #   - the best individual (solution) found (as a list)
-        #   - the names of the parameters (as a list)
-        #   - the best fitness value (as a float)
-        finished = pyqtSignal(dict, list, list, float)
+    The heavy optimisation work runs in this thread so the GUI remains responsive.
+    Progress and results are communicated back to the GUI via Qt signals.
+    """
 
-        # This signal is emitted if an error occurs during the GA run.
-        # It sends an error message (as a string).
-        error = pyqtSignal(str)
-
-        # This signal is emitted to provide status updates (e.g., "Generation 5/100").
-        # It sends a status message (as a string).
-        update = pyqtSignal(str)
-
-        # This signal is emitted to report progress as a percentage (0 to 100).
-        # It sends an integer representing the percent complete.
-        progress = pyqtSignal(int)
-
-        # This signal is for sending benchmarking data (e.g., CPU usage, memory usage,
-        # convergence statistics) to the main application for display or logging.
-        # It sends a dictionary of benchmark metrics.
-        benchmark_data = pyqtSignal(dict)
-
-        # This signal is for sending metrics about each generation (e.g., best fitness,
-        # diversity, timing) in real time, so the main application can track progress
-        # and display charts or logs.
-        # It sends a dictionary of per-generation metrics.
-        generation_metrics = pyqtSignal(dict)
+    # Qt Signals --------------------------------------------------------------
+    finished = pyqtSignal(dict, list, list, float)
+    error = pyqtSignal(str)
+    update = pyqtSignal(str)
+    progress = pyqtSignal(int)
+    benchmark_data = pyqtSignal(dict)
+    generation_metrics = pyqtSignal(dict)
 
     # ---------------------------------------------------------------------------
     # Python Concepts to Understand Here:
