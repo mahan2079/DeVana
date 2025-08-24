@@ -1,54 +1,94 @@
-\contentsline {section}{\numberline {1}Introduction}{3}{section.1}%
-\contentsline {subsection}{\numberline {1.1}Overview of DeVana System}{3}{subsection.1.1}%
-\contentsline {subsection}{\numberline {1.2}Problem Domain: Dynamic Vibration Absorber Optimization}{3}{subsection.1.2}%
-\contentsline {subsubsection}{\numberline {1.2.1}Mathematical Formulation}{3}{subsubsection.1.2.1}%
-\contentsline {section}{\numberline {2}Theoretical Foundations of Genetic Algorithms}{3}{section.2}%
-\contentsline {subsection}{\numberline {2.1}Evolutionary Computation Principles}{3}{subsection.2.1}%
-\contentsline {subsubsection}{\numberline {2.1.1}Population-Based Search}{4}{subsubsection.2.1.1}%
-\contentsline {subsubsection}{\numberline {2.1.2}Natural Selection Analogy}{4}{subsubsection.2.1.2}%
-\contentsline {subsection}{\numberline {2.2}Mathematical Framework}{4}{subsection.2.2}%
-\contentsline {subsubsection}{\numberline {2.2.1}Solution Representation}{4}{subsubsection.2.2.1}%
-\contentsline {subsubsection}{\numberline {2.2.2}Fitness Function}{4}{subsubsection.2.2.2}%
-\contentsline {subsubsection}{\numberline {2.2.3}Selection Mechanism}{4}{subsubsection.2.2.3}%
-\contentsline {subsubsection}{\numberline {2.2.4}Crossover Operation}{4}{subsubsection.2.2.4}%
-\contentsline {subsubsection}{\numberline {2.2.5}Mutation Operation}{5}{subsubsection.2.2.5}%
-\contentsline {section}{\numberline {3}Implementation Analysis}{5}{section.3}%
-\contentsline {subsection}{\numberline {3.1}Architecture Overview}{5}{subsection.3.1}%
-\contentsline {subsection}{\numberline {3.2}Core Components Analysis}{5}{subsection.3.2}%
-\contentsline {subsubsection}{\numberline {3.2.1}GAWorker Class Structure}{5}{subsubsection.3.2.1}%
-\contentsline {subsubsection}{\numberline {3.2.2}Thread Safety Mechanisms}{5}{subsubsection.3.2.2}%
-\contentsline {subsection}{\numberline {3.3}Fitness Function Implementation}{6}{subsection.3.3}%
-\contentsline {subsubsection}{\numberline {3.3.1}Multi-Objective Fitness Evaluation}{6}{subsubsection.3.3.1}%
-\contentsline {subsubsection}{\numberline {3.3.2}FRF Analysis Integration}{6}{subsubsection.3.3.2}%
-\contentsline {subsection}{\numberline {3.4}Adaptive Rate Mechanisms}{6}{subsection.3.4}%
-\contentsline {subsubsection}{\numberline {3.4.1}Stagnation Detection}{6}{subsubsection.3.4.1}%
-\contentsline {subsection}{\numberline {3.5}Evolution Loop Implementation}{7}{subsection.3.5}%
-\contentsline {subsubsection}{\numberline {3.5.1}Generation Cycle}{7}{subsubsection.3.5.1}%
-\contentsline {subsection}{\numberline {3.6}GUI Integration Analysis}{7}{subsection.3.6}%
-\contentsline {subsubsection}{\numberline {3.6.1}ga\_mixin.py Structure}{7}{subsubsection.3.6.1}%
-\contentsline {subsubsection}{\numberline {3.6.2}Parameter Management}{8}{subsubsection.3.6.2}%
-\contentsline {subsection}{\numberline {3.7}Benchmarking and Metrics}{8}{subsection.3.7}%
-\contentsline {subsubsection}{\numberline {3.7.1}Computational Metrics Tracking}{8}{subsubsection.3.7.1}%
-\contentsline {subsubsection}{\numberline {3.7.2}Real-time Monitoring}{9}{subsubsection.3.7.2}%
-\contentsline {section}{\numberline {4}Advanced Features}{9}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Error Handling and Recovery}{9}{subsection.4.1}%
-\contentsline {subsubsection}{\numberline {4.1.1}Safe DEAP Operations}{9}{subsubsection.4.1.1}%
-\contentsline {subsection}{\numberline {4.2}Multi-Threading Architecture}{10}{subsection.4.2}%
-\contentsline {subsubsection}{\numberline {4.2.1}Thread Communication}{10}{subsubsection.4.2.1}%
-\contentsline {subsection}{\numberline {4.3}Parameter Bounds and Constraints}{10}{subsection.4.3}%
-\contentsline {subsubsection}{\numberline {4.3.1}Fixed Parameter Support}{10}{subsubsection.4.3.1}%
-\contentsline {section}{\numberline {5}Performance Analysis}{11}{section.5}%
-\contentsline {subsection}{\numberline {5.1}Computational Complexity}{11}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Convergence Analysis}{11}{subsection.5.2}%
-\contentsline {section}{\numberline {6}Results and Validation}{11}{section.6}%
-\contentsline {subsection}{\numberline {6.1}Output Processing}{11}{subsection.6.1}%
-\contentsline {subsection}{\numberline {6.2}Visualization Capabilities}{12}{subsection.6.2}%
-\contentsline {section}{\numberline {7}Best Practices and Recommendations}{12}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Parameter Tuning Guidelines}{12}{subsection.7.1}%
-\contentsline {subsubsection}{\numberline {7.1.1}Population Size}{12}{subsubsection.7.1.1}%
-\contentsline {subsubsection}{\numberline {7.1.2}Crossover and Mutation Rates}{12}{subsubsection.7.1.2}%
-\contentsline {subsection}{\numberline {7.2}Performance Optimization}{12}{subsection.7.2}%
-\contentsline {subsubsection}{\numberline {7.2.1}Computational Efficiency}{12}{subsubsection.7.2.1}%
-\contentsline {subsubsection}{\numberline {7.2.2}Memory Management}{12}{subsubsection.7.2.2}%
-\contentsline {section}{\numberline {8}Conclusion}{13}{section.8}%
-\contentsline {section}{\numberline {9}References}{13}{section.9}%
+\contentsline {section}{\numberline {1}Introduction and Problem Statement}{4}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Mechanical System Definition}{4}{subsection.1.1}%
+\contentsline {subsubsection}{\numberline {1.1.1}Fully Coupled 2DOF - 3DOF System Setup}{4}{subsubsection.1.1.1}%
+\contentsline {paragraph}{System Overview and Configuration}{4}{section*.2}%
+\contentsline {paragraph}{Vibrational Modeling of the System and Assumptions}{5}{section*.3}%
+\contentsline {paragraph}{Derivation of Governing Equations}{6}{section*.4}%
+\contentsline {paragraph}{Mass Matrix Formulation}{6}{section*.5}%
+\contentsline {paragraph}{Damping Matrix Formulation}{7}{section*.6}%
+\contentsline {paragraph}{Stiffness Matrix Formulation}{7}{section*.7}%
+\contentsline {paragraph}{Forcing Vector Formulation}{8}{section*.8}%
+\contentsline {paragraph}{Dimensional Parameter Normalization}{8}{section*.9}%
+\contentsline {paragraph}{Semi-Analytical Solutions for Harmonic Excitation}{9}{section*.10}%
+\contentsline {subsection}{\numberline {1.2}Optimization Problem Formulation}{10}{subsection.1.2}%
+\contentsline {subsubsection}{\numberline {1.2.1}Objective Function Definition}{10}{subsubsection.1.2.1}%
+\contentsline {subsubsection}{\numberline {1.2.2}Multi-Objective Optimization Framework}{13}{subsubsection.1.2.2}%
+\contentsline {subsubsection}{\numberline {1.2.3}Fitness Evaluation through FRF Analysis}{15}{subsubsection.1.2.3}%
+\contentsline {section}{\numberline {2}Traditional Genetic Algorithm Foundation}{16}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Theoretical Background}{16}{subsection.2.1}%
+\contentsline {subsubsection}{\numberline {2.1.1}Evolutionary Computation Principles}{16}{subsubsection.2.1.1}%
+\contentsline {subsection}{\numberline {2.2}Standard Genetic Algorithm Components}{17}{subsection.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.1}Population Representation and Encoding}{17}{subsubsection.2.2.1}%
+\contentsline {subsubsection}{\numberline {2.2.2}Fitness Function and Selection Pressure}{18}{subsubsection.2.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.3}Crossover Operations and Genetic Recombination}{19}{subsubsection.2.2.3}%
+\contentsline {subsubsection}{\numberline {2.2.4}Mutation Operators and Exploration}{19}{subsubsection.2.2.4}%
+\contentsline {subsubsection}{\numberline {2.2.5}Elitism and Population Replacement}{20}{subsubsection.2.2.5}%
+\contentsline {subsection}{\numberline {2.3}Algorithmic Implementation}{21}{subsection.2.3}%
+\contentsline {subsubsection}{\numberline {2.3.1}Population Initialization Strategies}{21}{subsubsection.2.3.1}%
+\contentsline {subsubsection}{\numberline {2.3.2}Generation Evolution Process}{22}{subsubsection.2.3.2}%
+\contentsline {subsubsection}{\numberline {2.3.3}Convergence Monitoring and Statistics}{22}{subsubsection.2.3.3}%
+\contentsline {subsubsection}{\numberline {2.3.4}Parameter Tuning and Calibration}{23}{subsubsection.2.3.4}%
+\contentsline {section}{\numberline {3}Limitations of Traditional Genetic Algorithms}{24}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Theoretical Limitations}{24}{subsection.3.1}%
+\contentsline {subsubsection}{\numberline {3.1.1}Local Optima Trapping}{24}{subsubsection.3.1.1}%
+\contentsline {subsubsection}{\numberline {3.1.2}Premature Convergence}{25}{subsubsection.3.1.2}%
+\contentsline {subsubsection}{\numberline {3.1.3}Parameter Sensitivity}{26}{subsubsection.3.1.3}%
+\contentsline {subsubsection}{\numberline {3.1.4}Limited Exploration-Exploitation Balance}{27}{subsubsection.3.1.4}%
+\contentsline {subsection}{\numberline {3.2}Practical Limitations}{28}{subsection.3.2}%
+\contentsline {subsubsection}{\numberline {3.2.1}Computational Efficiency Issues}{28}{subsubsection.3.2.1}%
+\contentsline {subsubsection}{\numberline {3.2.2}Parameter Tuning Complexity}{29}{subsubsection.3.2.2}%
+\contentsline {subsubsection}{\numberline {3.2.3}Problem-Specific Adaptation}{30}{subsubsection.3.2.3}%
+\contentsline {subsubsection}{\numberline {3.2.4}Convergence Speed and Quality Trade-offs}{31}{subsubsection.3.2.4}%
+\contentsline {subsection}{\numberline {3.3}Performance Analysis}{32}{subsection.3.3}%
+\contentsline {subsubsection}{\numberline {3.3.1}Convergence Rate Analysis}{32}{subsubsection.3.3.1}%
+\contentsline {subsubsection}{\numberline {3.3.2}Diversity Loss Mechanisms}{34}{subsubsection.3.3.2}%
+\contentsline {subsubsection}{\numberline {3.3.3}Parameter Interaction Effects}{35}{subsubsection.3.3.3}%
+\contentsline {subsubsection}{\numberline {3.3.4}Scalability Limitations}{36}{subsubsection.3.3.4}%
+\contentsline {section}{\numberline {4}Advanced Genetic Algorithm Features}{37}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Reinforcement Learning Controller}{37}{subsection.4.1}%
+\contentsline {subsubsection}{\numberline {4.1.1}Q-Learning Mathematical Foundation}{37}{subsubsection.4.1.1}%
+\contentsline {subsubsection}{\numberline {4.1.2}State Space Design}{38}{subsubsection.4.1.2}%
+\contentsline {subsubsection}{\numberline {4.1.3}Action Space Design}{38}{subsubsection.4.1.3}%
+\contentsline {subsubsection}{\numberline {4.1.4}Epsilon-Greedy Exploration Strategy}{38}{subsubsection.4.1.4}%
+\contentsline {subsubsection}{\numberline {4.1.5}Reward Function Design}{39}{subsubsection.4.1.5}%
+\contentsline {subsubsection}{\numberline {4.1.6}Parameter Adjustment and Bounds Enforcement}{39}{subsubsection.4.1.6}%
+\contentsline {subsubsection}{\numberline {4.1.7}Integration Algorithm with Population Resizing}{39}{subsubsection.4.1.7}%
+\contentsline {subsection}{\numberline {4.2}Neural Network-Based Seeding}{39}{subsection.4.2}%
+\contentsline {subsubsection}{\numberline {4.2.1}Neural Network Architecture}{39}{subsubsection.4.2.1}%
+\contentsline {subsubsection}{\numberline {4.2.2}Training Process}{41}{subsubsection.4.2.2}%
+\contentsline {subsubsection}{\numberline {4.2.3}Acquisition Functions}{41}{subsubsection.4.2.3}%
+\contentsline {subsubsection}{\numberline {4.2.4}Adaptive Beta Parameter}{42}{subsubsection.4.2.4}%
+\contentsline {subsubsection}{\numberline {4.2.5}Integration Algorithm}{42}{subsubsection.4.2.5}%
+\contentsline {subsection}{\numberline {4.3}Surrogate-Assisted Screening}{42}{subsection.4.3}%
+\contentsline {subsubsection}{\numberline {4.3.1}KNN Surrogate Model}{42}{subsubsection.4.3.1}%
+\contentsline {subsubsection}{\numberline {4.3.2}Exploration-Exploitation Strategy}{43}{subsubsection.4.3.2}%
+\contentsline {subsubsection}{\numberline {4.3.3}Exploitation Score}{43}{subsubsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {4.3.4}Novelty Score}{43}{subsubsection.4.3.4}%
+\contentsline {subsubsection}{\numberline {4.3.5}Integration Algorithm}{43}{subsubsection.4.3.5}%
+\contentsline {subsubsection}{\numberline {4.3.6}Candidate Pool Generation}{43}{subsubsection.4.3.6}%
+\contentsline {subsection}{\numberline {4.4}Advanced Seeding Strategies}{43}{subsection.4.4}%
+\contentsline {subsubsection}{\numberline {4.4.1}Sobol Sequence Seeding}{43}{subsubsection.4.4.1}%
+\contentsline {subsubsection}{\numberline {4.4.2}Latin Hypercube Sampling}{45}{subsubsection.4.4.2}%
+\contentsline {subsubsection}{\numberline {4.4.3}Integration Algorithm}{45}{subsubsection.4.4.3}%
+\contentsline {subsection}{\numberline {4.5}Adaptive Rate Control}{45}{subsection.4.5}%
+\contentsline {subsubsection}{\numberline {4.5.1}Diversity-Based Adaptation}{45}{subsubsection.4.5.1}%
+\contentsline {subsubsection}{\numberline {4.5.2}Adaptive Rules}{46}{subsubsection.4.5.2}%
+\contentsline {subsubsection}{\numberline {4.5.3}Integration Algorithm}{46}{subsubsection.4.5.3}%
+\contentsline {subsection}{\numberline {4.6}Novelty and Integration Summary}{46}{subsection.4.6}%
+\contentsline {section}{\numberline {5}System Integration and Implementation}{48}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Modular Architecture Design}{48}{subsection.5.1}%
+\contentsline {subsubsection}{\numberline {5.1.1}Component Interaction}{48}{subsubsection.5.1.1}%
+\contentsline {subsubsection}{\numberline {5.1.2}Data Flow Management}{49}{subsubsection.5.1.2}%
+\contentsline {subsubsection}{\numberline {5.1.3}Error Handling and Recovery}{49}{subsubsection.5.1.3}%
+\contentsline {subsubsection}{\numberline {5.1.4}Performance Monitoring}{49}{subsubsection.5.1.4}%
+\contentsline {subsection}{\numberline {5.2}Thread Safety and Concurrency}{49}{subsection.5.2}%
+\contentsline {subsubsection}{\numberline {5.2.1}Multi-Threading Implementation}{52}{subsubsection.5.2.1}%
+\contentsline {subsubsection}{\numberline {5.2.2}Mutex and Condition Variables}{52}{subsubsection.5.2.2}%
+\contentsline {subsubsection}{\numberline {5.2.3}Signal-Slot Communication}{52}{subsubsection.5.2.3}%
+\contentsline {subsubsection}{\numberline {5.2.4}Resource Management}{55}{subsubsection.5.2.4}%
+\contentsline {subsection}{\numberline {5.3}Performance Optimization}{55}{subsection.5.3}%
+\contentsline {subsubsection}{\numberline {5.3.1}Computational Efficiency}{55}{subsubsection.5.3.1}%
+\contentsline {subsubsection}{\numberline {5.3.2}Memory Management}{57}{subsubsection.5.3.2}%
+\contentsline {subsubsection}{\numberline {5.3.3}Algorithmic Complexity}{57}{subsubsection.5.3.3}%
+\contentsline {subsubsection}{\numberline {5.3.4}Scalability Analysis}{57}{subsubsection.5.3.4}%
+\contentsline {subsection}{\numberline {5.4}Integration Summary}{57}{subsection.5.4}%
