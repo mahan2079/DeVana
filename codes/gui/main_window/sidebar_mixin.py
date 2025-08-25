@@ -28,7 +28,7 @@ class SidebarMixin:
         title.setFont(QFont("Segoe UI", 18, QFont.Bold))
         logo_layout.addWidget(title)
 
-        version = QLabel("V0.4.1")
+        version = QLabel("V0.5.0")
         version.setAlignment(Qt.AlignCenter)
         version.setFont(QFont("Segoe UI", 10))
         logo_layout.addWidget(version)
