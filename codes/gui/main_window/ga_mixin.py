@@ -2954,6 +2954,386 @@ class GAOptimizationMixin:
             pass
         self.export_benchmark_button.clicked.connect(self.export_ga_benchmark_data)
         
+        # New: Build Parameter Ranges tab with multiple criteria and comparison tools
+        try:
+            # Remove existing "Parameter Ranges" tab if it exists to avoid duplicates
+            try:
+                for _i in range(self.benchmark_viz_tabs.count()):
+                    if self.benchmark_viz_tabs.tabText(_i) == "Parameter Ranges":
+                        self.benchmark_viz_tabs.removeTab(_i)
+                        break
+            except Exception:
+                pass
+
+            # Validate availability of parameter data in df
+            param_names = []
+            if len(df) > 0 and 'parameter_names' in df.columns and isinstance(df.iloc[0]['parameter_names'], list):
+                param_names = list(df.iloc[0]['parameter_names'])
+
+            if param_names:
+                import numpy as _np
+                import pandas as _pd
+                from matplotlib.figure import Figure as _Figure
+                from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as _FigureCanvas
+
+                # Build parameter DataFrame aligned with fitness
+                values_rows = []
+                used_idx = []
+                for _idx, _row in df.iterrows():
+                    _sol = _row.get('best_solution', [])
+                    if isinstance(_sol, list) and len(_sol) == len(param_names):
+                        values_rows.append(_sol)
+                        used_idx.append(_idx)
+                if values_rows:
+                    param_df = _pd.DataFrame(values_rows, columns=param_names)
+                    fitness_series = df.loc[used_idx, 'best_fitness'].reset_index(drop=True) if 'best_fitness' in df.columns else None
+
+                    # Criteria computation helpers (nested for locality)
+                    def _iqr_range(vals):
+                        q1 = _np.percentile(vals, 25)
+                        q3 = _np.percentile(vals, 75)
+                        return float(q1), float(q3)
+
+                    def _p5_p95(vals):
+                        lo = _np.percentile(vals, 5)
+                        hi = _np.percentile(vals, 95)
+                        return float(lo), float(hi)
+
+                    def _tukey_whisker(vals):
+                        q1 = _np.percentile(vals, 25)
+                        q3 = _np.percentile(vals, 75)
+                        iqr = q3 - q1
+                        lf = q1 - 1.5 * iqr
+                        uf = q3 + 1.5 * iqr
+                        _v = _np.sort(vals)
+                        lo_candidates = _v[_v >= lf]
+                        hi_candidates = _v[_v <= uf]
+                        lo = float(lo_candidates.min()) if lo_candidates.size else float(_v.min())
+                        hi = float(hi_candidates.max()) if hi_candidates.size else float(_v.max())
+                        return lo, hi
+
+                    def _shortest_interval(vals, mass=0.68):
+                        _v = _np.sort(vals)
+                        n = _v.size
+                        if n == 0:
+                            return _np.nan, _np.nan
+                        k = max(1, int(round(mass * n)))
+                        if k >= n:
+                            return float(_v[0]), float(_v[-1])
+                        widths = _v[k-1:] - _v[:n-k+1]
+                        j = int(_np.argmin(widths))
+                        return float(_v[j]), float(_v[j + k - 1])
+
+                    def _top_quantile_p5_p95(vals, fitness, q=0.25):
+                        if fitness is None or len(fitness) != len(vals):
+                            return _p5_p95(vals)
+                        thr = _np.quantile(fitness, q)
+                        mask = (fitness <= thr)
+                        subset = _np.asarray(vals)[mask]
+                        if subset.size < 3:
+                            return _p5_p95(vals)
+                        return _p5_p95(subset)
+
+                    def _trimmed_mean_mad(vals):
+                        v = _np.asarray(vals)
+                        v_sorted = _np.sort(v)
+                        n = v_sorted.size
+                        if n == 0:
+                            return _np.nan, _np.nan
+                        cut = max(0, int(0.1 * n))
+                        core = v_sorted[cut:n-cut] if n - 2*cut > 0 else v_sorted
+                        tmean = float(core.mean()) if core.size else float(v.mean())
+                        med = float(_np.median(v))
+                        mad = float(_np.median(_np.abs(v - med)))
+                        robust_sigma = 1.4826 * mad
+                        lo = tmean - 1.5 * robust_sigma
+                        hi = tmean + 1.5 * robust_sigma
+                        # Clamp to observed span
+                        return float(max(v.min(), lo)), float(min(v.max(), hi))
+
+                    criteria_funcs = {
+                        "IQR (Q1–Q3)": _iqr_range,
+                        "P5–P95": _p5_p95,
+                        "Tukey (no outliers)": _tukey_whisker,
+                        "Shortest 68%": lambda x: _shortest_interval(x, 0.68),
+                        "Top 25% P5–P95": lambda x: _top_quantile_p5_p95(x, fitness_series, 0.25),
+                        "TrimmedMean ± 1.5*MAD": _trimmed_mean_mad,
+                    }
+
+                    # Pre-compute ranges: dict[criterion][param] = (lo, hi)
+                    ranges_by_criterion = {}
+                    for crit, fn in criteria_funcs.items():
+                        d = {}
+                        for pn in param_names:
+                            try:
+                                vals = _np.asarray(param_df[pn].dropna().values, dtype=float)
+                                if vals.size == 0:
+                                    d[pn] = (_np.nan, _np.nan)
+                                else:
+                                    lo, hi = fn(vals)
+                                    if _np.isnan(lo) or _np.isnan(hi):
+                                        lo, hi = float(vals.min()), float(vals.max())
+                                    d[pn] = (float(min(lo, hi)), float(max(lo, hi)))
+                            except Exception:
+                                v = _np.asarray(param_df[pn].values, dtype=float)
+                                d[pn] = (float(_np.nanmin(v)), float(_np.nanmax(v)))
+                        ranges_by_criterion[crit] = d
+
+                    # Colors for criteria in plots
+                    crit_colors = {
+                        "IQR (Q1–Q3)": "#1f77b4",
+                        "P5–P95": "#ff7f0e",
+                        "Tukey (no outliers)": "#2ca02c",
+                        "Shortest 68%": "#d62728",
+                        "Top 25% P5–P95": "#9467bd",
+                        "TrimmedMean ± 1.5*MAD": "#8c564b",
+                    }
+
+                    # Build the Parameter Ranges tab UI
+                    param_ranges_tab = QWidget()
+                    param_ranges_layout = QVBoxLayout(param_ranges_tab)
+                    ranges_tabs = QTabWidget()
+
+                    # Helper to build a table widget for a single-criterion dictionary
+                    def _build_table_for_ranges(rdict):
+                        table = QTableWidget()
+                        table.setColumnCount(5)
+                        table.setHorizontalHeaderLabels(["Parameter", "Low", "High", "Width", "Center"])
+                        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+                        table.setRowCount(len(param_names))
+                        for i, pn in enumerate(param_names):
+                            lo, hi = rdict.get(pn, (_np.nan, _np.nan))
+                            width = hi - lo if _np.isfinite(hi) and _np.isfinite(lo) else _np.nan
+                            center = (hi + lo) / 2.0 if _np.isfinite(hi) and _np.isfinite(lo) else _np.nan
+                            items = [
+                                QTableWidgetItem(str(pn)),
+                                QTableWidgetItem(f"{lo:.6f}" if _np.isfinite(lo) else "-"),
+                                QTableWidgetItem(f"{hi:.6f}" if _np.isfinite(hi) else "-"),
+                                QTableWidgetItem(f"{width:.6f}" if _np.isfinite(width) else "-"),
+                                QTableWidgetItem(f"{center:.6f}" if _np.isfinite(center) else "-"),
+                            ]
+                            for j, it in enumerate(items):
+                                it.setTextAlignment(Qt.AlignCenter)
+                                table.setItem(i, j, it)
+                        return table
+
+                    # Helper to build a horizontal range plot for one criterion
+                    def _build_range_plot(rdict, title, color):
+                        fig = _Figure(figsize=(10, max(5, len(param_names) * 0.25)), tight_layout=True)
+                        ax = fig.add_subplot(111)
+                        y = _np.arange(len(param_names))
+                        xmins = []
+                        xmaxs = []
+                        for i, pn in enumerate(param_names):
+                            lo, hi = rdict.get(pn, (_np.nan, _np.nan))
+                            xmins.append(lo)
+                            xmaxs.append(hi)
+                            if _np.isfinite(lo) and _np.isfinite(hi):
+                                ax.hlines(i, lo, hi, colors=color, linewidth=3)
+                                ax.plot([lo, hi], [i, i], 'o', color=color, markersize=4)
+                        ax.set_yticks(y)
+                        ax.set_yticklabels(param_names)
+                        ax.set_xlabel("Value")
+                        ax.set_title(title)
+                        ax.grid(True, axis='x', linestyle='--', alpha=0.3)
+                        # Set x-limits with small padding
+                        try:
+                            xmin = _np.nanmin(_np.asarray(xmins))
+                            xmax = _np.nanmax(_np.asarray(xmaxs))
+                            if _np.isfinite(xmin) and _np.isfinite(xmax) and xmin < xmax:
+                                pad = 0.02 * (xmax - xmin)
+                                ax.set_xlim(xmin - pad, xmax + pad)
+                        except Exception:
+                            pass
+                        canvas = _FigureCanvas(fig)
+                        container = QWidget()
+                        lay = QVBoxLayout(container)
+                        lay.addWidget(canvas)
+                        try:
+                            toolbar = NavigationToolbar(canvas, None)
+                            lay.addWidget(toolbar)
+                        except Exception:
+                            pass
+                        return container
+
+                    # Build one subtab per criterion
+                    for crit_name, rdict in ranges_by_criterion.items():
+                        tab = QWidget()
+                        lay = QVBoxLayout(tab)
+                        lay.addWidget(QLabel(f"Recommended ranges per parameter using: {crit_name}"))
+                        table = _build_table_for_ranges(rdict)
+                        lay.addWidget(table)
+                        plot_widget = _build_range_plot(rdict, f"Ranges ({crit_name})", crit_colors.get(crit_name, '#333333'))
+                        lay.addWidget(plot_widget)
+                        # Export button
+                        export_btn = QPushButton("Export Table")
+                        def _export_table(_tbl=table, _crit=crit_name):
+                            try:
+                                from PyQt5.QtWidgets import QFileDialog
+                                path, _ = QFileDialog.getSaveFileName(self, f"Export {_crit} Ranges", f"parameter_ranges_{_crit.replace(' ', '_')}.csv", "CSV files (*.csv)")
+                                if path:
+                                    # Dump table to CSV
+                                    import csv
+                                    with open(path, 'w', newline='') as f:
+                                        writer = csv.writer(f)
+                                        headers = ["Parameter", "Low", "High", "Width", "Center"]
+                                        writer.writerow(headers)
+                                        for r in range(_tbl.rowCount()):
+                                            row = [
+                                                _tbl.item(r, 0).text() if _tbl.item(r, 0) else "",
+                                                _tbl.item(r, 1).text() if _tbl.item(r, 1) else "",
+                                                _tbl.item(r, 2).text() if _tbl.item(r, 2) else "",
+                                                _tbl.item(r, 3).text() if _tbl.item(r, 3) else "",
+                                                _tbl.item(r, 4).text() if _tbl.item(r, 4) else "",
+                                            ]
+                                            writer.writerow(row)
+                            except Exception as _e:
+                                print(f"Error exporting ranges table: {str(_e)}")
+                        export_btn.clicked.connect(_export_table)
+                        lay.addWidget(export_btn)
+                        ranges_tabs.addTab(tab, crit_name)
+
+                    # Comparison subtab
+                    cmp_tab = QWidget()
+                    cmp_layout = QVBoxLayout(cmp_tab)
+                    controls = QWidget()
+                    controls_layout = QHBoxLayout(controls)
+                    controls_layout.addWidget(QLabel("Select criteria:"))
+                    crit_checkboxes = []
+                    for crit in ranges_by_criterion.keys():
+                        cb = QCheckBox(crit)
+                        cb.setChecked(True)
+                        crit_checkboxes.append(cb)
+                        controls_layout.addWidget(cb)
+                    controls_layout.addStretch()
+                    cmp_layout.addWidget(controls)
+
+                    # Comparison plot and table containers
+                    cmp_plot_container = QWidget()
+                    cmp_plot_layout = QVBoxLayout(cmp_plot_container)
+                    cmp_table = QTableWidget()
+                    cmp_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+                    cmp_layout.addWidget(cmp_plot_container)
+                    cmp_layout.addWidget(cmp_table)
+
+                    # Update function for comparison
+                    def _update_comparison():
+                        # Clear plot container
+                        while cmp_plot_layout.count():
+                            w = cmp_plot_layout.itemAt(0).widget()
+                            if w:
+                                w.setParent(None)
+                        selected_crit = [cb.text() for cb in crit_checkboxes if cb.isChecked()]
+                        if not selected_crit:
+                            selected_crit = [list(ranges_by_criterion.keys())[0]]
+
+                        # Build overlay plot with much wider rectangles
+                        fig = _Figure(figsize=(16, max(5, len(param_names) * 0.28)), tight_layout=True)
+                        ax = fig.add_subplot(111)
+                        y = _np.arange(len(param_names))
+                        ax.set_yticks(y)
+                        ax.set_yticklabels(param_names)
+                        ax.set_xlabel("Value")
+                        ax.set_title("Parameter Ranges Comparison")
+                        ax.grid(True, axis='x', linestyle='--', alpha=0.3)
+
+                        from matplotlib.patches import Rectangle, Patch
+                        xmin_glob = _np.inf
+                        xmax_glob = -_np.inf
+                        # Determine vertical stacking for rectangles per parameter row - make them much taller
+                        ncrit = max(1, len(selected_crit))
+                        cluster_height = 1.2
+                        rect_h = cluster_height / ncrit
+                        start = -cluster_height / 2.0 + 0.5 * rect_h
+                        legend_handles = []
+                        legend_added = set()
+                        for k, crit in enumerate(selected_crit):
+                            rdict = ranges_by_criterion.get(crit, {})
+                            col = crit_colors.get(crit, '#333333')
+                            if crit not in legend_added:
+                                legend_handles.append(Patch(facecolor=col, edgecolor='black', alpha=0.6, label=crit))
+                                legend_added.add(crit)
+                            for i, pn in enumerate(param_names):
+                                lo, hi = rdict.get(pn, (_np.nan, _np.nan))
+                                if _np.isfinite(lo) and _np.isfinite(hi) and hi >= lo:
+                                    y0 = i + start + k * rect_h
+                                    width = hi - lo
+                                    rect = Rectangle((lo, y0), width, rect_h * 0.95, facecolor=col, edgecolor='black', linewidth=1.2, alpha=0.7)
+                                    ax.add_patch(rect)
+                                    xmin_glob = min(xmin_glob, lo)
+                                    xmax_glob = max(xmax_glob, hi)
+                        if _np.isfinite(xmin_glob) and _np.isfinite(xmax_glob) and xmin_glob < xmax_glob:
+                            pad = 0.02 * (xmax_glob - xmin_glob)
+                            ax.set_xlim(xmin_glob - pad, xmax_glob + pad)
+                        ax.set_ylim(-0.5, len(param_names) - 0.5)
+                        if legend_handles:
+                            ax.legend(handles=legend_handles, loc='lower right', framealpha=0.8, fontsize=14)
+                        canvas = _FigureCanvas(fig)
+                        cmp_plot_layout.addWidget(canvas)
+                        try:
+                            toolbar = NavigationToolbar(canvas, None)
+                            cmp_plot_layout.addWidget(toolbar)
+                        except Exception:
+                            pass
+
+                        # Build comparison table
+                        headers = ["Parameter"]
+                        for crit in selected_crit:
+                            headers.extend([f"{crit} Low", f"{crit} High", f"{crit} Width"]) 
+                        cmp_table.setColumnCount(len(headers))
+                        cmp_table.setHorizontalHeaderLabels(headers)
+                        cmp_table.setRowCount(len(param_names))
+                        for i, pn in enumerate(param_names):
+                            cmp_table.setItem(i, 0, QTableWidgetItem(str(pn)))
+                            cmp_table.item(i, 0).setTextAlignment(Qt.AlignCenter)
+                            col_idx = 1
+                            for crit in selected_crit:
+                                lo, hi = ranges_by_criterion.get(crit, {}).get(pn, (_np.nan, _np.nan))
+                                width = hi - lo if _np.isfinite(hi) and _np.isfinite(lo) else _np.nan
+                                for val in (lo, hi, width):
+                                    item = QTableWidgetItem(f"{val:.6f}" if _np.isfinite(val) else "-")
+                                    item.setTextAlignment(Qt.AlignCenter)
+                                    cmp_table.setItem(i, col_idx, item)
+                                    col_idx += 1
+
+                    # Wire up checkboxes
+                    for cb in crit_checkboxes:
+                        cb.stateChanged.connect(_update_comparison)
+                    _update_comparison()
+
+                    # Export comparison table button
+                    cmp_export_btn = QPushButton("Export Comparison Table")
+                    def _export_cmp():
+                        try:
+                            from PyQt5.QtWidgets import QFileDialog
+                            path, _ = QFileDialog.getSaveFileName(self, "Export Ranges Comparison", "parameter_ranges_comparison.csv", "CSV files (*.csv)")
+                            if path:
+                                import csv
+                                # Write current table content
+                                with open(path, 'w', newline='') as f:
+                                    writer = csv.writer(f)
+                                    hdrs = [cmp_table.horizontalHeaderItem(ci).text() for ci in range(cmp_table.columnCount())]
+                                    writer.writerow(hdrs)
+                                    for r in range(cmp_table.rowCount()):
+                                        row = []
+                                        for c in range(cmp_table.columnCount()):
+                                            it = cmp_table.item(r, c)
+                                            row.append(it.text() if it else "")
+                                        writer.writerow(row)
+                        except Exception as _e:
+                            print(f"Error exporting comparison table: {str(_e)}")
+                    cmp_export_btn.clicked.connect(_export_cmp)
+                    cmp_layout.addWidget(cmp_export_btn)
+
+                    ranges_tabs.addTab(cmp_tab, "Compare Criteria")
+
+                    # Assemble overall tab
+                    param_ranges_layout.addWidget(ranges_tabs)
+                    # Add the new top-level tab to the benchmark widget
+                    self.benchmark_viz_tabs.addTab(param_ranges_tab, "Parameter Ranges")
+        except Exception as e:
+            print(f"Error building Parameter Ranges tab: {str(e)}")
+
         # 8. Generate comprehensive statistical analysis for parameters
         self.generate_parameter_statistical_analysis(df)
         
