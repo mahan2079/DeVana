@@ -35,6 +35,7 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QDialog,
     QToolBar,
+    QAction,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QDateTime
 from PyQt5.QtGui import QBrush, QColor
@@ -47,6 +48,14 @@ from modules.FRF import frf
 from scipy.stats import qmc
 
 class GAOptimizationMixin:
+    def _attach_open_in_new_window(self, toolbar, fig, title):
+        """Attach a consistent 'Open in New Window' action to a plot toolbar."""
+        try:
+            action = QAction("Open in New Window", toolbar)
+            action.triggered.connect(lambda checked=False, f=fig, t=title: self._open_plot_window(f, t))
+            toolbar.addAction(action)
+        except Exception:
+            pass
     def create_ga_tab(self):
         """Create the genetic algorithm optimization tab"""
         self.ga_tab = QWidget()
@@ -1267,6 +1276,11 @@ class GAOptimizationMixin:
         canvas = FigureCanvasQTAgg(fig)
         if include_toolbar:
             toolbar = NavigationToolbar(canvas, target_widget)
+            # Add universal "Open in New Window" action to toolbar
+            try:
+                self._attach_open_in_new_window(toolbar, fig, "Plot")
+            except Exception:
+                pass
             layout.addWidget(toolbar)
         layout.addWidget(canvas)
 
@@ -6326,8 +6340,12 @@ class GAOptimizationMixin:
         canvas = FigureCanvasQTAgg(fig)
         tab_widget.layout().addWidget(canvas)
 
-        # Add toolbar
+        # Add toolbar with "Open in New Window"
         toolbar = NavigationToolbar(canvas, tab_widget)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Fitness Evolution")
+        except Exception:
+            pass
         tab_widget.layout().addWidget(toolbar)
 
         # Ensure visibility
@@ -6405,8 +6423,12 @@ class GAOptimizationMixin:
         canvas = FigureCanvasQTAgg(fig)
         tab_widget.layout().addWidget(canvas)
 
-        # Add toolbar
+        # Add toolbar with "Open in New Window"
         toolbar = NavigationToolbar(canvas, tab_widget)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Parameter Convergence")
+        except Exception:
+            pass
         tab_widget.layout().addWidget(toolbar)
 
         # Ensure visibility
@@ -6482,8 +6504,12 @@ class GAOptimizationMixin:
         canvas = FigureCanvasQTAgg(fig)
         tab_widget.layout().addWidget(canvas)
 
-        # Add toolbar
+        # Add toolbar with "Open in New Window"
         toolbar = NavigationToolbar(canvas, tab_widget)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Adaptive Rates")
+        except Exception:
+            pass
         tab_widget.layout().addWidget(toolbar)
 
         # Ensure visibility
@@ -6628,8 +6654,12 @@ class GAOptimizationMixin:
         canvas = FigureCanvasQTAgg(fig)
         tab_widget.layout().addWidget(canvas)
 
-        # Add toolbar
+        # Add toolbar with "Open in New Window"
         toolbar = NavigationToolbar(canvas, tab_widget)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Computational Efficiency")
+        except Exception:
+            pass
         tab_widget.layout().addWidget(toolbar)
 
         # Ensure visibility
@@ -6777,6 +6807,10 @@ class GAOptimizationMixin:
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, f"Fitness Evolution - Run #{run_data.get('run_number', 1)}")
+        except Exception:
+            pass
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
 
@@ -6849,6 +6883,10 @@ class GAOptimizationMixin:
 
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "RL Controller Metrics")
+        except Exception:
+            pass
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
     
@@ -6995,6 +7033,10 @@ class GAOptimizationMixin:
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Performance Metrics")
+        except Exception:
+            pass
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
     
@@ -7057,6 +7099,10 @@ class GAOptimizationMixin:
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Operations Timing")
+        except Exception:
+            pass
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
     
@@ -7124,6 +7170,10 @@ class GAOptimizationMixin:
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "ML Bandit Metrics")
+        except Exception:
+            pass
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
 
@@ -7170,6 +7220,10 @@ class GAOptimizationMixin:
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Surrogate Screening Metrics")
+        except Exception:
+            pass
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
     
@@ -8122,6 +8176,10 @@ All parameters remain constant during optimization.''',
             # Add plot to layout
             canvas = FigureCanvasQTAgg(fig)
             toolbar = NavigationToolbar(canvas, None)
+            try:
+                self._attach_open_in_new_window(toolbar, fig, "Parameter Convergence (Interactive)")
+            except Exception:
+                pass
             plot_layout.addWidget(toolbar)
             plot_layout.addWidget(canvas)
         
@@ -8251,6 +8309,10 @@ All parameters remain constant during optimization.''',
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Adaptive Rates (Selected Run)")
+        except Exception:
+            pass
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
     
@@ -8319,6 +8381,10 @@ All parameters remain constant during optimization.''',
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Generation Breakdown")
+        except Exception:
+            pass
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
     
@@ -8518,6 +8584,10 @@ All parameters remain constant during optimization.''',
         
         canvas = FigureCanvasQTAgg(fig)
         toolbar = NavigationToolbar(canvas, None)
+        try:
+            self._attach_open_in_new_window(toolbar, fig, "Fitness Components")
+        except Exception:
+            pass
         layout.addWidget(toolbar)
         layout.addWidget(canvas)
 
