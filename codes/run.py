@@ -7,6 +7,7 @@ from PyQt5.QtGui import QColor, QFont, QPixmap, QPainter, QLinearGradient, QBrus
 from PyQt5.QtCore import Qt, QSize, QTimer, QPropertyAnimation, QRect, QThread, QEasingCurve
 
 from mainwindow import MainWindow
+from app_info import APP_NAME, __version__
 
 # Store the original methods
 original_init = MainWindow.__init__
@@ -67,6 +68,12 @@ def closeEvent(self, event):
                 print(f"Error terminating RL worker: {str(e)}")
     
     # Allow the close event to proceed
+    try:
+        # Playground cleanup: deregister this window instance if tracking exists
+        if hasattr(self, '_playground_close_cleanup'):
+            self._playground_close_cleanup()
+    except Exception:
+        pass
     event.accept()
 
 # Safe QThread __del__ method
@@ -129,7 +136,7 @@ def exception_hook(exctype, value, tb):
 # Set the exception hook
 sys.excepthook = exception_hook
 
-# DeVana v0.5.0
+# Version displayed via app_info.__version__
 
 class WelcomePage(QWidget):
     def __init__(self):
@@ -137,7 +144,7 @@ class WelcomePage(QWidget):
         super().__init__()
         
         # Set window properties
-        self.setWindowTitle("Welcome to DeVana")
+        self.setWindowTitle(f"Welcome to {APP_NAME}")
         self.setFixedSize(800, 600)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         
@@ -152,7 +159,7 @@ class WelcomePage(QWidget):
         layout.setContentsMargins(50, 50, 50, 50)
         
         # Create animated elements
-        self.title_label = QLabel("DeVana")
+        self.title_label = QLabel(APP_NAME)
         self.title_label.setFont(QFont("Segoe UI Light", 48, QFont.Bold))
         self.title_label.setAlignment(Qt.AlignCenter)
         self.title_label.setStyleSheet("""
@@ -161,7 +168,7 @@ class WelcomePage(QWidget):
             padding: 20px;
         """)
         
-        self.version_label = QLabel("Version V0.5.0")
+        self.version_label = QLabel(f"Version {__version__}")
         self.version_label.setFont(QFont("Segoe UI", 18, QFont.Normal))
         self.version_label.setAlignment(Qt.AlignCenter)
         self.version_label.setStyleSheet("""
@@ -474,11 +481,11 @@ class SplashScreen(QSplashScreen):
         self.painter.setPen(Qt.white)
         font = QFont("Segoe UI", 36, QFont.Bold)
         self.painter.setFont(font)
-        self.painter.drawText(50, 150, "DeVana")
+        self.painter.drawText(50, 150, APP_NAME)
         
         font.setPointSize(14)
         self.painter.setFont(font)
-        self.painter.drawText(50, 200, "Version V0.5.0")
+        self.painter.drawText(50, 200, f"Version {__version__}")
         
         font.setPointSize(12)
         font.setBold(False)

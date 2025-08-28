@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize, QPoint, QPropertyAnimation, QEasingCurve, QRect, QTimer, QDateTime
 from PyQt5.QtGui import QIcon, QPalette, QColor, QFont, QPixmap, QCursor, QPainter, QBrush, QLinearGradient, QMovie
+from PyQt5.QtGui import QGuiApplication
 
 # Matplotlib backends
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -55,6 +56,7 @@ from gui.main_window.stochastic_mixin import StochasticDesignMixin
 from gui.main_window.sobol_mixin import SobolAnalysisMixin
 from gui.main_window.omega_sensitivity_mixin import OmegaSensitivityMixin
 
+from app_info import APP_NAME, __version__
 
 # Additional libraries used
 import random
@@ -88,9 +90,11 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
                  ThemeMixin, FRFMixin, PSOMixin, GAOptimizationMixin,
                  InputTabsMixin, ExtraOptimizationMixin,
                  SidebarMixin, StochasticDesignMixin, SobolAnalysisMixin, OmegaSensitivityMixin):
+    # Track all open MainWindow instances for Playground tiling/management
+    playground_windows = []
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("DeVana - V0.5.0")
+        self.setWindowTitle(f"{APP_NAME} - {__version__}")
         self.resize(1600, 900)
         self.setMinimumSize(1200, 800)  # Set minimum window size
         
@@ -167,6 +171,15 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
         
         # Initialize zones for FRF comparative plotting
         self.zones = []
+
+        # Playground: register instance and default name
+        try:
+            if self not in MainWindow.playground_windows:
+                MainWindow.playground_windows.append(self)
+        except Exception:
+            pass
+        self.instance_name = ""
+        self._update_window_title()
 
     def integrate_de_functionality(self):
         """Manually integrate DE functionality from DEOptimizationMixin"""
@@ -358,4 +371,121 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
                               f"Error resetting some values: {str(e)}\nSome values may not have been reset.")
             self.status_bar.showMessage("Error during reset", 3000)
 
+
+
+    # ---------------------------
+    # Playground support methods
+    # ---------------------------
+    def _update_window_title(self):
+        try:
+            base = f"{APP_NAME} - {__version__}"
+            if hasattr(self, 'instance_name') and self.instance_name:
+                self.setWindowTitle(f"{base} — {self.instance_name}")
+            else:
+                self.setWindowTitle(base)
+        except Exception:
+            pass
+
+    def set_instance_name(self, name):
+        try:
+            self.instance_name = str(name).strip()
+            self._update_window_title()
+        except Exception:
+            pass
+
+    def rename_instance_window(self):
+        try:
+            text, ok = QInputDialog.getText(self, "Rename Window", "Instance name:", text=self.instance_name or "")
+            if ok:
+                self.set_instance_name(text)
+        except Exception:
+            pass
+
+    def open_playground_clone(self):
+        try:
+            # Prompt for new instance name
+            name, ok = QInputDialog.getText(self, "New Playground Window", "Name this instance:")
+            if not ok:
+                return
+
+            # Collect current parameters
+            params = {}
+            try:
+                if hasattr(self, '_collect_parameters_to_dict'):
+                    params = self._collect_parameters_to_dict()
+            except Exception:
+                params = {}
+
+            # Create and configure clone window
+            clone = MainWindow()
+
+            # Apply theme/state
+            try:
+                clone.switch_theme(self.current_theme)
+            except Exception:
+                pass
+
+            # Apply parameters
+            try:
+                if params and hasattr(clone, '_apply_parameters_from_dict'):
+                    clone._apply_parameters_from_dict(params)
+            except Exception:
+                pass
+
+            # Name and show
+            clone.set_instance_name(name)
+            clone.show()
+            clone.raise_()
+            clone.activateWindow()
+
+            # Stagger position slightly
+            try:
+                g = self.geometry()
+                clone.setGeometry(g.adjusted(40, 40, 40, 40))
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Playground Error", f"Failed to open clone: {str(e)}")
+            except Exception:
+                pass
+
+    def tile_playground_windows(self):
+        try:
+            windows = [w for w in getattr(MainWindow, 'playground_windows', []) if w is not None and w.isVisible()]
+            if not windows:
+                return
+
+            # Determine grid layout
+            n = len(windows)
+            import math
+            cols = int(math.ceil(math.sqrt(n)))
+            rows = int(math.ceil(n / cols))
+
+            # Available geometry
+            screen = QGuiApplication.primaryScreen()
+            if not screen:
+                return
+            avail = screen.availableGeometry()
+            cell_w = max(400, int(avail.width() / cols))
+            cell_h = max(300, int(avail.height() / rows))
+
+            for idx, w in enumerate(windows):
+                r = idx // cols
+                c = idx % cols
+                x = avail.x() + c * cell_w
+                y = avail.y() + r * cell_h
+                try:
+                    w.setGeometry(x, y, cell_w, cell_h)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _playground_close_cleanup(self):
+        try:
+            if hasattr(MainWindow, 'playground_windows') and self in MainWindow.playground_windows:
+                MainWindow.playground_windows.remove(self)
+        except Exception:
+            pass
 
