@@ -3,5 +3,5 @@ DeVana - Advanced Vibration Optimization System
 Main package initialization
 """
 
-__version__ = "V0.5.0"
+from app_info import __version__
 __author__ = "DeVana Team" 

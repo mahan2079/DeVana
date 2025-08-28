@@ -5,6 +5,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
 from gui.widgets import SidebarButton
+from app_info import APP_NAME, __version__
 
 
 class SidebarMixin:
@@ -23,12 +24,12 @@ class SidebarMixin:
         logo_container.setMinimumHeight(100)
 
         logo_layout = QVBoxLayout(logo_container)
-        title = QLabel("DeVana")
+        title = QLabel(APP_NAME)
         title.setAlignment(Qt.AlignCenter)
         title.setFont(QFont("Segoe UI", 18, QFont.Bold))
         logo_layout.addWidget(title)
 
-        version = QLabel("V0.5.0")
+        version = QLabel(__version__)
         version.setAlignment(Qt.AlignCenter)
         version.setFont(QFont("Segoe UI", 10))
         logo_layout.addWidget(version)

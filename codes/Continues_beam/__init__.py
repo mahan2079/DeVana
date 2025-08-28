@@ -44,7 +44,7 @@ from .ui.results_dashboard import ResultsDashboard
 from .ui.cross_section_visualizer import CrossSectionVisualizer
 
 # Version information
-__version__ = "V0.5.0"
+from app_info import __version__
 __author__ = "DeVana Development Team"
 __description__ = "Advanced composite beam analysis with temperature-dependent material properties"
 
