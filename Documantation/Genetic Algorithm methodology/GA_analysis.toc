@@ -1,94 +1,91 @@
-\contentsline {section}{\numberline {1}Introduction and Problem Statement}{4}{section.1}%
-\contentsline {subsection}{\numberline {1.1}Mechanical System Definition}{4}{subsection.1.1}%
-\contentsline {subsubsection}{\numberline {1.1.1}Fully Coupled 2DOF - 3DOF System Setup}{4}{subsubsection.1.1.1}%
-\contentsline {paragraph}{System Overview and Configuration}{4}{section*.2}%
-\contentsline {paragraph}{Vibrational Modeling of the System and Assumptions}{5}{section*.3}%
-\contentsline {paragraph}{Derivation of Governing Equations}{6}{section*.4}%
-\contentsline {paragraph}{Mass Matrix Formulation}{6}{section*.5}%
-\contentsline {paragraph}{Damping Matrix Formulation}{7}{section*.6}%
-\contentsline {paragraph}{Stiffness Matrix Formulation}{7}{section*.7}%
-\contentsline {paragraph}{Forcing Vector Formulation}{8}{section*.8}%
-\contentsline {paragraph}{Dimensional Parameter Normalization}{8}{section*.9}%
-\contentsline {paragraph}{Semi-Analytical Solutions for Harmonic Excitation}{9}{section*.10}%
-\contentsline {subsection}{\numberline {1.2}Optimization Problem Formulation}{10}{subsection.1.2}%
-\contentsline {subsubsection}{\numberline {1.2.1}Objective Function Definition}{10}{subsubsection.1.2.1}%
-\contentsline {subsubsection}{\numberline {1.2.2}Multi-Objective Optimization Framework}{13}{subsubsection.1.2.2}%
-\contentsline {subsubsection}{\numberline {1.2.3}Fitness Evaluation through FRF Analysis}{15}{subsubsection.1.2.3}%
-\contentsline {section}{\numberline {2}Traditional Genetic Algorithm Foundation}{16}{section.2}%
-\contentsline {subsection}{\numberline {2.1}Theoretical Background}{16}{subsection.2.1}%
-\contentsline {subsubsection}{\numberline {2.1.1}Evolutionary Computation Principles}{16}{subsubsection.2.1.1}%
-\contentsline {subsection}{\numberline {2.2}Standard Genetic Algorithm Components}{17}{subsection.2.2}%
-\contentsline {subsubsection}{\numberline {2.2.1}Population Representation and Encoding}{17}{subsubsection.2.2.1}%
-\contentsline {subsubsection}{\numberline {2.2.2}Fitness Function and Selection Pressure}{18}{subsubsection.2.2.2}%
-\contentsline {subsubsection}{\numberline {2.2.3}Crossover Operations and Genetic Recombination}{19}{subsubsection.2.2.3}%
-\contentsline {subsubsection}{\numberline {2.2.4}Mutation Operators and Exploration}{19}{subsubsection.2.2.4}%
-\contentsline {subsubsection}{\numberline {2.2.5}Elitism and Population Replacement}{20}{subsubsection.2.2.5}%
-\contentsline {subsection}{\numberline {2.3}Algorithmic Implementation}{21}{subsection.2.3}%
-\contentsline {subsubsection}{\numberline {2.3.1}Population Initialization Strategies}{21}{subsubsection.2.3.1}%
-\contentsline {subsubsection}{\numberline {2.3.2}Generation Evolution Process}{22}{subsubsection.2.3.2}%
-\contentsline {subsubsection}{\numberline {2.3.3}Convergence Monitoring and Statistics}{22}{subsubsection.2.3.3}%
-\contentsline {subsubsection}{\numberline {2.3.4}Parameter Tuning and Calibration}{23}{subsubsection.2.3.4}%
-\contentsline {section}{\numberline {3}Limitations of Traditional Genetic Algorithms}{24}{section.3}%
-\contentsline {subsection}{\numberline {3.1}Theoretical Limitations}{24}{subsection.3.1}%
-\contentsline {subsubsection}{\numberline {3.1.1}Local Optima Trapping}{24}{subsubsection.3.1.1}%
-\contentsline {subsubsection}{\numberline {3.1.2}Premature Convergence}{25}{subsubsection.3.1.2}%
-\contentsline {subsubsection}{\numberline {3.1.3}Parameter Sensitivity}{26}{subsubsection.3.1.3}%
-\contentsline {subsubsection}{\numberline {3.1.4}Limited Exploration-Exploitation Balance}{27}{subsubsection.3.1.4}%
-\contentsline {subsection}{\numberline {3.2}Practical Limitations}{28}{subsection.3.2}%
-\contentsline {subsubsection}{\numberline {3.2.1}Computational Efficiency Issues}{28}{subsubsection.3.2.1}%
-\contentsline {subsubsection}{\numberline {3.2.2}Parameter Tuning Complexity}{29}{subsubsection.3.2.2}%
-\contentsline {subsubsection}{\numberline {3.2.3}Problem-Specific Adaptation}{30}{subsubsection.3.2.3}%
-\contentsline {subsubsection}{\numberline {3.2.4}Convergence Speed and Quality Trade-offs}{31}{subsubsection.3.2.4}%
-\contentsline {subsection}{\numberline {3.3}Performance Analysis}{32}{subsection.3.3}%
-\contentsline {subsubsection}{\numberline {3.3.1}Convergence Rate Analysis}{32}{subsubsection.3.3.1}%
-\contentsline {subsubsection}{\numberline {3.3.2}Diversity Loss Mechanisms}{34}{subsubsection.3.3.2}%
-\contentsline {subsubsection}{\numberline {3.3.3}Parameter Interaction Effects}{35}{subsubsection.3.3.3}%
-\contentsline {subsubsection}{\numberline {3.3.4}Scalability Limitations}{36}{subsubsection.3.3.4}%
-\contentsline {section}{\numberline {4}Advanced Genetic Algorithm Features}{37}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Reinforcement Learning Controller}{37}{subsection.4.1}%
-\contentsline {subsubsection}{\numberline {4.1.1}Q-Learning Mathematical Foundation}{37}{subsubsection.4.1.1}%
-\contentsline {subsubsection}{\numberline {4.1.2}State Space Design}{38}{subsubsection.4.1.2}%
-\contentsline {subsubsection}{\numberline {4.1.3}Action Space Design}{38}{subsubsection.4.1.3}%
-\contentsline {subsubsection}{\numberline {4.1.4}Epsilon-Greedy Exploration Strategy}{38}{subsubsection.4.1.4}%
-\contentsline {subsubsection}{\numberline {4.1.5}Reward Function Design}{39}{subsubsection.4.1.5}%
-\contentsline {subsubsection}{\numberline {4.1.6}Parameter Adjustment and Bounds Enforcement}{39}{subsubsection.4.1.6}%
-\contentsline {subsubsection}{\numberline {4.1.7}Integration Algorithm with Population Resizing}{39}{subsubsection.4.1.7}%
-\contentsline {subsection}{\numberline {4.2}Neural Network-Based Seeding}{39}{subsection.4.2}%
-\contentsline {subsubsection}{\numberline {4.2.1}Neural Network Architecture}{39}{subsubsection.4.2.1}%
-\contentsline {subsubsection}{\numberline {4.2.2}Training Process}{41}{subsubsection.4.2.2}%
-\contentsline {subsubsection}{\numberline {4.2.3}Acquisition Functions}{41}{subsubsection.4.2.3}%
-\contentsline {subsubsection}{\numberline {4.2.4}Adaptive Beta Parameter}{42}{subsubsection.4.2.4}%
-\contentsline {subsubsection}{\numberline {4.2.5}Integration Algorithm}{42}{subsubsection.4.2.5}%
-\contentsline {subsection}{\numberline {4.3}Surrogate-Assisted Screening}{42}{subsection.4.3}%
-\contentsline {subsubsection}{\numberline {4.3.1}KNN Surrogate Model}{42}{subsubsection.4.3.1}%
-\contentsline {subsubsection}{\numberline {4.3.2}Exploration-Exploitation Strategy}{43}{subsubsection.4.3.2}%
-\contentsline {subsubsection}{\numberline {4.3.3}Exploitation Score}{43}{subsubsection.4.3.3}%
-\contentsline {subsubsection}{\numberline {4.3.4}Novelty Score}{43}{subsubsection.4.3.4}%
-\contentsline {subsubsection}{\numberline {4.3.5}Integration Algorithm}{43}{subsubsection.4.3.5}%
-\contentsline {subsubsection}{\numberline {4.3.6}Candidate Pool Generation}{43}{subsubsection.4.3.6}%
-\contentsline {subsection}{\numberline {4.4}Advanced Seeding Strategies}{43}{subsection.4.4}%
-\contentsline {subsubsection}{\numberline {4.4.1}Sobol Sequence Seeding}{43}{subsubsection.4.4.1}%
-\contentsline {subsubsection}{\numberline {4.4.2}Latin Hypercube Sampling}{45}{subsubsection.4.4.2}%
-\contentsline {subsubsection}{\numberline {4.4.3}Integration Algorithm}{45}{subsubsection.4.4.3}%
-\contentsline {subsection}{\numberline {4.5}Adaptive Rate Control}{45}{subsection.4.5}%
-\contentsline {subsubsection}{\numberline {4.5.1}Diversity-Based Adaptation}{45}{subsubsection.4.5.1}%
-\contentsline {subsubsection}{\numberline {4.5.2}Adaptive Rules}{46}{subsubsection.4.5.2}%
-\contentsline {subsubsection}{\numberline {4.5.3}Integration Algorithm}{46}{subsubsection.4.5.3}%
-\contentsline {subsection}{\numberline {4.6}Novelty and Integration Summary}{46}{subsection.4.6}%
-\contentsline {section}{\numberline {5}System Integration and Implementation}{48}{section.5}%
-\contentsline {subsection}{\numberline {5.1}Modular Architecture Design}{48}{subsection.5.1}%
-\contentsline {subsubsection}{\numberline {5.1.1}Component Interaction}{48}{subsubsection.5.1.1}%
-\contentsline {subsubsection}{\numberline {5.1.2}Data Flow Management}{49}{subsubsection.5.1.2}%
-\contentsline {subsubsection}{\numberline {5.1.3}Error Handling and Recovery}{49}{subsubsection.5.1.3}%
-\contentsline {subsubsection}{\numberline {5.1.4}Performance Monitoring}{49}{subsubsection.5.1.4}%
-\contentsline {subsection}{\numberline {5.2}Thread Safety and Concurrency}{49}{subsection.5.2}%
-\contentsline {subsubsection}{\numberline {5.2.1}Multi-Threading Implementation}{52}{subsubsection.5.2.1}%
-\contentsline {subsubsection}{\numberline {5.2.2}Mutex and Condition Variables}{52}{subsubsection.5.2.2}%
-\contentsline {subsubsection}{\numberline {5.2.3}Signal-Slot Communication}{52}{subsubsection.5.2.3}%
-\contentsline {subsubsection}{\numberline {5.2.4}Resource Management}{55}{subsubsection.5.2.4}%
-\contentsline {subsection}{\numberline {5.3}Performance Optimization}{55}{subsection.5.3}%
-\contentsline {subsubsection}{\numberline {5.3.1}Computational Efficiency}{55}{subsubsection.5.3.1}%
-\contentsline {subsubsection}{\numberline {5.3.2}Memory Management}{57}{subsubsection.5.3.2}%
-\contentsline {subsubsection}{\numberline {5.3.3}Algorithmic Complexity}{57}{subsubsection.5.3.3}%
-\contentsline {subsubsection}{\numberline {5.3.4}Scalability Analysis}{57}{subsubsection.5.3.4}%
-\contentsline {subsection}{\numberline {5.4}Integration Summary}{57}{subsection.5.4}%
+\contentsline {section}{\numberline {1}Introduction and Motivation}{6}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Contributions and novelties}{6}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Software availability and versioning}{6}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Thesis roadmap}{7}{subsection.1.3}%
+\contentsline {section}{\numberline {2}Software architecture and optimization playground}{7}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Design principles}{7}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}System overview}{7}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Optimization playground}{8}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Data, logging, and metrics}{8}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}Extensibility}{8}{subsection.2.5}%
+\contentsline {subsection}{\numberline {2.6}Reproducibility}{8}{subsection.2.6}%
+\contentsline {section}{\numberline {3}Configuration Space of DVA Systems}{8}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Definition of Components and Parameters}{8}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Total Number of Configurations}{9}{subsection.3.2}%
+\contentsline {section}{\numberline {4}Parameter Space and Design Variables}{9}{section.4}%
+\contentsline {section}{\numberline {5}Problem Statement}{10}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Mechanical System Definition}{10}{subsection.5.1}%
+\contentsline {subsubsection}{\numberline {5.1.1}Fully Coupled 2DOF - 3DOF System Setup}{10}{subsubsection.5.1.1}%
+\contentsline {paragraph}{System Overview and Configuration}{10}{section*.2}%
+\contentsline {paragraph}{Vibrational Modeling of the System and Assumptions}{11}{section*.3}%
+\contentsline {paragraph}{Derivation of Governing Equations}{12}{section*.4}%
+\contentsline {paragraph}{Mass Matrix}{13}{section*.5}%
+\contentsline {paragraph}{Damping Matrix}{13}{section*.6}%
+\contentsline {paragraph}{Stiffness Matrix}{13}{section*.7}%
+\contentsline {paragraph}{Force Vector}{14}{section*.8}%
+\contentsline {subsubsection}{\numberline {5.1.2}Dimensionless Form}{14}{subsubsection.5.1.2}%
+\contentsline {paragraph}{Dimensionless Mass Matrix}{15}{section*.10}%
+\contentsline {paragraph}{Dimensionless Damping Matrix}{15}{section*.11}%
+\contentsline {paragraph}{Dimensionless Stiffness Matrix}{15}{section*.12}%
+\contentsline {paragraph}{Dimensionless Force Vector}{16}{section*.13}%
+\contentsline {paragraph}{Semi-Analytical Solutions for Harmonic Excitation}{16}{section*.14}%
+\contentsline {subsection}{\numberline {5.2}Optimization Problem Formulation}{17}{subsection.5.2}%
+\contentsline {subsubsection}{\numberline {5.2.1}Objective Function Definition}{17}{subsubsection.5.2.1}%
+\contentsline {subsubsection}{\numberline {5.2.2}Performance Criteria Hierarchy}{19}{subsubsection.5.2.2}%
+\contentsline {subsubsection}{\numberline {5.2.3}Fitness Evaluation through FRF Analysis}{21}{subsubsection.5.2.3}%
+\contentsline {section}{\numberline {6}Traditional Genetic Algorithm Methodology}{22}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Algorithmic Framework}{22}{subsection.6.1}%
+\contentsline {paragraph}{Representation and constraints}{22}{section*.15}%
+\contentsline {paragraph}{Fitness evaluation}{22}{section*.16}%
+\contentsline {paragraph}{Selection, crossover, mutation, replacement}{22}{section*.17}%
+\contentsline {paragraph}{Termination}{23}{section*.18}%
+\contentsline {subsection}{\numberline {6.2}Baseline GA for DVA Design}{23}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Complexity and limitations}{23}{subsection.6.3}%
+\contentsline {section}{\numberline {7}Advanced Genetic Algorithm Methodology}{24}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Overview of Advanced Features}{24}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Machine Learning Bandit Controller for Parameter Adaptation}{24}{subsection.7.2}%
+\contentsline {paragraph}{Reward shaping}{24}{section*.19}%
+\contentsline {subsection}{\numberline {7.3}Reinforcement Learning-Based Control of GA Parameters}{25}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Sobol and Latin Hypercube Seeding}{25}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}Neural Network-Based Population Seeding (NeuralSeeder)}{25}{subsection.7.5}%
+\contentsline {subsection}{\numberline {7.6}Surrogate Model-Assisted Fitness Evaluation}{26}{subsection.7.6}%
+\contentsline {subsection}{\numberline {7.7}Legacy adaptive rates}{26}{subsection.7.7}%
+\contentsline {section}{\numberline {8}Benchmarking and Robustness Analysis}{26}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Recorded metrics}{26}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Key performance indicators (KPIs)}{27}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Benchmark design}{27}{subsection.8.3}%
+\contentsline {paragraph}{Ablation studies}{27}{section*.20}%
+\contentsline {paragraph}{Sensitivity analyses}{27}{section*.21}%
+\contentsline {paragraph}{External validity}{27}{section*.22}%
+\contentsline {subsection}{\numberline {8.4}Statistical analysis}{28}{subsection.8.4}%
+\contentsline {subsection}{\numberline {8.5}Reporting}{28}{subsection.8.5}%
+\contentsline {section}{\numberline {9}Case studies and validation}{28}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Experimental setup}{28}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}Results overview}{28}{subsection.9.2}%
+\contentsline {section}{\numberline {10}Statistical synthesis of recommended DVA parameter ranges}{28}{section.10}%
+\contentsline {subsection}{\numberline {10.1}Motivation and overview}{28}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}Data model and notation}{29}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}Preprocessing and quality control}{29}{subsection.10.3}%
+\contentsline {subsection}{\numberline {10.4}Range estimation criteria}{30}{subsection.10.4}%
+\contentsline {subsubsection}{\numberline {10.4.1}Interquartile Range (IQR, Q1--Q3)}{30}{subsubsection.10.4.1}%
+\contentsline {subsubsection}{\numberline {10.4.2}P5--P95 Quantile Interval}{30}{subsubsection.10.4.2}%
+\contentsline {subsubsection}{\numberline {10.4.3}Tukey Whiskers (Classical Outlier Trimming)}{30}{subsubsection.10.4.3}%
+\contentsline {subsubsection}{\numberline {10.4.4}Shortest $\alpha $ High-Density Interval (HDI)}{31}{subsubsection.10.4.4}%
+\contentsline {subsubsection}{\numberline {10.4.5}Top-$q$ Performance P5--P95}{31}{subsubsection.10.4.5}%
+\contentsline {subsubsection}{\numberline {10.4.6}Trimmed Mean $\pm $ 1.5\,MAD (TMAD, Robust)}{31}{subsubsection.10.4.6}%
+\contentsline {subsection}{\numberline {10.5}Data ingestion and aggregation (GAWorker $\rightarrow $ GUI)}{32}{subsection.10.5}%
+\contentsline {subsection}{\numberline {10.6}Criterion robustness and guidance}{33}{subsection.10.6}%
+\contentsline {subsection}{\numberline {10.7}Algorithms}{33}{subsection.10.7}%
+\contentsline {subsection}{\numberline {10.8}Aggregation, comparison, and decision rules}{34}{subsection.10.8}%
+\contentsline {subsection}{\numberline {10.9}Diagnostics and visualization}{35}{subsection.10.9}%
+\contentsline {subsection}{\numberline {10.10}Statistical guidance on criterion choice}{36}{subsection.10.10}%
+\contentsline {subsection}{\numberline {10.11}Complexity and implementation notes}{36}{subsection.10.11}%
+\contentsline {subsection}{\numberline {10.12}End-to-end procedure (from optimization to ranges and comparison)}{37}{subsection.10.12}%
+\contentsline {subsection}{\numberline {10.13}Mapping to software implementation}{39}{subsection.10.13}%
+\contentsline {section}{\numberline {11}Benchmarking protocol: single-run and 100-run statistical study}{39}{section.11}%
+\contentsline {subsection}{\numberline {11.1}Rationale and scope}{39}{subsection.11.1}%
+\contentsline {subsection}{\numberline {11.2}Benchmarking system and justifications}{40}{subsection.11.2}%
+\contentsline {subsection}{\numberline {11.3}Bandwidth-avoidance criterion and weights}{40}{subsection.11.3}%
+\contentsline {subsection}{\numberline {11.4}Part I: Single run with all features enabled}{41}{subsection.11.4}%
+\contentsline {subsection}{\numberline {11.5}Part II: 100-run statistical range study}{41}{subsection.11.5}%
+\contentsline {subsection}{\numberline {11.6}Success criteria and non-goals}{42}{subsection.11.6}%

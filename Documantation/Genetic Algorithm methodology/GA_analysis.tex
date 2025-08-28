@@ -17,6 +17,45 @@
 \usepackage{subcaption}
 \usepackage{enumitem}
 \usepackage{setspace}
+\usepackage{stackengine}
+
+% Glossaries and acronyms
+\usepackage[acronym]{glossaries}
+\makeglossaries
+
+% Project metadata and convenience macros
+\newcommand{\softwareName}{DeVana}
+\newcommand{\softwareVersion}{v0.4.1}
+
+% Hyperref setup
+\hypersetup{
+    pdftitle={Advanced Genetic Algorithm Optimization for Dynamic Vibration Absorber Design: A Comprehensive Methodology},
+    pdfauthor={Master's Thesis Methodology},
+    pdfsubject={\softwareName{} \softwareVersion{} open-source thesis},
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue
+}
+
+% Acronyms
+\newacronym{dva}{DVA}{Dynamic Vibration Absorber}
+\newacronym{DVA}{DVA}{Dynamic Vibration Absorber} % for existing \gls{DVA} usage
+\newacronym{frf}{FRF}{Frequency Response Function}
+\newacronym{ga}{GA}{Genetic Algorithm}
+\newacronym{pso}{PSO}{Particle Swarm Optimization}
+\newacronym{sa}{SA}{Simulated Annealing}
+\newacronym{de}{DE}{Differential Evolution}
+\newacronym{cmaes}{CMA-ES}{Covariance Matrix Adaptation Evolution Strategy}
+\newacronym{rl}{RL}{Reinforcement Learning}
+\newacronym{knn}{KNN}{k-Nearest Neighbors}
+\newacronym{hdi}{HDI}{Highest Density Interval}
+\newacronym{ucb}{UCB}{Upper Confidence Bound}
+\newacronym{ei}{EI}{Expected Improvement}
+\newacronym{gui}{GUI}{Graphical User Interface}
+\newacronym{kpi}{KPI}{Key Performance Indicator}
+\newacronym{qmc}{QMC}{Quasi-Monte Carlo}
+
 % Page setup
 \geometry{margin=2.5cm}
 \onehalfspacing
@@ -43,10 +82,139 @@
 
 \maketitle
 
+\begin{abstract}
+\softwareName{} (\softwareVersion{}) is an open-source, first-of-its-kind playground for the design of \glspl{dva} that unifies classical and modern optimization under one reproducible, extensible framework. The platform integrates a rigorous mechanical model (fully coupled 2DOF--3DOF), an \gls{frf}-based fitness pipeline, and a suite of optimizers (\gls{ga}, \gls{pso}, \gls{sa}, \gls{cmaes}, \gls{rl}, and \gls{de}). Beyond providing many algorithms, \softwareName{} contributes three methodological advances tailored to vibration absorber design: (i) adaptive operator control for \gls{ga} via ML-bandit and \gls{rl} controllers that tune crossover, mutation, and population size online; (ii) surrogate-assisted screening using a \gls{knn} predictor to reduce expensive \gls{frf} evaluations; and (iii) advanced population seeding (random, Sobol, Latin hypercube, and a NeuralSeeder with \gls{ucb}/\gls{ei} acquisition) for improved exploration. The system instruments each run with detailed metrics and provides statistical post-analysis across repeated runs to recommend robust parameter ranges for every DVA variable. We document the mathematical formulation, software architecture, algorithmic controllers, benchmarking protocol, and statistical synthesis pipeline, and we release the full implementation to accelerate research and practice in vibration control.
+\end{abstract}
+
+\noindent\textbf{Keywords:} Dynamic vibration absorber, frequency response function, genetic algorithm, CMA-ES, PSO, simulated annealing, differential evolution, reinforcement learning, surrogate modeling, seeding, robustness, reproducibility, open-source.
+
+\vspace{0.5em}
+\noindent\textbf{Software:} \softwareName{} \softwareVersion{} (open-source; available on GitHub and project website).
+
 \tableofcontents
 \newpage
 
-\section{Introduction and Problem Statement}
+% List of acronyms
+\printglossary[type=\acronymtype,title=List of Acronyms]
+\newpage
+
+\section{Introduction and Motivation}
+
+This thesis presents \softwareName{}, a comprehensive optimization framework and software platform for designing \glspl{dva} with practical applicability in mechanical engineering. The framework addresses the challenges of vast configuration spaces, multi-criteria optimization, and computational efficiency by (i) supporting multiple optimizers within a single configurable playground, (ii) introducing adaptive controllers for \gls{ga} that learn online, (iii) reducing evaluation cost via surrogate-assisted screening, and (iv) enabling statistical synthesis of recommended parameter ranges across repeated runs.
+
+\subsection{Contributions and novelties}
+\label{subsec:contributions}
+\begin{enumerate}
+    \item \textbf{Unified optimization playground:} A modular, open-source platform that allows designers to configure and compare \gls{ga}, \gls{pso}, \gls{sa}, \gls{cmaes}, \gls{rl}, and \gls{de} on identical problems with consistent instrumentation.
+    \item \textbf{Adaptive \gls{ga} controllers:} Online tuning of crossover, mutation, and population size via an ML-bandit controller and a compact \gls{rl} agent, overcoming fixed-operator limitations.
+    \item \textbf{Surrogate-assisted screening:} A \gls{knn}-based pre-filter that reduces the number of costly \gls{frf} evaluations while preserving exploration through novelty.
+    \item \textbf{Advanced seeding:} Random, Sobol, and Latin hypercube \gls{qmc} options plus a NeuralSeeder that proposes individuals using \gls{ucb}/\gls{ei}, improving early search quality.
+    \item \textbf{Statistical range synthesis:} A robust pipeline that aggregates multiple independent runs and outputs recommended parameter ranges per DVA variable using complementary criteria (IQR, P5--P95, Tukey, \gls{hdi}, Top-$q$, TMAD).
+    \item \textbf{Reproducible engineering workflow:} Versioned release (\softwareVersion{}), open dataset of metrics, and exportable configurations for repeatable studies and fair comparisons.
+\end{enumerate}
+
+\subsection{Software availability and versioning}
+\label{subsec:availability}
+\softwareName{} is released under an open-source license at GitHub and the project website. This thesis documents \softwareVersion{}. The repository includes source code, example configurations, and instructions to reproduce all experiments presented herein.
+
+\subsection{Thesis roadmap}
+\label{subsec:roadmap}
+We begin with the DVA configuration and parameter spaces, followed by the mechanical model and its \gls{frf}-based evaluation. We then detail the optimization problem, the traditional \gls{ga} baseline, and the advanced features. Subsequent sections describe software architecture, the algorithm suite and configuration playground, benchmarking and robustness analysis, statistical range synthesis, and the overall results, before concluding with reproducibility notes and future work.
+
+
+\section{Software architecture and optimization playground}
+\label{sec:architecture}
+
+\subsection{Design principles}
+\begin{itemize}
+    \item \textbf{Modularity}: separable layers for mechanics, optimization, controllers, seeding, surrogate, \gls{gui}, and benchmarking.
+    \item \textbf{Reproducibility}: versioned configurations, deterministic seeds on demand, and exportable results.
+    \item \textbf{Extensibility}: clean interfaces to add new optimizers, surrogates, and metrics with minimal code changes.
+    \item \textbf{Observability}: rich metrics, logs, and artifacts captured per run and per generation.
+\end{itemize}
+
+\subsection{System overview}
+\begin{enumerate}
+    \item \textbf{Mechanical core}: builds the mass, damping, stiffness, and force operators and computes \gls{frf}s per Sec.~\ref{subsubsec:chosen_performance_criteria_combined}.
+    \item \textbf{Fitness pipeline}: evaluates Eq.~\eqref{Eq.objective_function_detailed} using modal, inter-modal, and global criteria with user-defined weights.
+    \item \textbf{Algorithm suite}: \gls{ga}, \gls{pso}, \gls{sa}, \gls{cmaes}, \gls{rl}, and \gls{de}, with consistent bounds, fixed-parameter handling, and termination.
+    \item \textbf{Controllers}: ML-bandit and \gls{rl} for adaptive \gls{ga} operator control (Sec.~\ref{Eq.ucb}--\ref{Eq.bandit_reward}).
+    \item \textbf{Seeding}: Random, Sobol, LHS, and NeuralSeeder (\gls{ucb}/\gls{ei}) as in Sec.~\ref{Eq.harmonic.solution.2dof3dof} onward.
+    \item \textbf{Surrogate screening}: \gls{knn}-based pre-filter with novelty (Sec.~\ref{sec:benchmarking}).
+    \item \textbf{Instrumentation}: per-generation and system \gls{kpi}s (Sec.~\ref{sec:benchmarking}).
+    \item \textbf{GUI}: interactive configuration, execution control, visualization (responses, convergence, ranges), and export.
+\end{enumerate}
+
+\subsection{Optimization playground}
+Users configure experiments by selecting the optimizer, bounds and fixed masks, objective weights, seeding, controllers, surrogate settings, and stopping criteria. The same mechanical problem can thus be solved by multiple methods, enabling apples-to-apples comparisons with common metrics and visualizations.
+
+\subsection{Data, logging, and metrics}
+At each generation we record time, evaluations, fitness statistics, operator rates, population size, and resource usage, along with artifacts (best solutions, FRFs, convergence traces). Artifacts are exportable as CSV/JSON for downstream analysis.
+
+\subsection{Extensibility}
+New optimizers, surrogates, or controllers implement small interfaces (ask, tell/evaluate, and adapt hooks). New performance metrics can be registered and automatically included in the logging and reporting layers.
+
+\subsection{Reproducibility}
+All experiments store configuration hashes and software version (\softwareVersion{}), aiding peer reproduction. We provide example configurations used for this thesis alongside raw metric exports.
+
+
+\section{Configuration Space of DVA Systems}
+
+The design of \glspl{DVA} involves selecting appropriate combinations of mechanical components—masses, springs, dampers, and inerters—to attach to a primary system for vibration mitigation. Each component contributes to the system's dynamic behavior, and their combinations result in a multitude of possible configurations.
+
+\subsection{Definition of Components and Parameters}
+
+Let:
+
+\begin{itemize}
+    \item $\mathcal{M} = \{ m_i \mid m_i \in [m_i^{\min}, m_i^{\max}],\ i=1,\ldots,n_m \}$: Set of mass elements with viable ranges.
+    \item $\mathcal{K} = \{ k_j \mid k_j \in [k_j^{\min}, k_j^{\max}],\ j=1,\ldots,n_k \}$: Set of spring elements with viable stiffness ranges.
+    \item $\mathcal{C} = \{ c_l \mid c_l \in [c_l^{\min}, c_l^{\max}],\ l=1,\ldots,n_c \}$: Set of damping elements with viable damping coefficient ranges.
+    \item $\mathcal{B} = \{ b_p \mid b_p \in [b_p^{\min}, b_p^{\max}],\ p=1,\ldots,n_b \}$: Set of inerter elements with viable inertance ranges.
+\end{itemize}
+
+Each parameter is bounded within a feasible design range, reflecting practical engineering constraints such as material properties, geometric limitations, and manufacturing capabilities.
+
+\subsection{Total Number of Configurations}
+
+
+
+\begin{align}
+N_{\text{total}} = \left( n_m + n_k + n_c + n_b \right)\\
+N_{\text{config}} = \frac{N_{\text{total}} \times (N_{\text{total}} + 1)}{2}
+\label{eq:N_config}
+\end{align}
+
+This growth underscores the impracticality of exhaustively evaluating every possible configuration due to computational limitations.
+
+
+\section{Parameter Space and Design Variables}
+
+For a given configuration $s$, the parameter vector $\boldsymbol{\theta}_s$ comprises the design variables associated with the included components:
+
+\begin{equation}
+\boldsymbol{\theta}_s = [ \theta_1, \theta_2, \ldots, \theta_{n_s} ]^\top
+\label{eq:theta_s}
+\end{equation}
+
+where $n_s$ is the number of parameters in configuration $s$, and each $\theta_i$ corresponds to a component parameter (e.g., mass, stiffness, damping coefficient, or inertance) within its viable range:
+
+\begin{equation}
+\theta_i \in [ \theta_i^{\min}, \theta_i^{\max} ]
+\label{eq:theta_i_range}
+\end{equation}
+
+The feasible parameter space for configuration $s$ is thus defined as:
+
+\begin{equation}
+\Theta_s = \prod_{i=1}^{n_s} [ \theta_i^{\min}, \theta_i^{\max} ]
+\label{eq:Theta_s}
+\end{equation}
+
+
+
+
+\section{Problem Statement}
 
 \subsection{Mechanical System Definition}
 
@@ -137,119 +305,184 @@ where:
 
 The equations of motion are expressed in matrix form as:
 
-\begin{align}\label{Eq.EOM.2dof3dof}
+\begin{equation} \label{Eq.EOM_dimensional_combined}
     \mathbf{M} \ddot{\mathbf{q}} + \mathbf{C} \dot{\mathbf{q}} + \mathbf{K} \mathbf{q} = \mathbf{F}(t)
-\end{align}
-
-where $\mathbf{M}$, $\mathbf{C}$, $\mathbf{K}$ are the $5 \times 5$ mass, damping, and stiffness matrices, respectively, and $\mathbf{F}(t)$ is the forcing vector.
-
-\paragraph{Mass Matrix Formulation}
-
-The mass matrix $\mathbf{M}$ incorporates both primary masses and DVA masses with their inertial coupling effects:
-
-\begin{align}\label{Eq.mass.matrix.2dof3dof}
-    \mathbf{M} = \begin{bmatrix}
-        1 + \beta_1 + \beta_2 + \beta_3 & 0 & -\beta_1 & -\beta_2 & -\beta_3 \\
-        0 & \mu + \beta_4 + \beta_5 + \beta_6 & -\beta_4 & -\beta_5 & -\beta_6 \\
-        -\beta_1 & -\beta_4 & \mu_1 + \beta_1 + \beta_4 + \beta_7 + \beta_8 + \beta_{10} + \beta_9 & -\beta_9 & -\beta_{10} \\
-        -\beta_2 & -\beta_5 & -\beta_9 & \mu_2 + \beta_{11} + \beta_2 + \beta_9 + \beta_{12} + \beta_5 + \beta_{15} & -\beta_{15} \\
-        -\beta_3 & -\beta_6 & -\beta_{10} & -\beta_{15} & \mu_3 + \beta_{14} + \beta_6 + \beta_{13} + \beta_3 + \beta_{15} + \beta_{10}
-    \end{bmatrix}
-\end{align}
+\end{equation}
 
 where:
+
 \begin{itemize}
-    \item \textbf{Primary masses}: $\mu$ represents the second primary mass ratio, normalized by the first primary mass
-    \item \textbf{DVA masses}: $\mu_1, \mu_2, \mu_3$ represent the DVA mass ratios normalized by the first primary mass
-    \item \textbf{Mass coupling}: $\beta_i$ parameters represent inertial coupling between different degrees of freedom
-    \item \textbf{Diagonal dominance}: The diagonal elements include self-mass plus coupling contributions
-    \item \textbf{Symmetry}: The matrix is symmetric, reflecting Newton's third law
+    \item $\mathbf{q}$: Generalized displacement vector, capturing displacements of the primary and \gls{DVA} masses.
+    \item $\mathbf{M}$: Mass matrix.
+    \item $\mathbf{C}$: Damping matrix.
+    \item $\mathbf{K}$: Stiffness matrix.
+    \item $\mathbf{F}(t)$: External force vector, which includes both external loads and base motion effects.
 \end{itemize}
 
-\paragraph{Damping Matrix Formulation}
+The generalized coordinate vector is defined as:
 
-The damping matrix $\mathbf{C}$ includes structural damping and DVA damping effects, scaled by the design center frequency $\omega_{dc}$ and damping ratio $\zeta_{dc}$:
+\begin{equation}\label{Eq.generalized_coordinate_combined}
+    \mathbf{q} = 
+  \begin{bmatrix}
+    U_1 \\ U_2 \\ u_1 \\ u_2 \\ u_3
+  \end{bmatrix}
+\end{equation}
 
-\begin{align}\label{Eq.damping.matrix.2dof3dof}
-    \mathbf{C} = 2\zeta_{dc}\omega_{dc} \begin{bmatrix}
-        1 + \nu_1 + \nu_2 + \nu_3 + \nu_1 + \nu_2 + \nu_3 & -\nu_3 & -\nu_1 & -\nu_2 & -\nu_3 \\
-        -\nu_3 & \nu_5 + \nu_4 + \nu_3 + \nu_4 + \nu_5 + \nu_6 & -\nu_4 & -\nu_5 & -\nu_6 \\
-        -\nu_1 & -\nu_4 & \nu_1 + \nu_4 + \nu_7 + \nu_8 + \nu_{10} + \nu_9 & -\nu_9 & -\nu_{10} \\
-        -\nu_2 & -\nu_5 & -\nu_9 & \nu_{11} + \nu_2 + \nu_9 + \nu_{12} + \nu_5 + \nu_{15} & -\nu_{15} \\
-        -\nu_3 & -\nu_6 & -\nu_{10} & -\nu_{15} & \nu_{14} + \nu_6 + \nu_{13} + \nu_3 + \nu_{15} + \nu_{10}
-    \end{bmatrix}
-\end{align}
+\paragraph{Mass Matrix}
 
-where:
-\begin{itemize}
-    \item \textbf{Damping ratios}: $\nu_i$ parameters represent normalized damping coefficients
-    \item \textbf{Frequency scaling}: Damping terms are scaled by $\omega_{dc}$ for dimensional consistency
-    \item \textbf{Energy dissipation}: The damping matrix structure ensures proper energy dissipation distribution
-    \item \textbf{Coupling effects}: Off-diagonal terms represent damping coupling between DOFs
-\end{itemize}
+\begin{equation}\label{Eq.mass_matrix_dimensional_combined}
+\begin{aligned}
+[M] =& 
+\begin{bmatrix}
+\shortstack[c]{$M_1 + b_1$ \\ $+ b_2 + b_3$} & 0 & \shortstack[c]{$-b_1$ \\ \,} & \shortstack[c]{$-b_2$ \\ \,} & \shortstack[c]{$-b_3$ \\ \,} \\
+0 & \shortstack[c]{$M_2 + b_4$ \\ $+ b_5 + b_6$} & \shortstack[c]{$-b_4$ \\ \,} & \shortstack[c]{$-b_5$ \\ \,} & \shortstack[c]{$-b_6$ \\ \,} \\
+\shortstack[c]{$-b_1$ \\ \,} & \shortstack[c]{$-b_4$ \\ \,} & \shortstack[c]{$m_1 + b_1$ \\ $+ b_4 + b_7$ \\ $+ b_8 + b_9$ \\ $+ b_{10}$} & \shortstack[c]{$-b_9$ \\ \,} & \shortstack[c]{$-b_{10}$ \\ \,} \\
+\shortstack[c]{$-b_2$ \\ \,} & \shortstack[c]{$-b_5$ \\ \,} & \shortstack[c]{$-b_9$ \\ \,} & \shortstack[c]{$m_2 + b_2$ \\ $+ b_5 + b_9$ \\ $+ b_{11} + b_{12}$} & \shortstack[c]{$-b_{15}$ \\ \,} \\
+\shortstack[c]{$-b_3$ \\ \,} & \shortstack[c]{$-b_6$ \\ \,} & \shortstack[c]{$-b_{10}$ \\ \,} & \shortstack[c]{$-b_{15}$ \\ \,} & \shortstack[c]{$m_3 + b_3$ \\ $+ b_6 + b_{10}$ \\ $+ b_{13} + b_{14}$ \\ $+ b_{15}$}
+\end{bmatrix}
+\end{aligned}
+\end{equation}
 
-\paragraph{Stiffness Matrix Formulation}
+\paragraph{Damping Matrix}
 
-The stiffness matrix $\mathbf{K}$ incorporates structural stiffness and DVA spring effects, scaled by the square of the design center frequency:
+\begin{equation}\label{Eq.damping_matrix_dimensional_combined}
+\begin{aligned}
+[C] =& 
+\begin{bmatrix}
+\shortstack{$C_1 + C_2$ \\ $+ C_3$} & -C_3 & \shortstack{$-c_1$ \\ \,} & \shortstack{$-c_2$ \\ \,} & \shortstack{$-c_3$ \\ \,} \\
+-C_3 & \shortstack{$C_3 + C_4$ \\ $+ C_5 + c_4$ \\ $+ c_5 + c_6$} & \shortstack{$-c_4$ \\ \,} & \shortstack{$-c_5$ \\ \,} & \shortstack{$-c_6$ \\ \,} \\
+-c_1 & -c_2 & \shortstack{$c_1 + c_4$ \\ $+ c_7 + c_8$ \\ $+ c_9 + c_{10}$} & \shortstack{$-c_9$ \\ \,} & \shortstack{$-c_{10}$ \\ \,} \\
+-c_2 & -c_5 & -c_9 & \shortstack{$c_2 + c_5$ \\ $+ c_9 + c_{11}$ \\ $+ c_{12} + c_{15}$} & \shortstack{$-c_{15}$ \\ \,} \\
+-c_3 & -c_{6} & -c_{10} & -c_{15} & \shortstack{$c_3 + c_6$ \\ $+ c_{10} + c_{13}$ \\ $+ c_{14} + c_{15}$}
+\end{bmatrix}
+\end{aligned}
+\end{equation}
 
-\begin{align}\label{Eq.stiffness.matrix.2dof3dof}
-    \mathbf{K} = \omega_{dc}^2 \begin{bmatrix}
-        1 + \lambda_1 + \lambda_2 + \lambda_3 + \lambda_1 + \lambda_2 + \lambda_3 & -\lambda_3 & -\lambda_1 & -\lambda_2 & -\lambda_3 \\
-        -\lambda_3 & \lambda_5 + \lambda_4 + \lambda_3 + \lambda_4 + \lambda_5 + \lambda_6 & -\lambda_4 & -\lambda_5 & -\lambda_6 \\
-        -\lambda_1 & -\lambda_4 & \lambda_1 + \lambda_4 + \lambda_7 + \lambda_8 + \lambda_{10} + \lambda_9 & -\lambda_9 & -\lambda_{10} \\
-        -\lambda_2 & -\lambda_5 & -\lambda_9 & \lambda_{11} + \lambda_2 + \lambda_9 + \lambda_{12} + \lambda_5 + \lambda_{15} & -\lambda_{15} \\
-        -\lambda_3 & -\lambda_6 & -\lambda_{10} & -\lambda_{15} & \lambda_{14} + \lambda_6 + \lambda_{13} + \lambda_3 + \lambda_{15} + \lambda_{10}
-    \end{bmatrix}
-\end{align}
+\paragraph{Stiffness Matrix}
 
-where:
-\begin{itemize}
-    \item \textbf{Stiffness ratios}: $\lambda_i$ parameters represent normalized stiffness coefficients
-    \item \textbf{Frequency scaling}: Stiffness terms are scaled by $\omega_{dc}^2$ for dimensional consistency
-    \item \textbf{Elastic coupling}: The matrix defines elastic interconnections between system components
-    \item \textbf{Structural connectivity}: Diagonal and off-diagonal terms define the system's elastic topology
-\end{itemize}
+\begin{equation}\label{Eq.stiffness_matrix_dimensional_combined}
+\begin{aligned}
+[K] =& 
+\begin{bmatrix}
+\shortstack{$K_1 + K_2$ \\ $+ K_3$} & -K_3 & \shortstack{$-k_1$ \\ \,} & \shortstack{$-k_2$ \\ \,} & \shortstack{$-k_3$ \\ \,} \\
+-K_3 & \shortstack{$K_3 + K_4$ \\ $+ K_5 + k_4$ \\ $+ k_5 + k_6$} & \shortstack{$-k_4$ \\ \,} & \shortstack{$-k_5$ \\ \,} & \shortstack{$-k_6$ \\ \,} \\
+-k_1 & -k_2 & \shortstack{$k_1 + k_4$ \\ $+ k_7 + k_8$ \\ $+ k_9 + k_{10}$} & \shortstack{$-k_9$ \\ \,} & \shortstack{$-k_{10}$ \\ \,} \\
+-k_2 & -k_5 & -k_9 & \shortstack{$k_2 + k_5$ \\ $+ k_9 + k_{11}$ \\ $+ k_{12} + k_{15}$} & \shortstack{$-k_{15}$ \\ \,} \\
+-k_3 & -k_{6} & -k_{10} & -k_{15} & \shortstack{$k_3 + k_6$ \\ $+ k_{10} + k_{13}$ \\ $+ k_{14} + k_{15}$}
+\end{bmatrix}
+\end{aligned}
+\end{equation}
 
-\paragraph{Forcing Vector Formulation}
+\paragraph{Force Vector}
 
-The forcing vector $\mathbf{F}(t)$ includes external forces and base excitation effects, incorporating both harmonic and base motion components:
+\begin{equation}\label{Eq.force_vector_dimensional_combined}
+\begin{aligned}
+[F] = & \begin{bmatrix}
+F_1(t) + C_1 \dot{U}_{low} + C_2 \dot{U}_{upp} + K_1 U_{low} + K_2 U_{upp} \\
+F_2(t) + C_4 \dot{U}_{low} + C_5 \dot{U}_{upp} + K_4 U_{low} + K_5 U_{upp} \\
+\beta_7 \ddot{U}_{low} + \beta_8 \ddot{U}_{upp} + 2 \zeta_{dc} \omega_{dc} (\nu_7 \dot{U}_{low} + \nu_8 \dot{U}_{upp}) + \omega_{dc}^2 (\lambda_7 U_{low} + \lambda_8 U_{upp}) \\
+\beta_{11} \ddot{U}_{low} + \beta_{12} \ddot{U}_{upp} + 2 \zeta_{dc} \omega_{dc} (\nu_{11} \dot{U}_{low} + \nu_{12} \dot{U}_{upp}) + \omega_{dc}^2 (\lambda_{11} U_{low} + \lambda_{12} U_{upp}) \\
+\beta_{13} \ddot{U}_{low} + \beta_{14} \ddot{U}_{upp} + 2 \zeta_{dc} \omega_{dc} (\nu_{13} \dot{U}_{low} + \nu_{14} \dot{U}_{upp}) + \omega_{dc}^2 (\lambda_{13} U_{low} + \lambda_{14} U_{upp})
+\end{bmatrix}
+\end{aligned}
+\end{equation}
 
-\begin{align}\label{Eq.forcing.vector.2dof3dof}
-    \mathbf{F}(\omega) = \begin{bmatrix}
-        F_1(\omega) + 2\zeta_{dc}\omega_{dc} \left( j\omega\, U_{Low}(\omega) + \nu_2\, j\omega\, U_{Up}(\omega) \right) + \omega_{dc}^2 \left( U_{Low}(\omega) + \lambda_2\, U_{Up}(\omega) \right) \\
-        F_2(\omega) + 2\zeta_{dc}\omega_{dc} \left( \nu_4\, j\omega\, U_{Low}(\omega) + \nu_5\, j\omega\, U_{Up}(\omega) \right) + \omega_{dc}^2 \left( \lambda_4\, U_{Low}(\omega) + \lambda_5\, U_{Up}(\omega) \right) \\
-        \beta_7 (-\omega^2) U_{Low}(\omega) + 2\zeta_{dc}\omega_{dc} \left( \nu_7\, j\omega\, U_{Low}(\omega) + \nu_8\, j\omega\, U_{Up}(\omega) \right) + \omega_{dc}^2 \left( \lambda_7\, U_{Low}(\omega) + \lambda_8\, U_{Up}(\omega) \right) + \beta_8 (-\omega^2) U_{Up}(\omega) \\
-        \beta_{11} (-\omega^2) U_{Low}(\omega) + 2\zeta_{dc}\omega_{dc} \left( \nu_{11}\, j\omega\, U_{Low}(\omega) + \nu_{12}\, j\omega\, U_{Up}(\omega) \right) + \omega_{dc}^2 \left( \lambda_{11}\, U_{Low}(\omega) + \lambda_{12}\, U_{Up}(\omega) \right) + \beta_{12} (-\omega^2) U_{Up}(\omega) \\
-        \beta_{13} (-\omega^2) U_{Low}(\omega) + 2\zeta_{dc}\omega_{dc} \left( \nu_{13}\, j\omega\, U_{Low}(\omega) + \nu_{14}\, j\omega\, U_{Up}(\omega) \right) + \omega_{dc}^2 \left( \lambda_{13}\, U_{Low}(\omega) + \lambda_{14}\, U_{Up}(\omega) \right) + \beta_{14} (-\omega^2) U_{Up}(\omega)
-    \end{bmatrix}
-\end{align}
+\subsubsection{Dimensionless Form}
 
-where:
-\begin{itemize}
-    \item \textbf{External forces}: $F_1(t)$, $F_2(t)$ are time-varying forces applied to primary masses
-    \item \textbf{Base excitations}: $U_{Low}(t)$, $U_{Up}(t)$ represent lower and upper base motions
-    \item \textbf{Inerter effects}: $\beta_i (-\omega^2)$ terms represent inertial coupling with base motions
-    \item \textbf{Damping forces}: $C_i \dot{U}$ terms represent velocity-dependent base coupling
-    \item \textbf{Spring forces}: $K_i U$ terms represent displacement-dependent base coupling
-\end{itemize}
+To simplify analysis, the system is normalized using dimensionless parameters listed in Table~\ref{Tab:dimensionless.table}.
 
-\paragraph{Dimensional Parameter Normalization}
 
-The system employs dimensionless parameters for numerical stability and optimization efficiency:
+\begin{table}[h!]
+\centering
+\caption{Dimensionless Parameters for System Normalization}
+\label{Tab:dimensionless.table}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Parameter Group} & \textbf{Parameter} & \textbf{Definition} \\
+\midrule
+\textbf{Mass Ratios} & \( \Gamma \) & \( \Gamma = \frac{M_2}{M_1} \) \\
+ & \( \mu_i \) & \( \mu_i = \frac{m_i}{M_1} \) \\
+\addlinespace
+\textbf{Inertial Coupling Ratios} & \( \beta_i \) & \( \beta_i = \frac{b_i}{M_1} \) \\
+\addlinespace
+\textbf{Damping Ratios} & \( \mathcal{N}_i \) & \( \mathcal{N}_i = \frac{C_i}{C_1} \) \\
+ & \( \nu_i \) & \( \nu_i = \frac{c_i}{C_1} \) \\
+\addlinespace
+\textbf{Stiffness Ratios} & \( \Lambda_i \) & \( \Lambda_i = \frac{K_i}{K_1} \) \\
+ & \( \lambda_i \) & \( \lambda_i = \frac{k_i}{K_1} \) \\
+\addlinespace
+\textbf{Decoupled Primary System} & \( \omega_{dc} \) & \( \omega_{dc} = \sqrt{\frac{K_1}{M_1}} \) \\
+ & \( \zeta_{dc} \) & \( \zeta_{dc} = \frac{C_1}{2 M_1 \omega_{dc}} \) \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\begin{align}\label{Eq.dimensional.parameters.2dof3dof}
-    \mu &= \frac{m_2}{M_1} \quad \text{(Primary mass ratio)} \\
-    \mu_1, \mu_2, \mu_3 &= \frac{m_{dva1}, m_{dva2}, m_{dva3}}{M_1} \quad \text{(DVA mass ratios)} \\
-    \beta_i &= \frac{b_i}{M_1} \quad \text{(Inerter ratios)} \\
-    \lambda_i &= \frac{k_i}{K_1} \quad \text{(Stiffness ratios)} \\
-    \Lambda_1, \Lambda_2 &= \frac{K_2, K_3}{K_1} \quad \text{(Base stiffness ratios)} \\
-    \nu_i &= \frac{c_i}{C_1} \quad \text{(Damping ratios)} \\
-    N_1, N_2 &= \frac{C_2, C_3}{C_1} \quad \text{(Base damping ratios)} \\
-    \omega_{dc} &= \sqrt{\frac{K_1}{M_1}} \quad \text{(Design center frequency)} \\
-    \zeta_{dc} &= \frac{C_1}{2 M_1 \omega_{dc}} \quad \text{(Design damping ratio)} \\
-    F_1', F_2' &= \frac{F_1, F_2}{M_1} \quad \text{(Normalized forces)} \\
-    \Omega &= \frac{\omega}{\omega_{dc}} \quad \text{(Dimensionless frequency)}
-\end{align}
+Using these parameters, the dimensionless equations of motion are expressed as:
+
+\begin{equation}\label{Eq.EOM_dimensionless}
+\mathbf{\bar{M}} \ddot{\mathbf{q}} + 2 \zeta_{dc} \omega_{dc} \mathbf{\bar{C}} \dot{\mathbf{q}} + \omega_{dc}^2 \mathbf{\bar{K}} \mathbf{q} = \mathbf{\bar{F}}(t)
+\end{equation}
+
+The dimensionless mass, damping, and stiffness matrices, along with the force vector, are defined in Equations \eqref{Eq.mass_matrix_dimensionless} to \eqref{Eq.force_vector_dimensionless}.
+
+\paragraph{Dimensionless Mass Matrix}
+
+\begin{equation}\label{Eq.mass_matrix_dimensionless}
+\begin{aligned}
+[\bar{M}] =& 
+\begin{bmatrix}
+\shortstack{$1 + \beta_1$ \\ $+ \beta_2 + \beta_3$} & 0 & \shortstack{$-\beta_1$ \\ \,} & \shortstack{$-\beta_2$ \\ \,} & \shortstack{$-\beta_3$ \\ \,} \\
+0 & \shortstack{$\Gamma + \beta_4$ \\ $+ \beta_5 + \beta_6$} & \shortstack{$-\beta_4$ \\ \,} & \shortstack{$-\beta_5$ \\ \,} & \shortstack{$-\beta_6$ \\ \,} \\
+-\beta_1 & -\beta_4 & \shortstack{$\mu_1 + \beta_1$ \\ $+ \beta_4 + \beta_7$ \\ $+ \beta_8 + \beta_9$ \\ $+ \beta_{10}$} & \shortstack{$-\beta_9$ \\ \,} & \shortstack{$-\beta_{10}$ \\ \,} \\
+-\beta_2 & -\beta_5 & -\beta_9 & \shortstack{$\mu_2 + \beta_2$ \\ $+ \beta_5 + \beta_9$ \\ $+ \beta_{11} + \beta_{12}$} & \shortstack{$-\beta_{15}$ \\ \,} \\
+-\beta_3 & -\beta_6 & -\beta_{10} & -\beta_{15} & \shortstack{$\mu_3 + \beta_3$ \\ $+ \beta_6 + \beta_{10}$ \\ $+ \beta_{13} + \beta_{14}$ \\ $+ \beta_{15}$}
+\end{bmatrix}
+\end{aligned}
+\end{equation}
+
+\paragraph{Dimensionless Damping Matrix}
+
+\begin{equation}\label{Eq.damping_matrix_dimensionless}
+\begin{aligned}
+[\bar{C}] =& 
+\begin{bmatrix}
+\shortstack{$1 + \mathcal{N}_2$ \\ $+ \mathcal{N}_3 + \nu_1$ \\ $+ \nu_2 + \nu_3$} & -\mathcal{N}_3 & \shortstack{$-\nu_1$ \\ \,} & \shortstack{$-\nu_2$ \\ \,} & \shortstack{$-\nu_3$ \\ \,} \\
+-\mathcal{N}_3 & \shortstack{$\mathcal{N}_3 + \mathcal{N}_4$ \\ $+ \mathcal{N}_5 + \nu_4$ \\ $+ \nu_5 + \nu_6$} & \shortstack{$-\nu_4$ \\ \,} & \shortstack{$-\nu_5$ \\ \,} & \shortstack{$-\nu_6$ \\ \,} \\
+-\nu_1 & -\nu_2 & \shortstack{$\nu_1 + \nu_4$ \\ $+ \nu_7 + \nu_8$ \\ $+ \nu_9 + \nu_{10}$} & \shortstack{$-\nu_9$ \\ \,} & \shortstack{$-\nu_{10}$ \\ \,} \\
+-\nu_2 & -\nu_5 & -\nu_9 & \shortstack{$\nu_2 + \nu_5$ \\ $+ \nu_9 + \nu_{11}$ \\ $+ \nu_{12} + \nu_{15}$} & \shortstack{$-\nu_{15}$ \\ \,} \\
+-\nu_3 & -\nu_{6} & -\nu_{10} & -\nu_{15} & \shortstack{$\nu_3 + \nu_6$ \\ $+ \nu_{10} + \nu_{13}$ \\ $+ \nu_{14} + \nu_{15}$}
+\end{bmatrix}
+\end{aligned}
+\end{equation}
+
+\paragraph{Dimensionless Stiffness Matrix}
+
+\begin{equation}\label{Eq.stiffness_matrix_dimensionless}
+\begin{aligned}
+[\bar{K}] =& 
+\begin{bmatrix}
+\shortstack{$1 + \Lambda_2$ \\ $+ \Lambda_3 + \lambda_1$ \\ $+ \lambda_2 + \lambda_3$} & -\Lambda_3 & \shortstack{$-\lambda_1$ \\ \,} & \shortstack{$-\lambda_2$ \\ \,} & \shortstack{$-\lambda_3$ \\ \,} \\
+-\Lambda_3 & \shortstack{$\Lambda_3 + \Lambda_4$ \\ $+ \Lambda_5 + \lambda_4$ \\ $+ \lambda_5 + \lambda_6$} & \shortstack{$-\lambda_4$ \\ \,} & \shortstack{$-\lambda_5$ \\ \,} & \shortstack{$-\lambda_6$ \\ \,} \\
+-\lambda_1 & -\lambda_2 & \shortstack{$\lambda_1 + \lambda_4$ \\ $+ \lambda_7 + \lambda_8$ \\ $+ \lambda_9 + \lambda_{10}$} & \shortstack{$-\lambda_9$ \\ \,} & \shortstack{$-\lambda_{10}$ \\ \,} \\
+-\lambda_2 & -\lambda_5 & -\lambda_9 & \shortstack{$\lambda_2 + \lambda_5$ \\ $+ \lambda_9 + \lambda_{11}$ \\ $+ \lambda_{12} + \lambda_{15}$} & \shortstack{$-\lambda_{15}$ \\ \,} \\
+-\lambda_3 & -\lambda_{6} & -\lambda_{10} & -\lambda_{15} & \shortstack{$\lambda_3 + \lambda_6$ \\ $+ \lambda_{10} + \lambda_{13}$ \\ $+ \lambda_{14} + \lambda_{15}$}
+\end{bmatrix}
+\end{aligned}
+\end{equation}
+
+\paragraph{Dimensionless Force Vector}
+
+\begin{equation}\label{Eq.force_vector_dimensionless}
+\begin{aligned}
+[\bar{F}] = & \begin{bmatrix}
+\frac{F_1(t)}{M_1} + 2 \zeta_{dc} \omega_{dc} (\dot{U}_{low} + \mathcal{N}_2 \dot{U}_{upp}) + \omega_{dc}^2 (U_{low} + \Lambda_2 U_{upp})\\
+\frac{F_2(t)}{M_1} + 2 \zeta_{dc} \omega_{dc} (\mathcal{N}_4 \dot{U}_{low} + \mathcal{N}_5 \dot{U}_{upp}) + \omega_{dc}^2 (\Lambda_4 U_{low} + \Lambda_5 U_{upp}) \\
+\beta_7 \ddot{U}_{low} +  \beta_8 \ddot{U}_{upp} +  2 \zeta_{dc} \omega_{dc} (\nu_7 \dot{U}_{low} + \nu_8 \dot{U}_{upp}) +\omega_{dc}^2 (\lambda_7 U_{low} + \lambda_8 U_{upp})\\
+\beta_{11} \ddot{U}_{low} +  \beta_{12} \ddot{U}_{upp} +  2 \zeta_{dc} \omega_{dc} (\nu_{11} \dot{U}_{low} + \nu_{12} \dot{U}_{upp}) +\omega_{dc}^2 (\lambda_{11} U_{low} + \lambda_{12} U_{upp})\\
+\beta_{13} \ddot{U}_{low} +  \beta_{14} \ddot{U}_{upp} +  2 \zeta_{dc} \omega_{dc} (\nu_{13} \dot{U}_{low} + \nu_{14} \dot{U}_{upp}) +\omega_{dc}^2 (\lambda_{13} U_{low} + \lambda_{14} U_{upp})
+\end{bmatrix}
+\end{aligned}
+\end{equation}
 
 \paragraph{Semi-Analytical Solutions for Harmonic Excitation}
 
@@ -403,25 +636,8 @@ This component ensures comprehensive evaluation by:
 
 The scaling factor $\gamma$ plays a crucial role in balancing the contribution of the percentage error component with the other objectives. A larger $\gamma$ reduces the influence of detailed percentage errors, while a smaller $\gamma$ increases their importance in the overall optimization.
 
-\subsubsection{Multi-Objective Optimization Framework}
-
-The optimization problem is inherently multi-objective, addressing multiple conflicting design requirements simultaneously. The framework integrates performance optimization with practical considerations through a structured approach to objective function formulation and weight assignment.
-
-\textbf{Objective Function Decomposition:} The total fitness function is structured as:
-
-\begin{equation}\label{Eq.multi_objective_decomposition_detailed}
-f_{total}(\mathbf{x}) = f_{primary}(\mathbf{x}) + f_{sparsity}(\mathbf{x}) + f_{error}(\mathbf{x})
-\end{equation}
-
-Each component contributes uniquely to the optimization process:
-
-\begin{enumerate}
-    \item \textbf{Performance Optimization ($f_{primary}$)}: Drives the system toward optimal vibration control performance
-    \item \textbf{Complexity Control ($f_{sparsity}$)}: Prevents overly complex solutions through regularization
-    \item \textbf{Detailed Performance ($f_{error}$)}: Ensures comprehensive evaluation across all performance criteria
-\end{enumerate}
-
-\textbf{Performance Criteria Hierarchy:} The multi-objective framework evaluates performance across several hierarchical categories:
+\subsubsection{Performance Criteria Hierarchy}
+The multi-objective framework evaluates performance across several hierarchical categories:
 
 \begin{enumerate}
     \item \textbf{Modal Performance Criteria:}
@@ -430,6 +646,7 @@ Each component contributes uniquely to the optimization process:
         \item Peak values ($A_{peak,i}$): Target response amplitudes at resonant frequencies
         \item Critical for modal alignment and vibration control effectiveness
     \end{itemize}
+    
 
     \item \textbf{Inter-Modal Criteria:}
     \begin{itemize}
@@ -540,1482 +757,471 @@ Area_i \approx \frac{h}{3} \left[|X_i(\omega_0)| + 4\sum_{k=1}^{n/2} |X_i(\omega
 
 where $h$ is the frequency step size and $n$ is the number of frequency points.
 
-\section{Traditional Genetic Algorithm Foundation}
 
-The traditional Genetic Algorithm (GA) provides the fundamental framework upon which advanced optimization techniques are built. This section establishes the theoretical foundations, mathematical formulations, and algorithmic components that form the basis for understanding both the strengths and limitations of classical genetic algorithms in the context of complex DVA optimization problems.
+\section{Traditional Genetic Algorithm Methodology}
 
-\subsection{Theoretical Background}
+    \subsection{Algorithmic Framework}
+    The baseline GA follows the classic evolve–evaluate–select loop with real-valued representations tailored to the DVA design vector $\mathbf{x}$ and FRF-based fitness in Eq.~\eqref{Eq.objective_function_detailed}. Individuals are length-$P$ floating vectors, bounds are enforced by projection, and fixed parameters are respected.
 
-\subsubsection{Evolutionary Computation Principles}
+    \paragraph{Representation and constraints}
+    \begin{itemize}
+        \item \textbf{Genome}: $\mathbf{x}=[x_1,\dots,x_P]^\top$ with $x_i\in[\theta_i^{\min},\theta_i^{\max}]$; fixed parameters are pinned to their fixed values.
+        \item \textbf{Projection to bounds}: after any variation, each gene is clamped
+        \begin{equation}\label{Eq.bound_projection}
+            x_i \leftarrow \min\{\, \theta_i^{\max},\; \max\{\theta_i^{\min},\; x_i\}\,\},\quad i=1,\dots,P.
+        \end{equation}
+    \end{itemize}
 
-Evolutionary computation represents a class of optimization algorithms inspired by biological evolution processes. The fundamental principle underlying genetic algorithms is the iterative improvement of candidate solutions through simulated natural selection and genetic operations.
+    \paragraph{Fitness evaluation}
+    Each individual is evaluated by the FRF pipeline (Sec.~\ref{subsubsec:chosen_performance_criteria_combined}), yielding the composite singular criterion $C_s$ in Eq.~\eqref{Eq.singular_response_detailed} and the detailed percentage differences in Eq.~\eqref{Eq.percentage_error_detailed}. The total fitness is Eq.~\eqref{Eq.objective_function_detailed}:
+    \begin{equation}
+        f(\mathbf{x})=\big|C_s(\mathbf{x})-1.0\big|\; +\; \alpha\sum_{k=1}^{P}|x_k|\; +\; \frac{1}{\gamma}\sum_{i,j}\big|PD_{ij}(\mathbf{x})\big|.
+    \end{equation}
 
-\textbf{Evolutionary Process Model:} The evolutionary process can be mathematically modeled as a sequence of population transformations:
+    \paragraph{Selection, crossover, mutation, replacement}
+    \begin{itemize}
+        \item \textbf{Selection}: tournament selection with size 3 (balance pressure and diversity).
+        \item \textbf{Crossover}: \emph{Blend} crossover (BLX-\(\alpha\)) with $\alpha=0.5$ acts gene-wise on pairs.
+        \item \textbf{Mutation}: per-gene perturbation with probability $\mathrm{indpb}=0.1$, using a uniform perturbation bounded to 10\% of each gene span; then projection (Eq.~\ref{Eq.bound_projection}).
+        \item \textbf{Replacement}: generational replacement of the full population with the offspring.
+    \end{itemize}
 
-\begin{equation}\label{Eq.evolutionary_process_refined}
-P(t+1) = \mathcal{E}(P(t)) = \mathcal{S}\left( \mathcal{R}\left( \mathcal{V}(P(t)) \right) \right)
-\end{equation}
+    \paragraph{Termination}
+    The loop terminates when either (i) the best fitness reaches the tolerance $f_{\min}\le\texttt{ga\_tol}$, or (ii) the generation budget $G_{\max}$ is exhausted.
 
-where:
+    \subsection{Baseline GA for DVA Design}
+    \begin{algorithm}[H]
+    \caption{Baseline Genetic Algorithm for DVA parameter optimization}
+    \begin{algorithmic}[1]
+    \REQUIRE Bounds $[\theta^{\min},\theta^{\max}]$, fixed mask/values, population size $N$, generations $G_{\max}$, $\text{cxpb}$, $\text{mutpb}$, $\text{indpb}$, tolerance $\tau$
+    \STATE Initialize population $\mathcal{P}_0$ of $N$ individuals uniformly in bounds; set fixed genes.
+    \FOR{$g=1$ to $G_{\max}$}
+        \STATE Evaluate each $\mathbf{x}\in\mathcal{P}_{g-1}$ via FRF to compute $f(\mathbf{x})$.
+        \IF{$\min_{\mathbf{x}\in\mathcal{P}_{g-1}} f(\mathbf{x})\le\tau$} \textbf{break} \ENDIF
+        \STATE $\mathcal{M}\leftarrow$ tournament-select $N$ parents from $\mathcal{P}_{g-1}$ (size 3).
+        \STATE Form offspring $\mathcal{O}$ by pairing parents and applying BLX-0.5 with prob. $\text{cxpb}$.
+        \FOR{each offspring $\mathbf{x}\in\mathcal{O}$}
+            \IF{$\text{rand}<\text{mutpb}$} mutate each gene with prob. $\text{indpb}$ by a uniform perturbation in $\pm 0.1\,(\theta_i^{\max}-\theta_i^{\min})$; enforce fixed genes and project with Eq.~\eqref{Eq.bound_projection} \ENDIF
+        \ENDFOR
+        \STATE Evaluate invalid individuals in $\mathcal{O}$; set $\mathcal{P}_g\leftarrow\mathcal{O}$.
+    \ENDFOR
+    \STATE \textbf{return} best individual and fitness.
+    \end{algorithmic}
+    \end{algorithm}
+
+    \subsection{Complexity and limitations}
+    Let $C_{\text{FRF}}$ be the average cost of one FRF evaluation and $N$ the population size. The time per generation is $\Theta(N\,C_{\text{FRF}})+\mathcal{O}(N)$; crossover/mutation are linear. Classical drawbacks are: (i) premature convergence under fixed operators, (ii) sensitivity to hyperparameters, (iii) costly fitness evaluations, and (iv) random seeding that may under-sample high-quality regions. These motivate the advanced controllers and screening introduced next.
+
+
+
+
+\section{Advanced Genetic Algorithm Methodology}
+    \subsection{Overview of Advanced Features}
+    DeVana extends the baseline GA with controllers and samplers that adapt online: (i) \textbf{adaptive operator control} via an ML bandit or a lightweight RL agent that tunes crossover $\text{cxpb}$, mutation $\text{mutpb}$, and population size $N$ generation-by-generation; (ii) \textbf{advanced seeding} with Sobol/LHS low-discrepancy designs and a \textbf{NeuralSeeder} that learns promising regions using UCB or EI; and (iii) \textbf{surrogate-assisted screening} that pre-filters offspring using a KNN surrogate with novelty-based exploration. All mechanisms respect fixed parameters and bounds.
+
+    \subsection{Machine Learning Bandit Controller for Parameter Adaptation}
+    The controller defines a discrete action space $\mathcal{A}=\{(\delta_{\text{cx}},\delta_{\\mu},\pi)\}$ with relative changes to $\text{cxpb}$ and $\text{mutpb}$ and a multiplier $\pi$ for population size. At generation $t$, it selects
+    \begin{equation}
+        a_t\;=\;\arg\max_{a\in\mathcal{A}}\Big[ \hat{R}_t(a)\; +\; c\,\sqrt{\tfrac{\ln t}{N_t(a)}} \Big], \label{Eq.ucb}
+    \end{equation}
+    where $\hat{R}_t(a)$ is the average reward observed for action $a$, $N_t(a)$ its count, and $c>0$ controls exploration. The chosen action updates
+    \begin{align}
+        \text{cxpb}_{t+1}&=\operatorname{clip}(\text{cxpb}_t\,(1+\delta_{\text{cx}}),\;[\text{cxpb}_{\min},\text{cxpb}_{\max}]),\\
+        \text{mutpb}_{t+1}&=\operatorname{clip}(\text{mutpb}_t\,(1+\delta_{\mu}),\;[\text{mutpb}_{\min},\text{mutpb}_{\max}]),\\
+        N_{t+1}&=\operatorname{round}(\operatorname{clip}(\pi\,N_t,\;[N_{\min},N_{\max}])).
+    \end{align}
+    \paragraph{Reward shaping}
+    Consistent with the implementation, the reward balances improvement, speed, diversity, and effort:
+    \begin{equation}\label{Eq.bandit_reward}
+        R_t\;=\;\frac{\max\{0,\,f^{\star}_{t-1}-f^{\star}_{t}\}}{\max\{\epsilon,\,T_t\}}\,\frac{1}{\max\{1,\,E_t\}}\; -\; w_{\text{div}}\,\big|\mathrm{CV}_t-\mathrm{CV}^{\text{target}}\big|,
+    \end{equation}
+    where $f^{\star}_t$ is the best fitness in generation $t$, $T_t$ is generation time, $E_t$ the number of evaluations, and $\mathrm{CV}_t=\tfrac{\sigma_t}{|\mu_t|+\epsilon}$ is the coefficient of variation of fitness. A blended estimator $\tilde R_t= w_{\text{hist}}\,\hat{R}_{t-1}(a)+w_{\text{cur}}\,R_t$ stabilizes updates.
+
+    \begin{algorithm}[H]
+    \caption{ML-Bandit controller (per generation)}
+    \begin{algorithmic}[1]
+    \STATE Compute statistics $\mu_t,\sigma_t,f^{\star}_t,T_t,E_t$ from the finished generation.
+    \STATE For each $a\in\mathcal{A}$, compute UCB score via Eq.~\eqref{Eq.ucb}; select $a_t$.
+    \STATE Update $(\text{cxpb},\text{mutpb},N)$ by the selected action with clipping.
+    \STATE Observe $R_t$ via Eq.~\eqref{Eq.bandit_reward}, update counts and averages for $a_t$.
+    \end{algorithmic}
+    \end{algorithm}
+
+    \subsection{Reinforcement Learning-Based Control of GA Parameters}
+    A compact Q-learning agent with an $\epsilon$-greedy policy selects actions $a\in\mathcal{A}$ conditioned on a coarse state $s$ (e.g., improvement/no-improvement). The update is
+    \begin{equation}
+        Q(s,a)\leftarrow Q(s,a)+\alpha\,\big(R+\gamma\max_{a'}Q(s',a')-Q(s,a)\big),
+    \end{equation}
+    with learning rate $\alpha$, discount $\gamma$, and exploration $\epsilon$ decayed each generation. Actions map to the same $(\delta_{\text{cx}},\delta_{\mu},\pi)$ triplets and are clipped to guardrails as above.
+
+    \begin{algorithm}[H]
+    \caption{RL controller (per generation)}
+    \begin{algorithmic}[1]
+    \STATE Observe state $s_t$ (e.g., $\mathbb{1}[f^{\star}_t<f^{\star}_{t-1}]$).
+    \STATE With prob. $\epsilon$ select random $a_t$, else $\arg\max_a Q(s_t,a)$.
+    \STATE Apply $a_t$ to update $(\text{cxpb},\text{mutpb},N)$ with clipping.
+    \STATE Receive reward $R_t$ per Eq.~\eqref{Eq.bandit_reward}, observe $s_{t+1}$; update $Q$.
+    \STATE Decay $\epsilon\leftarrow\epsilon\cdot\epsilon_{\text{decay}}$.
+    \end{algorithmic}
+    \end{algorithm}
+
+    \subsection{Sobol and Latin Hypercube Seeding}
+    For $d=P$ free parameters with bounds $\ell_i,u_i$, a QMC engine generates $m$ points $\mathbf{z}_k\in[0,1]^d$ using either Sobol or LHS, then scales
+    \begin{equation}
+        x_{k,i}\;=\;\ell_i + z_{k,i}\,(u_i-\ell_i),\quad i=1,\dots,d,\;k=1,\dots,m,
+    \end{equation}
+    and overwrites fixed coordinates. QMC seeding improves space-filling vs. pure random initialization.
+
+    \subsection{Neural Network-Based Population Seeding (NeuralSeeder)}
+    The NeuralSeeder maintains a dataset $\mathcal{D}=\{(\mathbf{x}^{(n)}, y^{(n)})\}$ of evaluated points and trains a lightweight ensemble to model $y\approx f(\mathbf{x})$. It proposes candidates by optimizing an acquisition function such as UCB or EI over a candidate pool, with exploration fraction $\epsilon$ and UCB scale $\beta$ adapted online:
+    \begin{align}\label{eq:UCBEI}
+        \text{UCB}(\mathbf{x}) &= \mu(\mathbf{x}) - \beta\,\sigma(\mathbf{x}) \quad \text{(minimization)},\\
+        \text{EI}(\mathbf{x}) &= \mathbb{E}\big[\max\{0, f^{\star}-Y(\mathbf{x})\}\big].
+    \end{align}
+    A diversity constraint (minimum distance in normalized space) avoids mode collapse. When the controller resizes the population, additional individuals are drawn from NeuralSeeder once it has seen enough data; otherwise it falls back to the configured seeding method.
+
+    \subsection{Surrogate Model-Assisted Fitness Evaluation}
+    To reduce FRF calls, a KNN surrogate pre-screens offspring. Let $\tilde{\mathbf{x}}$ be a candidate and define normalized coordinates $z_i=(x_i-\ell_i)/(u_i-\ell_i)$. The KNN predictor is
+    \begin{equation}
+        \hat f(\tilde{\mathbf{x}})= \frac{1}{k}\sum_{(\mathbf{x}^{(n)},y^{(n)})\in\mathcal{N}_k(\tilde{\mathbf{x}})} y^{(n)},\quad \mathcal{N}_k(\tilde{\mathbf{x}})=\arg\min_{\mathcal{S},\;|\mathcal{S}|=k}\sum_{(\mathbf{x},\cdot)\in\mathcal{S}}\lVert \mathbf{z}-\tilde{\mathbf{z}}\rVert_2.
+    \end{equation}
+    A pool of size $M=\lceil \phi\,Q\rceil$ (with $Q$ invalid offspring and pool factor $\phi\ge1$) is generated by cloning and light genetic operations; the top $q$ by $\hat f$ are \emph{exploited} and an \emph{explore} subset is added by maximizing novelty
+    \begin{equation}
+        \mathcal{N}(\tilde{\mathbf{x}})=\min_{\mathbf{x}^{(n)}\in\mathcal{D}}\lVert \tilde{\mathbf{z}}-\mathbf{z}^{(n)}\rVert_2.
+    \end{equation}
+    Only the chosen subset is evaluated by FRF; others are discarded, yielding substantial savings when FRF is expensive.
+
+    \begin{algorithm}[H]
+    \caption{Surrogate screening per generation}
+    \begin{algorithmic}[1]
+    \REQUIRE Invalid offspring set $\mathcal{U}$ of size $Q$, pool factor $\phi$, explore fraction $\eta$, KNN $k$
+    \STATE Build pool $\mathcal{P}$ of size $M=\max\{Q,\lceil\phi Q\rceil\}$ by cloning $\mathcal{U}$ and applying light crossover/mutation (with bounds and fixed genes).
+    \STATE Predict $\hat f$ for all $\mathbf{x}\in\mathcal{P}$; sort ascending.
+    \STATE Select $q=Q$ exploit candidates with smallest $\hat f$.
+    \STATE From the remainder, select $\eta q$ most novel by maximizing $\mathcal{N}(\cdot)$; add to chosen set.
+    \STATE Evaluate FRF only on the chosen set; fill remaining offspring slots by best evaluated if needed.
+    \end{algorithmic}
+    \end{algorithm}
+
+    \subsection{Legacy adaptive rates}
+    As a fallback, a heuristic adapts $(\text{cxpb},\text{mutpb})$ based on diversity $\sigma/|\mu|$ and stagnation counter: low diversity increases mutation and decreases crossover, high diversity does the opposite, with periodic adjustments.
+
+
+\section{Benchmarking and Robustness Analysis}
+\label{sec:benchmarking}
+DeVana instruments the optimization with detailed metrics to quantify efficiency and robustness across controllers and seeding strategies.
+
+\subsection{Recorded metrics}
 \begin{itemize}
-    \item $P(t)$: Population at generation $t$
-    \item $\mathcal{V}$: Variation operators (crossover and mutation)
-    \item $\mathcal{R}$: Recombination operator
-    \item $\mathcal{S}$: Selection operator
-    \item $\mathcal{E}$: Complete evolutionary operator
+    \item \textbf{Per generation}: best/mean/std fitness, population size, $(\text{cxpb},\text{mutpb})$, evaluations, time breakdown (selection/crossover/mutation/evaluation), total generation time.
+    \item \textbf{System}: CPU\%, per-core CPU, memory usage/details, I/O counters, network, thread count.
+    \item \textbf{Controllers}: action histories and rewards for ML-bandit/RL; rate/adaptation history.
 \end{itemize}
 
-This equation encapsulates the core iterative process of genetic algorithms, where each generation is produced by sequentially applying variation (mutation and crossover), recombination, and selection operators to the current population. 
-In summary, the genetic algorithm proceeds as follows:
-\begin{enumerate}
-    \item \textbf{Initialization:} Generate an initial population of candidate solutions.
-    \item \textbf{Evaluation:} Assess the fitness of each individual.
-    \item \textbf{Variation and Recombination:} Create new individuals through crossover and mutation.
-    \item \textbf{Selection:} Select individuals for the next generation based on fitness.
-    \item \textbf{Replacement:} Form the new population and repeat the process.
-\end{enumerate}
-This cycle continues until a stopping condition is reached, such as a maximum number of generations or convergence to a satisfactory solution. The sequential application of variation, recombination, and selection—represented by the composition $\mathcal{S} \circ \mathcal{R} \circ \mathcal{V}$—ensures that the population evolves toward better solutions over time.
+\subsection{Key performance indicators (KPIs)}
+Let $f^{\star}_g$ be best fitness at generation $g$ and $G$ the total generations.
+\begin{align}
+    g_{\tau} &= \min\{g:\ f^{\star}_g\le\tau\}\quad\text{(time-to-tolerance)},\\
+    \mathrm{AUC} &= \sum_{g=1}^{G} f^{\star}_g\quad\text{(area under best-fitness curve; lower is better)},\\
+    \bar T &= \frac{1}{G}\sum_{g=1}^{G} T_g,\quad \bar E = \frac{1}{G}\sum_{g=1}^{G} E_g,\\
+    \Delta f_g &= \max\{0, f^{\star}_{g-1}-f^{\star}_g\},\quad \overline{\Delta f}=\frac{1}{G-1}\sum_{g=2}^{G}\Delta f_g.
+\end{align}
+Reliability is reported as the fraction of runs achieving $f^{\star}_G\le\tau$.
 
-\subsection{Standard Genetic Algorithm Components}
+\subsection{Benchmark design}
+We adopt a factorial study over controllers (Fixed/Adaptive/ML-Bandit/\gls{rl}) and seeders (Random/Sobol/LHS/Neural), with and without surrogate screening. For each cell, run $R$ replicates with different seeds; collect KPIs and resource metrics.
 
-\subsubsection{Population Representation and Encoding}
+\paragraph{Ablation studies}
+We perform ablations by enabling one advanced feature at a time: (i) adaptive controllers only; (ii) surrogate screening only; (iii) advanced seeding only; and (iv) combinations. This isolates the marginal impact of each component.
 
-The population representation is crucial for the effectiveness of genetic algorithms. In the context of DVA optimization, each individual represents a complete set of 48 design parameters.
+\paragraph{Sensitivity analyses}
+We probe sensitivity to: (a) controller exploration constants, (b) surrogate pool factor $\phi$ and $k$, (c) NeuralSeeder exploration fraction and acquisition scale, and (d) objective weights. Outcomes are reported on ${g_\tau}$, AUC, and final best fitness.
 
-\textbf{Individual Representation:} Each individual $\mathbf{x}_i$ is represented as a real-valued vector:
+\paragraph{External validity}
+We validate across multiple mechanical scenarios (mass ratios, damping regimes, and different target criteria) to ensure conclusions generalize beyond a single configuration.
 
-\begin{equation}\label{Eq.individual_representation}
-\mathbf{x}_i = [x_{i,1}, x_{i,2}, \ldots, x_{i,48}]^T \in \mathbb{R}^{48}
-\end{equation}
+\subsection{Statistical analysis}
+Report medians and IQRs across replicates; compare cells using non-parametric tests (e.g., Wilcoxon) and bootstrap 95\% CIs for median differences of AUC and final best fitness. When multiple factors are varied, use aligned ranks or a permutation-based two-way ANOVA analogue on AUC.
 
-where each component $x_{i,j}$ represents a specific design parameter (mass coupling, stiffness, damping, or DVA mass). This continuous representation allows for fine-grained optimization of the DVA parameters.
+\subsection{Reporting}
+Provide: (i) convergence traces with shaded IQR, (ii) boxplots of KPIs, (iii) Pareto plots of final fitness vs. wall-time/evaluations, (iv) controller rate/population trajectories, (v) resource timelines, and (vi) ablation/sensitivity summaries.
 
-\textbf{Population Structure:} The population at generation $t$ is represented as:
+\section{Case studies and validation}
+\label{sec:case-studies}
+We demonstrate \softwareName{} on representative scenarios: (i) baseline 2DOF--3DOF configuration with two primary targets; (ii) high-damping regime; (iii) multi-peak realignment with stringent slope uniformity; and (iv) sensitivity to inerter couplings. For each case we compare the algorithm suite, with and without advanced features, and report KPIs and FRF visualizations.
 
-\begin{equation}\label{Eq.population_structure}
-P(t) = \{\mathbf{x}_1(t), \mathbf{x}_2(t), \ldots, \mathbf{x}_N(t)\}
-\end{equation}
+\subsection{Experimental setup}
+We fix bounds, targets, and weight schema per Sec.~\ref{subsubsec:chosen_performance_criteria_combined}. Each optimizer uses identical stopping criteria and evaluation budgets. Controllers and surrogates follow their default guardrails unless stated.
 
-where $N$ is the population size and each $\mathbf{x}_i(t)$ has an associated fitness value $f(\mathbf{x}_i(t))$ computed through the FRF analysis described in the previous section.
+\subsection{Results overview}
+Across cases, adaptive \gls{ga} controllers reduce time-to-tolerance and evaluations, surrogate screening yields the largest savings when FRF is most expensive, and NeuralSeeder improves early convergence and reliability. Results are detailed in Sec.~\ref{sec:benchmarking}.
 
-\textbf{Parameter Encoding:} The encoding scheme maps the continuous parameter space to the genetic representation:
+\section{Statistical synthesis of recommended DVA parameter ranges}
+\label{sec:statistical-ranges}
 
-\begin{equation}\label{Eq.parameter_encoding}
-x_{i,j} = x_{L,j} + (x_{U,j} - x_{L,j}) \cdot \frac{g_{i,j}}{2^L - 1}
-\end{equation}
+\subsection{Motivation and overview}
+Multiple independent GA runs provide a sample of optimized parameter vectors that encode how the system converges under different random seeds, seeding strategies, and adaptive controllers. Rather than reporting a single point estimate, we construct statistically robust \emph{recommended ranges} for every design parameter. These ranges capture where high-performing solutions concentrate, improve interpretability, and guide robust engineering choices.
 
-where:
+This section details a step-by-step, statistically grounded procedure that aggregates results from many runs and produces parameter ranges using several complementary criteria. It also defines how to compare, combine, and visualize these ranges, and it gives principled rules for selecting the final recommended interval per parameter.
+
+\subsection{Data model and notation}
+Let there be $R$ benchmark runs of the GA. Each run $r\in\{1,\dots,R\}$ returns:
 \begin{itemize}
-    \item $g_{i,j}$: Binary gene value
-    \item $L$: Number of bits per parameter
-    \item $x_{L,j}, x_{U,j}$: Lower and upper bounds for parameter $j$
+    \item Best solution vector $\mathbf{x}^{(r)} = [x^{(r)}_1,\dots, x^{(r)}_P]^\top$ of dimension $P$ (number of design parameters),
+    \item Best fitness value $f^{(r)}$ (lower is better),
+    \item Parameter name list $\{p_1,\dots,p_P\}$ consistent across runs.
+\end{itemize}
+For each parameter $p_j$ we collect the empirical sample
+\begin{equation}
+    \mathcal{X}_{p_j} = \{\, x^{(1)}_j, x^{(2)}_j, \dots, x^{(R)}_j \,\},\qquad j=1,\dots,P.
+\end{equation}
+We also define an optional performance subset using the $q$-quantile of fitness:
+\begin{equation}
+    \mathcal{I}_{q} = \{\, r:\ f^{(r)} \leq Q_f(q) \,\},\quad \mathcal{X}^{q}_{p_j}=\{\, x^{(r)}_j:\ r\in \mathcal{I}_{q}\,\},
+\end{equation}
+where $Q_f(q)$ is the $q$-quantile of $\{f^{(r)}\}_{r=1}^R$.
+
+\subsection{Preprocessing and quality control}
+Prior to range estimation we apply the following checks:
+\begin{enumerate}[label=\textbf{P\arabic*}]
+    \item \textbf{Validation}: discard runs with missing or incompatible dimension $P$, or non-finite entries.
+    \item \textbf{Alignment}: ensure parameter names $\{p_j\}$ align across runs.
+    \item \textbf{Optional winsorization}: for visual diagnostics only, we may clip the top/bottom 1\% to prevent extreme values from dominating plots; the statistical criteria below are robust and do not require it.
+\end{enumerate}
+
+\subsection{Range estimation criteria}
+To provide statistically meaningful and robust recommended ranges for each design parameter $p_j$, we compute six complementary interval criteria. Each criterion yields an interval $[L^{(c)}_j,\,U^{(c)}_j]$ for parameter $p_j$, where $c$ indexes the criterion. These criteria are implemented in the GUI (see \texttt{codes/gui/main\_window/ga\_mixin.py}, e.g., \texttt{\_iqr\_range}, \texttt{\_p5\_p95}, \texttt{\_tukey\_whisker}, \texttt{\_shortest\_interval}, \texttt{\_top\_quantile\_p5\_p95}, \texttt{\_trimmed\_mean\_mad}) and operate directly on the empirical samples of each parameter, as produced by \texttt{GAWorker.finished}. Below, we describe each criterion in detail, including the meaning of all parameters and their statistical motivation.
+
+\subsubsection{Interquartile Range (IQR, Q1--Q3)}
+\vspace{-0.25em}
+\begin{equation}
+    L^{\text{IQR}}_j = Q_{x_j}(0.25), \qquad U^{\text{IQR}}_j = Q_{x_j}(0.75).
+\end{equation}
+Here, $Q_{x_j}(q)$ denotes the $q$-th quantile of the sample $\mathcal{X}_{p_j}$ for parameter $p_j$. The IQR interval captures the central 50\% of the observed values for $p_j$, i.e., the range between the first quartile (25th percentile) and the third quartile (75th percentile). This method is highly robust to outliers and is especially effective when the distribution of $p_j$ is unimodal or only mildly skewed. By focusing on the middle half of the data, it provides a compact summary of where most solutions concentrate, but it intentionally ignores the tails of the distribution.
+
+\subsubsection{P5--P95 Quantile Interval}
+\vspace{-0.25em}
+\begin{equation}
+    L^{\text{P5--P95}}_j = Q_{x_j}(0.05), \qquad U^{\text{P5--P95}}_j = Q_{x_j}(0.95),
+\end{equation}
+This interval is defined by the 5th and 95th percentiles of the sample for parameter $p_j$. It includes the central 90\% of the data, thus providing a broader coverage than the IQR. The P5--P95 interval is moderately robust to outliers: it trims the most extreme 5\% of values at each end, which is useful for distributions with moderately heavy tails. This criterion is often preferred when stakeholders desire a more generous envelope that still excludes the most extreme solutions.
+
+\subsubsection{Tukey Whiskers (Classical Outlier Trimming)}
+\begin{align}
+    \left[ L^{\text{Tukey}}_j,\, U^{\text{Tukey}}_j \right] &= \left[
+        \min\left\{ x \in \mathcal{X}_{p_j} : x \ge Q_1 - 1.5\,\mathrm{IQR} \right\},\;
+        \max\left\{ x \in \mathcal{X}_{p_j} : x \le Q_3 + 1.5\,\mathrm{IQR} \right\}
+    \right]
+\end{align}
+This approach trims classical outliers—values that fall outside the Tukey fences—while preserving the full variability of the interior data. It is especially interpretable and useful when a few extreme runs would otherwise distort the recommended range, but you still want to include as much of the “typical” data as possible.
+
+\subsubsection{Shortest $\alpha$ High-Density Interval (HDI)}
+The HDI criterion seeks the most compact interval containing a specified fraction $\alpha$ of the data. For parameter $p_j$, let $\alpha\in(0,1)$ (we use $\alpha=0.68$ by default, analogous to a 1-sigma interval for a normal distribution). Sort the sample values $v_1\le\dots\le v_n$ and set $k=\big\lfloor \alpha n\big\rceil$. The HDI is the shortest interval among all contiguous windows of length $k$:
+\begin{equation}
+    [L^{\text{HDI}}_j, U^{\text{HDI}}_j] = \operatorname*{arg\,min}_{1\le s\le n-k+1} (v_{s+k-1}-v_s).
+\end{equation}
+This method is non-parametric and adapts to the actual shape of the sample distribution, making it especially effective for skewed or multi-modal data. The HDI focuses on the densest region of solutions, which is often where the most promising or robust parameter values lie.
+
+\subsubsection{Top-$q$ Performance P5--P95}
+This criterion restricts attention to the best-performing fraction of runs, as measured by the fitness value $f^{(r)}$ for each run $r$. Let $q\in(0,1)$ denote the top fraction to consider (default $q=0.25$, i.e., the best 25\% of runs). Define the index set $\mathcal{I}_q = \{ r:\ f^{(r)} \leq Q_f(q) \}$, where $Q_f(q)$ is the $q$-th quantile of the fitness values. The subset of parameter samples from these top runs is $\mathcal{X}^{q}_{p_j}$. The interval is then:
+\begin{equation}
+    L^{\text{Top}}_j = Q_{x_j\in\mathcal{X}^{q}_{p_j}}(0.05),\qquad U^{\text{Top}}_j = Q_{x_j\in\mathcal{X}^{q}_{p_j}}(0.95).
+\end{equation}
+This approach highlights the range where high-performing solutions for $p_j$ are concentrated, making it particularly useful when the goal is to recommend parameter values that are most likely to yield elite performance. Note that this criterion is sensitive to the choice of $q$ and requires a sufficient number of top-performing samples for stability.
+
+\subsubsection{Trimmed Mean $\pm$ 1.5\,MAD (TMAD, Robust)}
+This robust criterion combines the trimmed mean and the median absolute deviation (MAD) to define a stable interval, even for small sample sizes or heavy-tailed distributions. For parameter $p_j$, let $m=\mathrm{median}(\mathcal{X}_{p_j})$ and $\mathrm{MAD}=\mathrm{median}(|x-m|)$, which measures the typical deviation from the median. The robust scale estimate is $\sigma_{\text{rob}}=1.4826\,\mathrm{MAD}$ (the constant makes it consistent with the standard deviation for normal data). Optionally, a 10\% symmetric trimming is applied before computing the mean $\tilde\mu$ (i.e., the mean of the central 80\% of values). The interval is:
+\begin{equation}
+    L^{\text{TMAD}}_j = \max\{\min\mathcal{X}_{p_j},\; \tilde\mu - 1.5\,\sigma_{\text{rob}}\},\quad
+    U^{\text{TMAD}}_j = \min\{\max\mathcal{X}_{p_j},\; \tilde\mu + 1.5\,\sigma_{\text{rob}}\}.
+\end{equation}
+This method yields compact, outlier-resistant intervals and is especially reliable when the number of runs $R$ is small or the data are contaminated by outliers.
+
+\subsection{Data ingestion and aggregation (GAWorker $\rightarrow$ GUI)}
+\label{subsec:ingestion}
+Each optimization run is executed by \texttt{GAWorker.run()}, which, upon completion, emits a set of outputs via \texttt{GAWorker.finished}:
+\begin{itemize}
+    \item \texttt{final\_results}: The full results of the run, optionally including \texttt{singular\_response} (detailed response data) and \texttt{benchmark\_metrics} (summary statistics and metadata).
+    \item \texttt{best\_ind}: The best solution vector (i.e., the parameter values for the best individual found in the run).
+    \item \texttt{parameter\_names}: An ordered list of parameter names, ensuring consistent mapping across runs.
+    \item \texttt{best\_fitness}: The fitness value associated with the best solution.
+\end{itemize}
+The GUI mixin aggregates these outputs into a structured table, where each row corresponds to a run and columns include \texttt{run\_id}, \texttt{fitness}, and one column for each parameter (named according to \texttt{parameter\_names}). Additional metadata—such as the seeding method (\texttt{seeding\_method}), controller type (e.g., fixed, adaptive, ML-bandit, RL), and surrogate model settings—are attached from \texttt{benchmark\_metrics} to enable filtering and stratified analysis. Parameters that are fixed (i.e., have collapsed bounds and do not vary across runs) are automatically detected and treated as degenerate intervals (single values).
+
+Special edge cases handled by the GUI include:
+\begin{itemize}
+    \item \textbf{Fixed parameters:} If a parameter is fixed across all runs, all criteria return the degenerate interval $[\theta^{\min},\theta^{\max}]$ for that parameter, reflecting its lack of variability.
+    \item \textbf{Insufficient top-performing samples:} If the Top-$q$ subset contains fewer than 5 samples, the Top-$q$ P5--P95 interval is considered unstable and is omitted in favor of more robust criteria (HDI, IQR, TMAD).
 \end{itemize}
 
-This encoding ensures that all parameters remain within their physically meaningful bounds throughout the optimization process. The normalization factor $2^L - 1$ ensures that the encoded values are properly scaled to the parameter range.
-
-\subsubsection{Fitness Function and Selection Pressure}
-
-The fitness function provides the selection pressure that drives the evolutionary process toward optimal solutions.
-
-\textbf{Fitness Evaluation:} The fitness function for DVA optimization integrates multiple objectives as defined in the previous section:
-
-\begin{equation}\label{Eq.fitness_evaluation}
-f_{total}(\mathbf{x}) = f_{primary}(\mathbf{x}) + f_{sparsity}(\mathbf{x}) + f_{error}(\mathbf{x})
-\end{equation}
-
-where each component is precisely defined in the optimization problem formulation section.
-
-\textbf{Selection Pressure:} The selection pressure is quantified by the selection intensity:
-
-\begin{equation}\label{Eq.selection_intensity}
-I = \frac{\bar{f}_{selected} - \bar{f}_{population}}{\sigma_f}
-\end{equation}
-
-where:
+\subsection{Criterion robustness and guidance}
+Each interval criterion has distinct statistical properties and is suited to different data characteristics:
 \begin{itemize}
-    \item $\bar{f}_{selected}$: Average fitness of selected individuals
-    \item $\bar{f}_{population}$: Average fitness of entire population
-    \item $\sigma_f$: Standard deviation of fitness values
+    \item \textbf{IQR:} Highly robust to outliers and provides a compact interval. It is a good default when the parameter distribution is unimodal or only mildly skewed. By design, it ignores the tails, focusing on the central bulk of solutions.
+    \item \textbf{P5--P95:} Offers broader coverage than IQR, including 90\% of the data. It is moderately robust and is appropriate when a more generous envelope is desired, while still trimming the most extreme values.
+    \item \textbf{Tukey:} Implements classical outlier trimming using the 1.5 IQR rule. It is interpretable and effective when a few extreme runs would otherwise distort the range, but you want to retain as much of the “typical” data as possible.
+    \item \textbf{HDI$_{0.68}$:} Finds the shortest interval containing 68\% of the data, regardless of the distribution’s shape. It excels for skewed or multi-modal samples and is especially useful for identifying dense “sweet spots” in the parameter space.
+    \item \textbf{Top-$q$ P5--P95:} Focuses on the best-performing fraction of runs (e.g., top 25\% by fitness). This criterion is ideal when the recommended range should reflect where elite solutions are concentrated, but it is sensitive to the choice of $q$ and requires a sufficient number of top-performing samples.
+    \item \textbf{TMAD:} Based on the median and MAD, with optional trimming, this is the most stable criterion for small sample sizes or when the data are heavy-tailed. It is conservative but highly reliable, making it a strong default in challenging scenarios.
+\end{itemize}
+\textbf{Recommended usage:} For most applications, begin with TMAD or IQR for stability and robustness. Add HDI to capture the densest region of solutions, especially if the distribution is skewed or multi-modal. Report P5--P95 for a broad, stakeholder-friendly envelope. Use Top-$q$ to highlight elite performance corridors, and apply Tukey when explicit, interpretable outlier handling is required.
+
+\subsection{Algorithms}
+Below we provide efficient, implementation-ready pseudocode for two of the more complex criteria, matching the helper functions in \texttt{ga\_mixin.py}. All variables are defined for clarity.
+
+\begin{algorithm}[H]
+\caption{Shortest $\alpha$-HDI for a parameter sample}
+\begin{algorithmic}[1]
+\REQUIRE Sample $\mathcal{X}=\{x_1,\dots,x_n\}$ for parameter $p_j$; desired coverage $\alpha\in(0,1)$ (default $0.68$)
+\STATE $v \leftarrow \mathrm{sort}(\mathcal{X})$ ascending \hfill // Sort the sample values
+\STATE $k \leftarrow \max\{1, \lfloor \alpha n \rceil\}$ \hfill // Number of points in the interval
+\STATE $w^\star \leftarrow +\infty$, $s^\star \leftarrow 1$ \hfill // Initialize best width and start index
+\FOR{$s=1$ to $n-k+1$}
+    \STATE $w \leftarrow v_{s+k-1} - v_s$ \hfill // Width of current window
+    \IF{$w < w^\star$} $w^\star\leftarrow w$, $s^\star\leftarrow s$ \ENDIF
+\ENDFOR
+\STATE \textbf{return} $[v_{s^\star},\; v_{s^\star+k-1}]$ \hfill // Shortest interval found
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Top-$q$ performance P5--P95}
+\begin{algorithmic}[1]
+\REQUIRE Paired samples $\{(x^{(r)}, f^{(r)})\}_{r=1}^R$ for parameter $p_j$ and fitness; top fraction $q\in(0,1)$ (e.g., $q=0.25$)
+\STATE $\tau \leftarrow Q_{\{f^{(r)}\}}(q)$ \hfill // Fitness threshold for top $q$ fraction
+\STATE $\mathcal{J} \leftarrow \{ r:\ f^{(r)} \le \tau \}$ \hfill // Indices of top-performing runs
+\STATE $\mathcal{X}^{q} \leftarrow \{ x^{(r)}:\ r\in\mathcal{J}\}$ \hfill // Parameter values from top runs
+\STATE $L \leftarrow Q_{\mathcal{X}^{q}}(0.05)$, $U \leftarrow Q_{\mathcal{X}^{q}}(0.95)$ \hfill // 5th and 95th percentiles
+\STATE \textbf{return} $[L, U]$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Aggregation, comparison, and decision rules}
+Once all per-criterion intervals $[L^{(c)}_j, U^{(c)}_j]$ are computed for each parameter $p_j$, we aggregate and compare them using the following metrics and rules:
+\begin{itemize}
+    \item \textbf{Width and center:} For each criterion $c$, the width is $W^{(c)}_j=U^{(c)}_j-L^{(c)}_j$ and the center is $C^{(c)}_j=(U^{(c)}_j+L^{(c)}_j)/2$. These summarize the size and location of each interval.
+    \item \textbf{Union band:} The union interval $[L^{\cup}_j, U^{\cup}_j]=[\min_c L^{(c)}_j,\; \max_c U^{(c)}_j]$ covers all values included by any criterion.
+    \item \textbf{Intersection band:} The intersection $[L^{\cap}_j, U^{\cap}_j]=[\max_c L^{(c)}_j,\; \min_c U^{(c)}_j]$ is the region where all intervals overlap (if non-empty).
+    \item \textbf{Majority intersection:} To avoid bias from a single criterion, we can intersect only those intervals supported by at least $M$ criteria (e.g., $M=3$ out of 6).
+    \item \textbf{Consensus score:} $S^{\text{cons}}_j = \dfrac{\max\{0,\,U^{\cap}_j-L^{\cap}_j\}}{\max\{\varepsilon,\,U^{\cup}_j-L^{\cup}_j\}}$, where $\varepsilon\ll1$ prevents division by zero. This score quantifies the degree of agreement among criteria (1 = perfect consensus, 0 = no overlap).
+    \item \textbf{Pairwise Intersection-over-Union (IoU):} For any two criteria $c_1$ and $c_2$, $\mathrm{IoU}^{(c_1,c_2)}_j = \dfrac{\max\{0,\,\min(U^{(c_1)}_j,U^{(c_2)}_j)-\max(L^{(c_1)}_j,L^{(c_2)}_j)\}}{\max\{\varepsilon,\,\max(U^{(c_1)}_j,U^{(c_2)}_j)-\min(L^{(c_1)}_j,L^{(c_2)}_j)\}}$ measures the overlap between intervals.
+    \item \textbf{Normalized width:} $\tilde W^{(c)}_j = W^{(c)}_j/\max\{\varepsilon,\,U^{\cup}_j-L^{\cup}_j\}$ expresses each interval’s width as a fraction of the union width, allowing direct comparison of compactness across criteria.
 \end{itemize}
 
-Higher selection intensity leads to faster convergence but may cause premature convergence to local optima. The selection intensity measures how much better the selected individuals are compared to the population average, normalized by the population's fitness diversity.
-
-\textbf{Tournament Selection Probability:} For tournament size $k$, the probability of selecting the best individual is:
-
-\begin{equation}\label{Eq.tournament_probability}
-P(\text{select best}) = 1 - \left(1 - \frac{1}{N}\right)^k
-\end{equation}
-
-This equation shows that larger tournament sizes increase the selection pressure, making it more likely to select the best individuals. The probability approaches 1 as the tournament size increases, ensuring that the best individual is almost always selected in large tournaments.
-
-\subsubsection{Crossover Operations and Genetic Recombination}
-
-Crossover operations combine genetic material from parent solutions to create offspring with potentially improved characteristics.
-
-\textbf{Blend Crossover (BLX-$\alpha$):} The primary crossover operator used in the implementation:
-
-\begin{equation}\label{Eq.blend_crossover}
-x_{offspring,j} = x_{parent1,j} + \alpha \cdot (x_{parent2,j} - x_{parent1,j})
-\end{equation}
-
-where $\alpha$ is a random number in the range $[-\alpha_{blend}, 1 + \alpha_{blend}]$ with $\alpha_{blend} = 0.5$. This operator creates offspring that are linear combinations of their parents, allowing for exploration of the space between parent solutions. The parameter $\alpha_{blend}$ controls the exploration range beyond the parent values.
-
-\textbf{Crossover Probability:} The probability of applying crossover to a pair of parents:
-
-\begin{equation}\label{Eq.crossover_probability}
-P(\text{crossover}) = p_c
-\end{equation}
-
-where $p_c$ is the crossover probability (typically 0.7-0.9). This parameter controls the balance between exploration (through crossover) and exploitation (through selection).
-
-\textbf{Genetic Diversity Maintenance:} The diversity after crossover can be measured as:
-
-\begin{equation}\label{Eq.crossover_diversity}
-D_{after} = D_{before} \cdot (1 - p_c \cdot \text{similarity}_{parents})
-\end{equation}
-
-where $\text{similarity}_{parents}$ measures the similarity between parent solutions. This equation shows that crossover between similar parents reduces population diversity. The similarity measure can be computed as the normalized Euclidean distance between parent vectors.
-
-\subsubsection{Mutation Operators and Exploration}
-
-Mutation operators introduce random variations to maintain population diversity and enable exploration of new regions in the search space.
-
-\textbf{Gaussian Mutation:} The primary mutation operator for real-valued parameters:
-
-\begin{equation}\label{Eq.gaussian_mutation}
-x_{mutated,j} = x_{original,j} + \mathcal{N}(0, \sigma_j^2)
-\end{equation}
-
-where $\mathcal{N}(0, \sigma_j^2)$ is a Gaussian random variable with zero mean and variance $\sigma_j^2$. This mutation operator adds normally distributed noise to the parameters, allowing for local exploration around the current solution.
-
-\textbf{Mutation Strength:} The mutation strength is adapted based on the parameter range:
-
-\begin{equation}\label{Eq.mutation_strength}
-\sigma_j = 0.1 \cdot (x_{U,j} - x_{L,j})
-\end{equation}
-
-This ensures that mutation strength is proportional to the parameter range, allowing for appropriate exploration of each parameter's domain. The factor 0.1 ensures that mutations are typically small relative to the parameter range.
-
-\textbf{Mutation Probability:} The probability of mutating each parameter:
-
-\begin{equation}\label{Eq.mutation_probability}
-P(\text{mutate parameter } j) = p_m
-\end{equation}
-
-where $p_m$ is the mutation probability (typically 0.01-0.1). This parameter controls the exploration-exploitation balance.
-
-\textbf{Exploration-Exploitation Balance:} The balance is quantified by the exploration ratio:
-
-\begin{equation}\label{Eq.exploration_ratio}
-R_{explore} = \frac{\text{number of new regions visited}}{\text{total evaluations}}
-\end{equation}
-
-This metric helps monitor whether the algorithm is exploring new areas of the search space or exploiting known good regions. A higher exploration ratio indicates more exploration, while a lower ratio indicates more exploitation.
-
-\subsubsection{Elitism and Population Replacement}
-
-Elitism ensures that the best solutions are preserved across generations, guaranteeing monotonic improvement in solution quality.
-
-\textbf{Elitism Strategy:} The best individual is preserved with probability 1:
-
-\begin{equation}\label{Eq.elitism_probability}
-P(\text{preserve best}) = 1
-\end{equation}
-
-This ensures that the best solution found so far is never lost during the evolutionary process. Elitism provides a guarantee that the best fitness value will never decrease from generation to generation.
-
-\textbf{Population Replacement:} The new population is formed through:
-
-\begin{equation}\label{Eq.population_replacement}
-P(t+1) = \{\mathbf{x}_{best}(t)\} \cup \{\mathbf{x}_{offspring,1}, \mathbf{x}_{offspring,2}, \ldots, \mathbf{x}_{offspring,N-1}\}
-\end{equation}
-
-This equation shows that the new population consists of the best individual from the previous generation plus the offspring created through crossover and mutation. The union operation $\cup$ ensures that the best individual is included in the new population.
-
-\textbf{Generation Gap:} The fraction of population replaced each generation:
-
-\begin{equation}\label{Eq.generation_gap}
-G = \frac{N-1}{N} = 1 - \frac{1}{N}
-\end{equation}
-
-This metric indicates how much of the population is replaced each generation, with larger populations having a smaller generation gap. The generation gap approaches 1 as the population size increases, indicating that almost the entire population is replaced in large populations.
-
-\subsection{Algorithmic Implementation}
-
-\subsubsection{Population Initialization Strategies}
-
-The initialization of the population is crucial for the success of genetic algorithms, as it determines the starting point for the evolutionary process.
-
-\textbf{Random Initialization:} The most common initialization strategy generates random individuals within the parameter bounds:
-
-\begin{equation}\label{Eq.random_initialization}
-x_{i,j} = x_{L,j} + (x_{U,j} - x_{L,j}) \cdot U(0,1)
-\end{equation}
-
-where $U(0,1)$ is a uniform random variable between 0 and 1. This strategy ensures that the initial population covers the entire search space.
-
-\textbf{Quasi-Monte Carlo Initialization:} For better coverage of the search space, quasi-Monte Carlo methods can be used:
-
-\begin{equation}\label{Eq.qmc_initialization}
-x_{i,j} = x_{L,j} + (x_{U,j} - x_{L,j}) \cdot \phi_i^{(j)}
-\end{equation}
-
-where $\phi_i^{(j)}$ is the $i$-th point in a low-discrepancy sequence for dimension $j$. This approach provides more uniform coverage of the search space compared to random initialization.
-
-\textbf{Sobol Sequence Initialization:} The Sobol sequence is a specific type of low-discrepancy sequence that provides excellent coverage:
-
-\begin{equation}\label{Eq.sobol_initialization}
-\mathbf{x}_i = \mathbf{x}_L + (\mathbf{x}_U - \mathbf{x}_L) \odot \mathbf{s}_i
-\end{equation}
-
-where $\mathbf{s}_i$ is the $i$-th Sobol sequence point and $\odot$ represents element-wise multiplication. The Sobol sequence ensures that the initial population has good coverage of the search space.
-
-\textbf{Latin Hypercube Sampling:} Latin Hypercube Sampling (LHS) ensures that each parameter is sampled uniformly across its range:
-
-\begin{equation}\label{Eq.lhs_initialization}
-x_{i,j} = x_{L,j} + (x_{U,j} - x_{L,j}) \cdot \frac{\pi_j(i) + U(0,1)}{N}
-\end{equation}
-
-where $\pi_j$ is a random permutation of $\{1, 2, \ldots, N\}$ for parameter $j$. This approach ensures that each parameter is sampled uniformly across its range.
-
-\subsubsection{Generation Evolution Process}
-
-The generation evolution process describes how the population changes from one generation to the next through the application of genetic operators.
-
-\textbf{Selection Process:} The selection process chooses individuals for reproduction based on their fitness:
-
-\begin{equation}\label{Eq.selection_process}
-\mathbf{x}_{selected} = \arg\min_{\mathbf{x} \in \mathcal{T}} f(\mathbf{x})
-\end{equation}
-
-where $\mathcal{T}$ is the tournament set and $f(\mathbf{x})$ is the fitness function. Tournament selection is used because it is robust and doesn't require knowledge of the entire population's fitness distribution.
-
-\textbf{Crossover Process:} The crossover process combines genetic material from two parents to create offspring:
-
-\begin{equation}\label{Eq.crossover_process}
-\mathbf{x}_{offspring} = \mathbf{x}_{parent1} + \alpha \cdot (\mathbf{x}_{parent2} - \mathbf{x}_{parent1})
-\end{equation}
-
-where $\alpha$ is a random number in the range $[-\alpha_{blend}, 1 + \alpha_{blend}]$ with $\alpha_{blend} = 0.5$. This blend crossover operator allows for exploration beyond the convex hull of the parent solutions.
-
-\textbf{Mutation Process:} The mutation process introduces random variations to maintain diversity:
-
-\begin{equation}\label{Eq.mutation_process}
-x_{mutated,j} = x_{original,j} + \mathcal{N}(0, \sigma_j^2)
-\end{equation}
-
-where $\mathcal{N}(0, \sigma_j^2)$ is a Gaussian random variable with zero mean and variance $\sigma_j^2$. The mutation strength is adapted based on the parameter range to ensure appropriate exploration.
-
-\textbf{Population Replacement:} The new population is formed by combining the best individual from the previous generation with the offspring:
-
-\begin{equation}\label{Eq.population_replacement_detailed}
-P(t+1) = \{\mathbf{x}_{best}(t)\} \cup \{\mathbf{x}_{offspring,1}, \mathbf{x}_{offspring,2}, \ldots, \mathbf{x}_{offspring,N-1}\}
-\end{equation}
-
-This elitism strategy ensures that the best solution found so far is never lost during the evolutionary process.
-
-\subsubsection{Convergence Monitoring and Statistics}
-
-Monitoring the convergence of genetic algorithms is essential for understanding their behavior and determining when to stop the optimization process.
-
-\textbf{Fitness Statistics:} Several statistics are computed to monitor the convergence:
-
-\begin{equation}\label{Eq.fitness_statistics}
-\begin{aligned}
-\bar{f}(t) &= \frac{1}{N} \sum_{i=1}^{N} f(\mathbf{x}_i(t)) \\
-\sigma_f(t) &= \sqrt{\frac{1}{N-1} \sum_{i=1}^{N} (f(\mathbf{x}_i(t)) - \bar{f}(t))^2} \\
-f_{best}(t) &= \min_{i=1,\ldots,N} f(\mathbf{x}_i(t))
-\end{aligned}
-\end{equation}
-
-where $\bar{f}(t)$ is the average fitness, $\sigma_f(t)$ is the standard deviation of fitness values, and $f_{best}(t)$ is the best fitness at generation $t$.
-
-\textbf{Diversity Metrics:} Population diversity is measured using various metrics:
-
-\begin{equation}\label{Eq.diversity_metrics}
-D(t) = \frac{1}{N(N-1)} \sum_{i=1}^{N} \sum_{j=i+1}^{N} \|\mathbf{x}_i(t) - \mathbf{x}_j(t)\|
-\end{equation}
-
-where $D(t)$ is the average pairwise distance between individuals in the population. This metric helps monitor whether the population is converging or maintaining diversity.
-
-\textbf{Convergence Rate:} The convergence rate can be estimated as:
-
-\begin{equation}\label{Eq.convergence_rate}
-r(t) = \frac{f_{best}(t-1) - f_{best}(t)}{f_{best}(t-1)}
-\end{equation}
-
-This metric measures the relative improvement in the best fitness from generation $t-1$ to generation $t$. A low convergence rate indicates that the algorithm is approaching convergence.
-
-\subsubsection{Parameter Tuning and Calibration}
-
-The performance of genetic algorithms depends heavily on the choice of parameters, making parameter tuning an important aspect of the implementation.
-
-\textbf{Population Size Selection:} The population size should be large enough to maintain diversity but small enough to be computationally efficient:
-
-\begin{equation}\label{Eq.population_size_selection}
-N = \max(50, 10 \cdot L)
-\end{equation}
-
-where $L$ is the problem dimensionality. This rule of thumb ensures that the population size scales with the problem complexity.
-
-\textbf{Crossover Probability Tuning:} The crossover probability is typically set between 0.7 and 0.9:
-
-\begin{equation}\label{Eq.crossover_probability_tuning}
-p_c = 0.8
-\end{equation}
-
-This value provides a good balance between exploration and exploitation for most problems.
-
-\textbf{Mutation Probability Tuning:} The mutation probability is typically set between 0.01 and 0.1:
-
-\begin{equation}\label{Eq.mutation_probability_tuning}
-p_m = \frac{1}{L}
-\end{equation}
-
-where $L$ is the problem dimensionality. This rule ensures that the mutation probability scales inversely with the problem size.
-
-\textbf{Tournament Size Selection:} The tournament size controls the selection pressure:
-
-\begin{equation}\label{Eq.tournament_size_selection}
-k = 3
-\end{equation}
-
-This value provides moderate selection pressure, which is suitable for most optimization problems.
-
-\textbf{Parameter Sensitivity Analysis:} The sensitivity of algorithm performance to parameter changes can be analyzed using:
-
-\begin{equation}\label{Eq.parameter_sensitivity}
-S_p = \frac{\partial \text{Performance}}{\partial p} \cdot \frac{p}{\text{Performance}}
-\end{equation}
-
-where $S_p$ is the sensitivity index for parameter $p$. This metric helps identify which parameters have the greatest impact on algorithm performance.
-
-The traditional genetic algorithm provides a solid foundation for optimization, but its limitations in high-dimensional problems like DVA optimization necessitate the development of advanced techniques. The next sections will explore these limitations in detail and introduce advanced features that address them.
-
-
-
-\section{Limitations of Traditional Genetic Algorithms}
-
-Despite the theoretical foundations and algorithmic sophistication of traditional genetic algorithms, they exhibit significant limitations when applied to complex, high-dimensional optimization problems such as DVA design. This section systematically analyzes these limitations, providing both theoretical insights and practical evidence that motivate the development of advanced genetic algorithm techniques.
-
-\subsection{Theoretical Limitations}
-
-\subsubsection{Local Optima Trapping}
-
-Traditional genetic algorithms are particularly susceptible to local optima trapping in complex, multimodal fitness landscapes such as those encountered in DVA optimization. The 48-dimensional parameter space creates an exponentially complex landscape with numerous local optima that can trap the algorithm before reaching the global optimum.
-
-The fundamental issue lies in the nature of the DVA optimization landscape, which exhibits multiple distinct regions of good performance separated by valleys of poor performance. Each local optimum represents a valid DVA configuration that provides reasonable vibration control, but only one configuration represents the truly optimal solution. The algorithm can become trapped in any of these local optima, especially when the basin of attraction around a local optimum is large compared to the search space.
-
-In the context of DVA optimization, local optima arise from several sources. Different combinations of mass ratios, stiffness parameters, and damping coefficients can produce similar levels of vibration suppression, creating multiple valid solutions. Additionally, the complex interactions between the 48 parameters create intricate fitness surfaces where small changes in certain parameter combinations can lead to significant performance variations, while other combinations may have minimal impact.
-
-The traditional genetic algorithm's reliance on local search through crossover and mutation makes it particularly vulnerable to this trapping. When the population converges toward a local optimum, the genetic operators tend to explore the immediate vicinity of that optimum rather than jumping to distant regions where the global optimum might lie. This local search behavior, while effective for exploitation, severely limits the algorithm's ability to escape local optima once trapped.
-
-Furthermore, the dimensionality curse exacerbates this problem. In high-dimensional spaces, the volume of the search space grows exponentially, making it increasingly difficult for random mutations to escape local optima. The probability of a random mutation leading to a better solution decreases dramatically as dimensionality increases, effectively trapping the algorithm in suboptimal regions.
-
-\subsubsection{Premature Convergence}
-
-Premature convergence represents one of the most critical limitations of traditional genetic algorithms, particularly in high-dimensional optimization problems. This phenomenon occurs when the population loses diversity too quickly, causing the algorithm to converge to suboptimal solutions before exploring the full search space.
-
-The mechanism of premature convergence begins with the selection process, which inherently favors individuals with higher fitness. As generations progress, the population becomes increasingly dominated by similar high-fitness individuals, reducing genetic diversity. This reduction in diversity limits the algorithm's ability to explore new regions of the search space, effectively confining the search to a small subset of the total parameter space.
-
-In DVA optimization, premature convergence manifests when the algorithm discovers a reasonable solution early in the optimization process and then focuses all its efforts on refining that solution rather than exploring alternative configurations. This is particularly problematic because the first good solution found may not be the best possible solution, and the algorithm may miss superior configurations that exist in unexplored regions of the parameter space.
-
-The tournament selection mechanism, while more robust than fitness-proportional selection, still contributes to premature convergence. As the population becomes more homogeneous, tournaments increasingly select the same individuals, further reducing diversity. The crossover operator, which combines genetic material from similar parents, produces offspring that are also similar to their parents, accelerating the convergence process.
-
-Mutation, which should provide diversity, becomes less effective as the population converges. When the population is clustered around a local optimum, mutations that move individuals away from that optimum are likely to produce worse solutions and be eliminated by selection. This creates a feedback loop where selection pressure drives convergence, and convergence reduces the effectiveness of mutation in maintaining diversity.
-
-The problem is particularly severe in high-dimensional spaces because the number of possible solutions grows exponentially with dimensionality, making it extremely difficult to maintain sufficient diversity to explore the vast search space effectively. Traditional genetic algorithms lack mechanisms to detect and counteract premature convergence, leaving them vulnerable to this fundamental limitation.
-
-\subsubsection{Parameter Sensitivity}
-
-Traditional genetic algorithms exhibit high sensitivity to parameter settings, making them difficult to tune for optimal performance across different problem instances. This sensitivity is particularly pronounced in high-dimensional problems where parameter interactions create complex dynamics that are difficult to predict and control.
-
-The core issue stems from the fact that genetic algorithm performance depends on the delicate balance between exploration and exploitation, which is controlled by several key parameters: population size, crossover probability, mutation probability, and tournament size. Small changes in any of these parameters can have dramatic effects on algorithm performance, making parameter tuning a critical but challenging task.
-
-Population size affects both the diversity of the initial population and the algorithm's ability to maintain diversity throughout the optimization process. Too small a population may not provide sufficient diversity to explore the search space effectively, while too large a population may be computationally expensive and slow convergence. The optimal population size depends on the specific characteristics of the optimization problem, making it difficult to determine a priori.
-
-Crossover probability controls the balance between exploration and exploitation. High crossover probabilities encourage the combination of genetic material from different parents, promoting exploration, while low probabilities favor the preservation of good solutions, promoting exploitation. The optimal crossover probability depends on the fitness landscape characteristics and the current stage of optimization.
-
-Mutation probability is perhaps the most critical parameter, as it directly controls the algorithm's ability to escape local optima and maintain diversity. Too low a mutation probability may lead to premature convergence, while too high a probability may disrupt good solutions and slow convergence. The optimal mutation probability depends on the problem dimensionality and the complexity of the fitness landscape.
-
-Tournament size controls selection pressure, with larger tournaments increasing the probability of selecting the best individuals. This affects the rate of convergence and the balance between exploration and exploitation. The optimal tournament size depends on the desired selection pressure and the characteristics of the optimization problem.
-
-The sensitivity to these parameters is exacerbated by their interactions. Changes in one parameter can affect the optimal settings of other parameters, creating a complex optimization problem in itself. For example, increasing population size may require adjustments to mutation probability to maintain the same level of diversity.
-
-In DVA optimization, this parameter sensitivity is particularly problematic because the fitness landscape is complex and multimodal, with multiple local optima and intricate parameter interactions. The optimal parameter settings may vary depending on the specific DVA configuration being optimized, making it difficult to develop general guidelines for parameter tuning.
-
-\subsubsection{Limited Exploration-Exploitation Balance}
-
-Traditional genetic algorithms struggle to maintain an optimal balance between exploration and exploitation, particularly in high-dimensional spaces. The fixed parameter settings cannot adapt to the changing requirements during optimization, leading to suboptimal performance.
-
-The exploration-exploitation dilemma is fundamental to optimization algorithms. Exploration involves searching new regions of the search space to discover potentially better solutions, while exploitation involves refining known good solutions to improve their quality. The optimal balance between these two objectives changes during the optimization process, requiring adaptive control mechanisms that traditional genetic algorithms lack.
-
-In the early stages of optimization, the algorithm should focus on exploration to discover promising regions of the search space. This requires high mutation rates, large population sizes, and low selection pressure to maintain diversity and encourage broad search. As the optimization progresses and good solutions are discovered, the focus should shift toward exploitation, with lower mutation rates, smaller population sizes, and higher selection pressure to refine the best solutions.
-
-Traditional genetic algorithms use fixed parameter settings throughout the optimization process, making it impossible to adapt to these changing requirements. The parameters are typically set based on general guidelines or empirical tuning, but they remain constant regardless of the current state of the optimization. This rigidity limits the algorithm's ability to achieve optimal performance across different stages of the optimization process.
-
-The problem is particularly severe in high-dimensional spaces like DVA optimization, where the search space is vast and complex. The fixed parameter settings may be appropriate for some regions of the search space but inappropriate for others, leading to inefficient search and suboptimal results. The algorithm may spend too much time exploring unproductive regions or converge too quickly to suboptimal solutions.
-
-Furthermore, the optimal balance between exploration and exploitation depends on the specific characteristics of the optimization problem, including the number of local optima, the ruggedness of the fitness landscape, and the dimensionality of the search space. Traditional genetic algorithms cannot adapt to these problem-specific characteristics, making them less effective for complex optimization problems.
-
-The lack of adaptive control also makes it difficult to respond to optimization dynamics such as stagnation, where the algorithm makes little progress for extended periods. In such cases, the algorithm should increase exploration to escape the current region and discover new promising areas. Traditional genetic algorithms lack mechanisms to detect stagnation and adjust their behavior accordingly.
-
-\subsection{Practical Limitations}
-
-\subsubsection{Computational Efficiency Issues}
-
-Traditional genetic algorithms suffer from computational inefficiency, particularly in complex optimization problems requiring expensive fitness evaluations. The DVA optimization problem requires computationally intensive FRF analysis for each fitness evaluation, making computational efficiency a critical concern.
-
-The computational cost of traditional genetic algorithms stems from several factors. First, the algorithm must evaluate the fitness of every individual in the population for every generation. In DVA optimization, each fitness evaluation requires solving the system equations across a range of frequencies, performing matrix operations, and computing various performance metrics. This makes each fitness evaluation computationally expensive, especially when the frequency range is large and the system has many degrees of freedom.
-
-Second, traditional genetic algorithms typically require large populations and many generations to achieve good results, especially in high-dimensional problems. The population size must be large enough to maintain sufficient diversity to explore the vast search space effectively. The number of generations must be large enough to allow the algorithm to converge to good solutions. This combination of large populations and many generations results in a large total number of fitness evaluations.
-
-Third, the genetic operators themselves contribute to computational overhead. Crossover and mutation operations require computational resources, and the selection process involves comparing fitness values across the population. While these costs are typically small compared to fitness evaluation costs, they can become significant in large populations or when the fitness function is simple.
-
-The computational inefficiency is particularly problematic in DVA optimization because the fitness evaluation involves complex numerical computations. The FRF analysis requires matrix inversions, eigenvalue computations, and signal processing operations that are computationally intensive. When these operations must be performed thousands or tens of thousands of times during a single optimization run, the total computational cost becomes prohibitive.
-
-Furthermore, the computational cost scales poorly with problem dimensionality. As the number of parameters increases, the search space grows exponentially, requiring larger populations and more generations to achieve good results. This exponential scaling makes traditional genetic algorithms impractical for high-dimensional problems like DVA optimization with 48 parameters.
-
-The computational inefficiency also limits the ability to perform multiple optimization runs or parameter tuning studies. When each optimization run takes hours or days to complete, it becomes impractical to explore different parameter settings or perform statistical analysis of algorithm performance. This limitation makes it difficult to develop robust optimization strategies for complex problems.
-
-\subsubsection{Parameter Tuning Complexity}
-
-The process of tuning genetic algorithm parameters for optimal performance is complex and time-consuming, especially in high-dimensional problems where parameter interactions create non-linear effects that are difficult to predict and control.
-
-Parameter tuning involves finding the optimal values for several key parameters: population size, crossover probability, mutation probability, and tournament size. Each of these parameters affects algorithm performance in complex ways, and their effects are often interdependent, making the tuning process a challenging optimization problem in itself.
-
-The complexity of parameter tuning stems from several factors. First, the optimal parameter settings depend on the specific characteristics of the optimization problem, including the dimensionality, the complexity of the fitness landscape, and the desired balance between exploration and exploitation. Different problems require different parameter settings, making it difficult to develop general guidelines.
-
-Second, the parameters interact with each other in complex ways. For example, the optimal mutation probability depends on the population size, as larger populations can tolerate higher mutation rates without losing diversity. Similarly, the optimal crossover probability depends on the selection pressure, which is controlled by the tournament size. These interactions make it difficult to tune parameters independently.
-
-Third, the optimal parameter settings may change during the optimization process. As the algorithm progresses and the population converges, the requirements for exploration and exploitation change, requiring different parameter settings. Traditional genetic algorithms cannot adapt to these changes, making it impossible to achieve optimal performance throughout the optimization process.
-
-Fourth, the evaluation of parameter settings requires multiple optimization runs to account for the stochastic nature of genetic algorithms. A single run may not provide reliable information about the performance of a particular parameter setting, requiring multiple runs to obtain statistically significant results. This multiplies the computational cost of parameter tuning.
-
-The parameter tuning process is particularly challenging for DVA optimization because of the complexity of the fitness landscape and the high dimensionality of the problem. The 48-dimensional parameter space creates a vast search space with multiple local optima and complex parameter interactions, making it difficult to determine optimal parameter settings.
-
-Furthermore, the computational cost of each optimization run makes it impractical to perform extensive parameter tuning studies. When each run takes hours or days to complete, the total time required for comprehensive parameter tuning becomes prohibitive, forcing researchers to rely on general guidelines or limited empirical studies.
-
-The lack of systematic approaches to parameter tuning also contributes to the complexity. While some guidelines exist for setting genetic algorithm parameters, these guidelines are often based on empirical studies of simple problems and may not apply to complex, high-dimensional problems like DVA optimization. The development of systematic parameter tuning methods remains an active research area.
-
-\subsubsection{Problem-Specific Adaptation}
-
-Traditional genetic algorithms lack mechanisms for adapting to the specific characteristics of the optimization problem. The fixed parameter settings cannot respond to changing optimization requirements during the search process, limiting their effectiveness for complex problems.
-
-The fundamental issue is that traditional genetic algorithms treat all optimization problems the same way, using the same genetic operators and parameter settings regardless of the problem characteristics. This one-size-fits-all approach fails to take advantage of problem-specific information that could improve algorithm performance.
-
-In DVA optimization, the problem has specific characteristics that could be exploited to improve algorithm performance. For example, the parameters have physical meanings and constraints that could be used to guide the search process. Mass ratios must be positive, damping coefficients must be non-negative, and certain parameter combinations may be physically impossible or undesirable. Traditional genetic algorithms cannot incorporate this domain knowledge to improve their performance.
-
-The fitness landscape of DVA optimization has specific characteristics that could be exploited. The landscape is multimodal with multiple local optima, but these local optima may have different characteristics. Some may represent physically meaningful solutions while others may be numerical artifacts. Traditional genetic algorithms cannot distinguish between these different types of local optima and may converge to suboptimal solutions.
-
-The optimization process itself has specific dynamics that could be exploited. For example, the algorithm may discover that certain parameter combinations consistently produce good results, while others consistently produce poor results. This information could be used to guide the search process toward promising regions and away from unpromising regions. Traditional genetic algorithms cannot learn from this information and adapt their behavior accordingly.
-
-The problem-specific adaptation is particularly important in high-dimensional problems like DVA optimization, where the search space is vast and complex. Without adaptation to problem-specific characteristics, the algorithm must rely on random search to explore the vast parameter space, making it inefficient and unlikely to find optimal solutions.
-
-Furthermore, the optimization requirements may change during the search process. For example, the algorithm may need to focus on exploration in the early stages to discover promising regions, then shift to exploitation in later stages to refine good solutions. Traditional genetic algorithms cannot adapt to these changing requirements, leading to suboptimal performance.
-
-The lack of problem-specific adaptation also makes it difficult to incorporate user preferences or constraints. In DVA optimization, users may have preferences for certain types of solutions or constraints on parameter values. Traditional genetic algorithms cannot incorporate these preferences or constraints to guide the search process toward desirable solutions.
-
-\subsubsection{Convergence Speed and Quality Trade-offs}
-
-Traditional genetic algorithms face fundamental trade-offs between convergence speed and solution quality. These trade-offs are particularly pronounced in high-dimensional problems where the search space is vast and complex, making it difficult to achieve both fast convergence and high solution quality.
-
-The convergence speed depends on several factors, including the selection pressure, the mutation rate, and the population size. Higher selection pressure leads to faster convergence by favoring the best individuals more strongly, but it also increases the risk of premature convergence to suboptimal solutions. Higher mutation rates help maintain diversity and escape local optima, but they also slow convergence by disrupting good solutions. Larger population sizes provide more diversity and better exploration, but they also increase computational cost and slow convergence.
-
-The solution quality depends on the algorithm's ability to find and converge to the global optimum or a high-quality local optimum. This requires sufficient exploration to discover promising regions of the search space and sufficient exploitation to refine good solutions. The trade-off between exploration and exploitation directly affects solution quality.
-
-In traditional genetic algorithms, these factors are controlled by fixed parameters that cannot be adjusted during the optimization process. This creates a fundamental trade-off where improving one aspect (e.g., convergence speed) typically comes at the cost of the other aspect (e.g., solution quality).
-
-The trade-off is particularly severe in high-dimensional problems like DVA optimization. The vast search space requires extensive exploration to discover promising regions, but the computational cost of exploration limits the time available for exploitation. The algorithm must balance the need for broad search with the need for focused refinement, making it difficult to achieve both fast convergence and high solution quality.
-
-The trade-off also depends on the specific characteristics of the optimization problem. Problems with many local optima require more exploration to avoid getting trapped in suboptimal solutions, while problems with smooth fitness landscapes can benefit from more exploitation to refine good solutions. Traditional genetic algorithms cannot adapt to these problem-specific characteristics, making it difficult to achieve optimal performance.
-
-Furthermore, the trade-off may change during the optimization process. In the early stages, the algorithm should focus on exploration to discover promising regions, while in later stages, it should focus on exploitation to refine good solutions. Traditional genetic algorithms cannot adapt to these changing requirements, leading to suboptimal performance throughout the optimization process.
-
-The trade-off also affects the reliability of the optimization results. Fast convergence may lead to suboptimal solutions if the algorithm converges to a local optimum, while slow convergence may be computationally expensive and impractical for real-world applications. Traditional genetic algorithms cannot balance these competing objectives effectively.
-
-\subsection{Performance Analysis}
-
-\subsubsection{Convergence Rate Analysis}
-
-The convergence rate of traditional genetic algorithms is limited by fundamental theoretical constraints that become more severe in high-dimensional problems. Understanding these limitations is crucial for developing more effective optimization strategies.
-
-The convergence rate depends on several factors, including the selection pressure, the mutation rate, the population size, and the characteristics of the fitness landscape. In traditional genetic algorithms, these factors are controlled by fixed parameters that cannot be adjusted during the optimization process, limiting the algorithm's ability to achieve optimal convergence rates.
-
-The selection pressure affects the convergence rate by controlling how strongly the algorithm favors the best individuals. Higher selection pressure leads to faster convergence by ensuring that good solutions are preserved and propagated through the population. However, high selection pressure also increases the risk of premature convergence to suboptimal solutions, particularly in multimodal fitness landscapes.
-
-The mutation rate affects the convergence rate by controlling the balance between exploration and exploitation. Higher mutation rates help maintain diversity and escape local optima, but they also slow convergence by disrupting good solutions. Lower mutation rates promote faster convergence but increase the risk of premature convergence.
-
-The population size affects the convergence rate by controlling the diversity of the population. Larger populations provide more diversity and better exploration, but they also increase computational cost and slow convergence. Smaller populations converge faster but may not provide sufficient diversity to explore the search space effectively.
-
-The characteristics of the fitness landscape also affect the convergence rate. Landscapes with many local optima require more exploration to avoid getting trapped in suboptimal solutions, while landscapes with smooth fitness surfaces can benefit from more exploitation to refine good solutions. Traditional genetic algorithms cannot adapt to these landscape characteristics, making it difficult to achieve optimal convergence rates.
-
-In high-dimensional problems like DVA optimization, the convergence rate is further limited by the dimensionality curse. The vast search space requires extensive exploration to discover promising regions, but the computational cost of exploration limits the time available for convergence. The algorithm must balance the need for broad search with the need for focused convergence, making it difficult to achieve fast convergence rates.
-
-The convergence rate also depends on the quality of the initial population. If the initial population contains good solutions, the algorithm can converge more quickly. However, traditional genetic algorithms typically use random initialization, which may not provide good starting points for the optimization process.
-
-The lack of adaptive control mechanisms also limits the convergence rate. Traditional genetic algorithms cannot adjust their parameters based on the current state of the optimization, making it difficult to achieve optimal convergence rates throughout the optimization process. The algorithm may converge too quickly in some stages and too slowly in others, leading to suboptimal overall performance.
-
-\subsubsection{Diversity Loss Mechanisms}
-
-Diversity loss occurs through multiple mechanisms that limit the algorithm's exploration capabilities. Understanding these mechanisms is crucial for developing effective countermeasures and improving algorithm performance.
-
-The primary mechanism of diversity loss is selection pressure, which inherently favors individuals with higher fitness. As generations progress, the population becomes increasingly dominated by similar high-fitness individuals, reducing genetic diversity. This reduction in diversity limits the algorithm's ability to explore new regions of the search space, effectively confining the search to a small subset of the total parameter space.
-
-The selection pressure is particularly strong in tournament selection, where the best individuals in each tournament are selected for reproduction. As the population becomes more homogeneous, tournaments increasingly select the same individuals, further reducing diversity. The tournament size controls the selection pressure, with larger tournaments increasing the probability of selecting the best individuals.
-
-Crossover also contributes to diversity loss by combining genetic material from similar parents. When the population is clustered around a local optimum, crossover between similar individuals produces offspring that are also similar to their parents, accelerating the convergence process. The crossover probability controls the frequency of this effect, with higher probabilities leading to faster diversity loss.
-
-Mutation, which should provide diversity, becomes less effective as the population converges. When the population is clustered around a local optimum, mutations that move individuals away from that optimum are likely to produce worse solutions and be eliminated by selection. This creates a feedback loop where selection pressure drives convergence, and convergence reduces the effectiveness of mutation in maintaining diversity.
-
-The diversity loss is particularly severe in high-dimensional spaces because the number of possible solutions grows exponentially with dimensionality, making it extremely difficult to maintain sufficient diversity to explore the vast search space effectively. The population size required to maintain diversity grows exponentially with dimensionality, making it computationally impractical for high-dimensional problems.
-
-The diversity loss also depends on the characteristics of the fitness landscape. Landscapes with many local optima may trap the population in suboptimal regions, while landscapes with smooth fitness surfaces may allow the population to converge more quickly to good solutions. Traditional genetic algorithms cannot adapt to these landscape characteristics, making it difficult to maintain appropriate diversity levels.
-
-The lack of diversity maintenance mechanisms also contributes to the problem. Traditional genetic algorithms do not have explicit mechanisms to detect and counteract diversity loss, leaving them vulnerable to premature convergence. The algorithm may lose diversity too quickly, limiting its ability to explore the search space effectively.
-
-The diversity loss also affects the quality of the final solution. If the population loses diversity too quickly, the algorithm may converge to a suboptimal solution and miss better solutions that exist in unexplored regions of the search space. This is particularly problematic in multimodal optimization problems where multiple good solutions may exist.
-
-\subsubsection{Parameter Interaction Effects}
-
-Parameter interactions create complex dynamics that are difficult to predict and control. These interactions become exponentially more complex in high-dimensional problems, making it difficult to understand and optimize algorithm performance.
-
-The interactions between genetic algorithm parameters are complex and non-linear, making it difficult to predict the effects of parameter changes. For example, the optimal mutation probability depends on the population size, as larger populations can tolerate higher mutation rates without losing diversity. Similarly, the optimal crossover probability depends on the selection pressure, which is controlled by the tournament size.
-
-The interactions also depend on the characteristics of the optimization problem. Different problems may require different parameter settings, and the optimal settings for one problem may not be optimal for another. This makes it difficult to develop general guidelines for parameter tuning and requires problem-specific optimization.
-
-The interactions become more complex in high-dimensional problems like DVA optimization, where the fitness landscape is complex and multimodal. The vast search space and multiple local optima create intricate dynamics that are difficult to predict and control. Small changes in parameter settings may have large effects on algorithm performance, making parameter tuning a challenging task.
-
-The interactions also affect the stability of the optimization process. Some parameter combinations may lead to stable optimization with consistent performance, while others may lead to unstable optimization with highly variable performance. Understanding these interactions is crucial for developing robust optimization strategies.
-
-The lack of systematic approaches to understanding parameter interactions also contributes to the problem. While some research has been conducted on parameter interactions in genetic algorithms, the results are often limited to simple problems and may not apply to complex, high-dimensional problems like DVA optimization.
-
-The interactions also make it difficult to perform parameter tuning studies. When parameters interact in complex ways, it becomes difficult to isolate the effects of individual parameters and determine optimal settings. This requires comprehensive studies that explore the entire parameter space, which is computationally expensive and impractical for complex problems.
-
-The interactions also affect the scalability of genetic algorithms. As the problem dimensionality increases, the parameter interactions become more complex, making it difficult to develop effective parameter tuning strategies. This limits the applicability of traditional genetic algorithms to high-dimensional problems.
-
-\subsubsection{Scalability Limitations}
-
-Traditional genetic algorithms exhibit poor scalability with problem dimensionality and complexity. The performance degradation follows exponential relationships that make high-dimensional optimization extremely challenging.
-
-The primary scalability limitation stems from the exponential growth of the search space with dimensionality. As the number of parameters increases, the number of possible solutions grows exponentially, making it increasingly difficult to explore the search space effectively. The population size required to maintain sufficient diversity grows exponentially with dimensionality, making it computationally impractical for high-dimensional problems.
-
-The computational cost also scales poorly with dimensionality. Each fitness evaluation becomes more expensive as the number of parameters increases, and the total number of fitness evaluations required to achieve good results also increases. This creates a double penalty that makes traditional genetic algorithms impractical for high-dimensional problems.
-
-The convergence rate also degrades with dimensionality. The vast search space requires extensive exploration to discover promising regions, but the computational cost of exploration limits the time available for convergence. The algorithm must balance the need for broad search with the need for focused convergence, making it difficult to achieve fast convergence rates in high-dimensional problems.
-
-The diversity maintenance also becomes more challenging with dimensionality. The number of possible solutions grows exponentially, making it extremely difficult to maintain sufficient diversity to explore the vast search space effectively. The population size required to maintain diversity grows exponentially with dimensionality, making it computationally impractical.
-
-The parameter tuning also becomes more complex with dimensionality. The parameter interactions become more complex, making it difficult to develop effective parameter tuning strategies. The computational cost of parameter tuning studies also increases with dimensionality, making it impractical to perform comprehensive studies.
-
-The reliability of the optimization results also degrades with dimensionality. The vast search space makes it increasingly difficult to find the global optimum or even a high-quality local optimum. The algorithm may converge to suboptimal solutions or fail to converge at all, making the results unreliable.
-
-The applicability of traditional genetic algorithms to high-dimensional problems is also limited by the lack of problem-specific adaptation. Traditional genetic algorithms cannot adapt to the specific characteristics of high-dimensional problems, making them less effective than problem-specific optimization methods.
-
-The scalability limitations are particularly severe for DVA optimization, which involves 48 parameters and complex fitness landscapes. The exponential growth of the search space and the computational cost of fitness evaluations make traditional genetic algorithms impractical for this problem, necessitating the development of more advanced optimization techniques.
-
-These limitations clearly demonstrate the need for advanced genetic algorithm techniques that can overcome the fundamental constraints of traditional approaches. The next sections will explore these advanced features and their integration with genetic algorithms to create more effective optimization strategies for complex, high-dimensional problems like DVA optimization.
-
-\section{Advanced Genetic Algorithm Features}
-
-This section presents the advanced features implemented in the GAWorker.py system that address the fundamental limitations of traditional genetic algorithms. Each feature is designed to enhance specific aspects of the optimization process while maintaining seamless integration with the core genetic algorithm framework.
-
-\subsection{Reinforcement Learning Controller}
-
-The Reinforcement Learning Controller implements a Q-Learning framework to adaptively adjust genetic algorithm parameters based on real-time performance feedback. This controller represents a significant advancement over traditional fixed-parameter approaches by enabling the GA to learn optimal parameter configurations through experience.
-
-\subsubsection{Q-Learning Mathematical Foundation}
-
-The Q-Learning algorithm maintains a Q-table that stores the expected cumulative reward for each action in each state. The Q-value represents the long-term expected reward when taking action $a$ in state $s$:
-
-\begin{equation}\label{Eq.q_table_definition}
-Q(s, a) = \mathbb{E}\left[\sum_{k=0}^{\infty} \gamma^k R_{t+k+1} | S_t = s, A_t = a\right]
-\end{equation}
-
-where $\gamma \in [0,1]$ is the discount factor that determines the importance of future rewards relative to immediate rewards. A higher $\gamma$ emphasizes long-term rewards, while a lower $\gamma$ focuses on immediate gains.
-
-The Q-learning update rule implements temporal difference learning:
-
-\begin{equation}\label{Eq.q_learning_update}
-Q(s, a) \leftarrow Q(s, a) + \alpha \left[ R_t + \gamma \max_{a'} Q(s', a') - Q(s, a) \right]
-\end{equation}
-
-where $\alpha \in [0,1]$ is the learning rate controlling how much new information overrides old information, and $\max_{a'} Q(s', a')$ represents the maximum expected future reward from the next state.
-
-\subsubsection{State Space Design}
-
-The state space is designed to capture the fundamental dynamics of GA convergence:
-
-\begin{equation}\label{Eq.rl_state_space}
-\mathcal{S} = \{0, 1\}
-\end{equation}
-
-where:
+\noindent\textbf{Recommended range selection.} The following decision rules are used to select the final recommended interval for each parameter $p_j$:
+\begin{enumerate}[label=\textbf{R\arabic*}]
+    \item If the intersection band $[L^{\cap}_j, U^{\cap}_j]$ is non-empty and its width $W^{\cap}_j$ exceeds a minimal engineering tolerance, use this as the recommended range.
+    \item If the intersection is empty or too narrow, use the \emph{majority intersection} (intersection of at least $M$ criteria). If this is also empty, fall back to the shortest width $W^{(c)}_j$ among the robust criteria (HDI, IQR, TMAD).
+    \item For parameters that show strong sensitivity to performance (e.g., high correlation with fitness), prefer the \emph{Top-$q$} or \emph{HDI} interval, as these focus on elite or dense regions.
+    \item Always enforce physical or engineering bounds: clamp the final recommended interval $[L_j, U_j]$ to the allowed range $[\theta_j^{\min}, \theta_j^{\max}]$ for parameter $p_j$.
+\end{enumerate}
+
+\subsection{Diagnostics and visualization}
+To support interpretation and transparency, we generate two main types of diagnostics for each parameter:
+\begin{enumerate}
+    \item \textbf{Stacked interval bands:} For each parameter, we plot stacked, color-coded rectangles representing the intervals from all criteria. This visualization makes it easy to see where criteria agree or disagree, and to compare the widths and locations of the intervals.
+    \item \textbf{Width heatmap:} We construct a matrix where each row is a parameter and each column is a criterion, with entries showing the interval width $W^{(c)}_j$ (optionally normalized by the union width). This heatmap highlights which parameters are tightly constrained (stable) and which are more uncertain.
+\end{enumerate}
+
+\subsection{Statistical guidance on criterion choice}
+The choice of interval criterion should be guided by the characteristics of the data and the goals of the analysis:
 \begin{itemize}
-\item State 0: No improvement detected in the current generation (stagnation)
-\item State 1: Improvement detected (better fitness found)
+    \item \textbf{Small sample size ($R$) or heavy outliers:} Prefer \emph{TMAD} and \emph{IQR}, as these are most robust and stable.
+    \item \textbf{Skewed or multi-modal parameter distributions:} Use \emph{HDI}, which adapts to the actual density and can capture multiple modes or asymmetry.
+    \item \textbf{When the recommended range should reflect high performance:} Use \emph{Top-$q$}, which focuses on the best-performing solutions.
+    \item \textbf{When broader coverage is acceptable or desired:} Use \emph{P5--P95}, which includes most of the data while trimming only the extremes.
+    \item \textbf{When explicit, interpretable outlier handling is needed:} Use \emph{Tukey}, which applies a classical, well-understood rule for outlier exclusion.
 \end{itemize}
 
-The state transition occurs based on fitness improvement detection:
+\subsection{Complexity and implementation notes}
+The computational complexity of the statistical range synthesis procedure is dominated by the sorting operations required for quantile-based criteria. For each parameter, most criteria (such as IQR, P5--P95, Tukey, and HDI) require sorting the $R$ values collected from independent optimization runs, resulting in a per-parameter complexity of $O(R \log R)$. Simple quantile calculations (e.g., computing the median or a single percentile) can be performed in $O(R)$ time using selection algorithms, but in practice, sorting is used for flexibility and simplicity, especially when multiple quantiles or more complex intervals (like HDI or Tukey) are needed.
 
-\begin{equation}\label{Eq.state_transition}
-s_{t+1} = \begin{cases}
-1 & \text{if } f_{best}^{t+1} < f_{best}^t \\
-0 & \text{otherwise}
-\end{cases}
-\end{equation}
+Since the procedure is repeated for each of the $P$ parameters, the total computational cost scales as $O(P R \log R)$. This linear scaling in the number of parameters $P$ and near-linear scaling in the number of runs $R$ makes the method practical and efficient even for high-dimensional problems or when aggregating results from hundreds of optimization runs. 
 
-where $f_{best}^t$ represents the best fitness value at generation $t$.
+In the software implementation, the GUI leverages efficient, vectorized operations provided by NumPy and Pandas. These libraries allow for rapid computation of quantiles, sorting, and interval construction across all parameters and runs. The mapping from the mathematical definitions of each criterion to code is direct: for example, the IQR is computed using \texttt{numpy.percentile} or \texttt{pandas.Series.quantile}, and the HDI is implemented via a sliding window over the sorted samples. This ensures that the statistical analysis remains both robust and performant, supporting interactive exploration and visualization in the GUI.
 
-\subsubsection{Action Space Design}
+\subsection{End-to-end procedure (from optimization to ranges and comparison)}
+The following algorithm outlines the complete workflow, starting from the outputs of repeated optimization runs and culminating in the generation, comparison, and export of recommended parameter ranges. Each step is designed to ensure traceability, robustness, and transparency in the statistical synthesis process.
 
-The action space provides fine-grained control over GA parameters with comprehensive coverage of possible adjustments:
-
-\begin{equation}\label{Eq.rl_actions}
-\mathcal{A} = \{(dcx, dmu, pm) | dcx \in \Delta cx, dmu \in \Delta mu, pm \in \mathcal{P}\}
-\end{equation}
-
-The crossover and mutation deltas provide relative adjustments with high granularity:
-
-\begin{equation}\label{Eq.delta_sets}
-\Delta_{cx} = \Delta_{mu} = \{-1.0, -0.9, -0.8, \ldots, -0.01, 0.0, 0.01, \ldots, 0.9, 1.0\}
-\end{equation}
-
-The population multipliers enable both dramatic and subtle population size changes:
-
-\begin{equation}\label{Eq.pop_multipliers}
-\mathcal{P} = \{0.01, 0.02, \ldots, 0.98, 1.0, 1.02, \ldots, 10.0\}
-\end{equation}
-
-\subsubsection{Epsilon-Greedy Exploration Strategy}
-
-The action selection policy balances exploration and exploitation using an epsilon-greedy approach:
-
-\begin{equation}\label{Eq.epsilon_greedy}
-\pi(s) = \begin{cases}
-\text{random action } a \in \mathcal{A} & \text{with probability } \epsilon \\
-\arg\max_{a \in \mathcal{A}} Q(s, a) & \text{with probability } 1-\epsilon
-\end{cases}
-\end{equation}
-
-The exploration rate $\epsilon$ decays exponentially over time:
-
-\begin{equation}\label{Eq.epsilon_decay}
-\epsilon_{t+1} = \epsilon_t \times 0.95
-\end{equation}
-
-\subsubsection{Reward Function Design}
-
-The reward function balances multiple optimization objectives:
-
-\begin{equation}\label{Eq.rl_reward}
-R_t = \frac{\text{improvement}}{\text{time}} \times \frac{1}{\text{effort}} - \lambda \times |\text{diversity} - \text{target\_diversity}|
-\end{equation}
-
-where:
-\begin{itemize}
-\item $\text{improvement} = \max(0, f_{best}^{t-1} - f_{best}^t)$ measures fitness improvement
-\item $\text{time}$ represents generation execution time
-\item $\text{effort} = \max(1.0, \text{evaluations\_this\_generation})$ accounts for computational cost
-\item $\text{diversity} = \frac{\sigma}{\mu}$ is the coefficient of variation
-\item $\lambda$ is the diversity weight parameter
-\end{itemize}
-
-\subsubsection{Parameter Adjustment and Bounds Enforcement}
-
-When an action is selected, the new parameters are calculated and enforced within valid bounds:
-
-\begin{equation}\label{Eq.parameter_adjustment}
-\begin{aligned}
-\text{new\_cx} &= \min(\text{cx\_max}, \max(\text{cx\_min}, \text{current\_cx} \times (1 + dcx))) \\
-\text{new\_mu} &= \min(\text{mu\_max}, \max(\text{mu\_min}, \text{current\_mu} \times (1 + dmu))) \\
-\text{new\_pop} &= \min(\text{pop\_max}, \max(\text{pop\_min}, \text{round}(\text{current\_pop} \times pm)))
-\end{aligned}
-\end{equation}
-
-\subsubsection{Integration Algorithm with Population Resizing}
-
-\begin{algorithm}
-\caption{RL Controller Integration with Genetic Algorithm}
-\begin{enumerate}
-\item \textbf{Initialize} Q-table with zeros for all state-action pairs
-\item \textbf{Set initial state} $s_0 = 0$ and exploration rate $\epsilon = 0.2$
-\item \textbf{For each generation $t$:}
-    \begin{enumerate}
-    \item \textbf{Select action} using epsilon-greedy policy: $a_t = \pi(s_t)$
-    \item \textbf{Extract parameter adjustments} from action: $(dcx, dmu, pm) = a_t$
-    \item \textbf{Calculate new parameters} with bounds enforcement using Eq. \ref{Eq.parameter_adjustment}
-    \item \textbf{Apply population resizing} if $pm \neq 1.0$:
-        \begin{enumerate}
-        \item \textbf{If shrinking} ($pm < 1.0$): Select best individuals using tournament selection
-        \item \textbf{If growing} ($pm > 1.0$): Generate new individuals using neural seeding if available
-        \item \textbf{Evaluate new individuals} immediately to ensure valid fitness values
-        \end{enumerate}
-    \item \textbf{Execute GA generation} with adjusted parameters (selection, crossover, mutation, evaluation)
-    \item \textbf{Calculate reward} $R_t$ based on improvement, time, and effort using Eq. \ref{Eq.rl_reward}
-    \item \textbf{Determine next state} $s_{t+1}$ based on improvement detection using Eq. \ref{Eq.state_transition}
-    \item \textbf{Update Q-table} using Q-learning rule: $Q(s_t, a_t) \leftarrow Q(s_t, a_t) + \alpha[R_t + \gamma \max_{a'} Q(s_{t+1}, a') - Q(s_t, a_t)]$
-    \item \textbf{Decay exploration rate}: $\epsilon \leftarrow \epsilon \times 0.95$
-    \item \textbf{Transition state}: $s_t \leftarrow s_{t+1}$
-    \end{enumerate}
-\end{enumerate}
+\begin{algorithm}[H]
+\caption{Aggregate and Validate Optimization Run Data}
+\begin{algorithmic}[1]
+\REQUIRE $R$ independent optimization runs executed via \texttt{GAWorker.run()}; each run outputs a tuple \texttt{(final\_results, best\_ind, parameter\_names, best\_fitness)}; parameter bounds $[\theta_j^{\min},\theta_j^{\max}]$ for all $j$; optional metadata (e.g., seeding method, controller type, surrogate usage)
+\STATE \textbf{Data collection:} In the GUI, aggregate all runs into a structured table. Each row corresponds to a run and contains the run identifier (\texttt{run\_id}), the final fitness value (\texttt{fitness}), and one column for each parameter in \texttt{parameter\_names[j]}.
+\STATE \textbf{Validation and alignment:} Ensure that parameter names and ordering are consistent across all runs. Remove any runs that are incomplete, invalid, or contain missing data to maintain data integrity.
+\STATE \textbf{Sample construction:} For each parameter $p_j$, extract the set of observed values across all runs, forming the sample $\mathcal{X}_{p_j} = \{x^{(r)}_j\}_{r=1}^R$. Simultaneously, collect the corresponding fitness values $\{f^{(r)}\}_{r=1}^R$. Identify parameters that are fixed (i.e., have the same value in all runs).
+\STATE \textbf{Top-$q$ subset (optional):} If desired, define a subset of runs corresponding to the top-performing fraction $q$ (e.g., $q=0.25$). Compute the fitness threshold $\tau = Q_f(q)$, and let $\mathcal{I}_q = \{ r : f^{(r)} \leq \tau \}$ be the indices of the top runs. For each parameter, extract the corresponding values $\mathcal{X}^{q}_{p_j}$.
+\end{algorithmic}
 \end{algorithm}
 
-\subsection{Neural Network-Based Seeding}
-
-The Neural Network-Based Seeding system enhances population initialization by training neural networks on successful parameter combinations and using them to generate high-quality initial solutions.
-
-\subsubsection{Neural Network Architecture}
-
-The neural seeding uses a configurable feedforward neural network:
-
-\begin{itemize}
-    \item Input layer: 48 nodes (DVA parameters)
-    \item Hidden layers: 2 layers with 96 neurons each (configurable)
-    \item Output layer: 1 node (fitness prediction)
-    \item Activation: ReLU for hidden layers, linear for output
-    \item Dropout: 0.1 for regularization
-    \item Weight decay: 1e-4 (L2 regularization)
-\end{itemize}
-
-\subsubsection{Training Process}
-
-The neural network is trained incrementally during optimization:
-
-\begin{algorithm}
-\caption{Neural Network Training Process}
-\begin{enumerate}
-    \item Initialize training data: $X_{train} \leftarrow \emptyset$, $y_{train} \leftarrow \emptyset$
-    \item \textbf{For each generation:}
-    \begin{enumerate}
-        \item Collect parameter vectors: $X \leftarrow$ [current population parameters]
-        \item Collect fitness values: $y \leftarrow$ [current population fitness]
-        \item Add to training data: $X_{train} \leftarrow X_{train} + X$, $y_{train} \leftarrow y_{train} + y$
-        \item \textbf{If} $|X_{train}| > 50$ and neural seeder available:
-        \begin{enumerate}
-            \item Train neural network for 8 epochs (configurable)
-            \item Apply 750ms time limit per training session
-            \item Update neural seeder with trained model
-            \item Log training metrics (time, epochs, beta, pool size)
-        \end{enumerate}
-    \end{enumerate}
-\end{enumerate}
+\begin{algorithm}[H]
+\caption{Compute Statistical Intervals for Each Parameter}
+\begin{algorithmic}[1]
+\REQUIRE For each parameter $p_j$, sample $\mathcal{X}_{p_j}$ (and optionally $\mathcal{X}^{q}_{p_j}$), parameter bounds $[\theta_j^{\min}, \theta_j^{\max}]$
+\FOR{$j=1$ to $P$}
+    \IF{$p_j$ is fixed}
+        \STATE For all criteria, set the interval to the full allowed range $[\theta_j^{\min}, \theta_j^{\max}]$ (since no variability is observed), and \textbf{continue} to the next parameter.
+    \ENDIF
+    \STATE \textbf{Interval computation:} For parameter $p_j$, compute the recommended intervals according to each statistical criterion using GUI helper functions:
+        \begin{itemize}
+            \item \textbf{IQR:} Interquartile range (25th to 75th percentile)
+            \item \textbf{P5--P95:} 5th to 95th percentile interval
+            \item \textbf{Tukey:} Tukey's outlier rule (using $1.5\times$ IQR)
+            \item \textbf{HDI$_{0.68}$:} Highest Density Interval containing 68\% of the data
+            \item \textbf{Top-$q$ P5--P95:} 5th to 95th percentile within the top-$q$ subset (if $|\mathcal{I}_q|$ is sufficiently large)
+            \item \textbf{TMAD:} Trimmed Median Absolute Deviation interval
+        \end{itemize}
+\ENDFOR
+\end{algorithmic}
 \end{algorithm}
 
-\subsubsection{Acquisition Functions}
-
-The system supports multiple acquisition functions for exploration-exploitation balance:
-
-\textbf{Upper Confidence Bound (UCB):}
-
-\begin{equation}\label{Eq.neural_ucb}
-\text{UCB}(x) = \mu(x) + \kappa \cdot \sigma(x)
-\end{equation}
-
-where $\mu(x)$ is predicted fitness, $\sigma(x)$ is prediction uncertainty, and $\kappa$ controls exploration-exploitation balance.
-
-\textbf{Expected Improvement (EI):}
-
-\begin{equation}\label{Eq.neural_ei}
-\text{EI}(x) = \mathbb{E}[\max(f(x) - f(x^+), 0)]
-\end{equation}
-
-where $f(x^+)$ is the best observed fitness.
-
-\subsubsection{Adaptive Beta Parameter}
-
-The exploration parameter adapts based on stagnation:
-
-\begin{equation}\label{Eq.adaptive_beta}
-\kappa = \kappa_{min} + (\kappa_{max} - \kappa_{min}) \cdot \min\left(1.0, \frac{S}{S_{limit}}\right)
-\end{equation}
-
-where $S$ is stagnation counter and $S_{limit}$ is stagnation threshold.
-
-\subsubsection{Integration Algorithm}
-
-Neural seeding integrates with population resizing:
-
-\begin{algorithm}
-\caption{Neural Seeding in Population Expansion}
-\begin{enumerate}
-    \item \textbf{Function} resize\_population(pop, new\_size):
-    \begin{enumerate}
-        \item \textbf{If} new\_size > |pop| and neural seeder trained:
-        \begin{enumerate}
-            \item $extra \leftarrow new\_size - |pop|$
-            \item $best\_y \leftarrow \min$ fitness in current population
-            \item $seeds \leftarrow$ neural\_seeder.propose($extra$, $\beta$, $best\_y$, $\epsilon$)
-            \item \textbf{For each} seed in seeds:
-            \begin{enumerate}
-                \item Create DEAP Individual from seed parameters
-                \item Add to population
-            \end{enumerate}
-            \item Evaluate all new individuals
-        \end{enumerate}
-        \item \textbf{Else:}
-        \begin{enumerate}
-            \item Use default seeding: random/Sobol/LHS
-        \end{enumerate}
-        \item \textbf{Return} resized population
-    \end{enumerate}
-\end{enumerate}
+\begin{algorithm}[H]
+\caption{Compute Interval Metrics and Compare Criteria}
+\begin{algorithmic}[1]
+\REQUIRE For each parameter $p_j$, intervals $[L^{(c)}_j, U^{(c)}_j]$ for all criteria $c$
+\FOR{$j=1$ to $P$}
+    \STATE For each criterion $c$, calculate the interval width $W^{(c)}_j = U^{(c)}_j - L^{(c)}_j$ and center $C^{(c)}_j = (U^{(c)}_j + L^{(c)}_j)/2$.
+    \STATE Compute the union interval $[L^{\cup}_j, U^{\cup}_j]$ (spanning all criteria) and the intersection interval $[L^{\cap}_j, U^{\cap}_j]$ (where all intervals overlap).
+    \STATE Quantify agreement and differences among criteria by computing:
+        \begin{itemize}
+            \item \textbf{Consensus score} $S^{\text{cons}}_j$ (fraction of overlap among all intervals)
+            \item \textbf{Pairwise Intersection-over-Union (IoU)} between all pairs of criteria
+            \item \textbf{Normalized widths} $\tilde W^{(c)}_j$ (width of each interval relative to the union width)
+        \end{itemize}
+\ENDFOR
+\end{algorithmic}
 \end{algorithm}
 
-\subsection{Surrogate-Assisted Screening}
-
-The Surrogate-Assisted Screening system uses k-Nearest Neighbors (KNN) regression to predict fitness values and selectively evaluate only the most promising individuals, significantly reducing computational cost.
-
-\subsubsection{KNN Surrogate Model}
-
-The surrogate model uses KNN regression for fitness prediction:
-
-\begin{equation}\label{Eq.knn_prediction}
-\hat{f}(x) = \frac{1}{k} \sum_{i=1}^{k} f(x_i)
-\end{equation}
-
-where $x_i$ are the k nearest neighbors to $x$ in parameter space, and $k=5$ (configurable).
-
-\subsubsection{Exploration-Exploitation Strategy}
-
-The screening balances exploration and exploitation:
-
-\begin{equation}\label{Eq.surrogate_selection}
-\text{Selection Score} = \alpha \cdot \text{Exploitation Score} + (1 - \alpha) \cdot \text{Novelty Score}
-\end{equation}
-
-where $\alpha = 0.15$ controls the balance, favoring exploitation (85\%) over exploration (15\%).
-
-\subsubsection{Exploitation Score}
-
-Exploitation focuses on predicted good solutions:
-
-\begin{equation}\label{Eq.exploitation_score}
-\text{Exploitation Score} = -\hat{f}(x)
-\end{equation}
-
-Lower predicted fitness values get higher exploitation scores.
-
-\subsubsection{Novelty Score}
-
-Exploration favors novel parameter combinations:
-
-\begin{equation}\label{Eq.novelty_score}
-\text{Novelty Score} = \min_{x' \in X_{train}} \|x - x'\|
-\end{equation}
-
-where $X_{train}$ is the set of previously evaluated parameter vectors.
-
-\subsubsection{Integration Algorithm}
-
-Surrogate screening integrates with fitness evaluation:
-
-\begin{algorithm}
-\caption{Surrogate-Assisted Screening}
-\begin{enumerate}
-    \item \textbf{Function} evaluate\_with\_surrogate(invalid\_individuals):
-    \begin{enumerate}
-        \item \textbf{If} surrogate model not trained:
-        \begin{enumerate}
-            \item Evaluate all individuals normally
-            \item Train surrogate on results
-            \item \textbf{Return} evaluated individuals
-        \end{enumerate}
-        \item $pool\_size \leftarrow surrogate\_pool\_factor \times |invalid\_individuals|$
-        \item Generate candidate pool by perturbing invalid individuals
-        \item Predict fitness for all pool members using KNN surrogate
-        \item Sort pool by combined exploitation + novelty scores
-        \item Select top 85\% by exploitation score
-        \item Select top 15\% by novelty score from remaining
-        \item Evaluate selected individuals with actual fitness function
-        \item Update surrogate model with new evaluation data
-        \item \textbf{Return} evaluated individuals
-    \end{enumerate}
-\end{enumerate}
+\begin{algorithm}[H]
+\caption{Select Recommended Parameter Ranges}
+\begin{algorithmic}[1]
+\REQUIRE For each parameter $p_j$, all computed intervals, metrics, and parameter bounds $[\theta_j^{\min}, \theta_j^{\max}]$
+\FOR{$j=1$ to $P$}
+    \STATE Apply the decision rules (R1--R4) to select the final recommended interval $[L_j, U_j]$ for parameter $p_j$. This may involve using the intersection, majority intersection, or the most robust criterion, and always clamping to the physical bounds $[\theta_j^{\min}, \theta_j^{\max}]$.
+\ENDFOR
+\end{algorithmic}
 \end{algorithm}
 
-\subsubsection{Candidate Pool Generation}
-
-The system generates candidate pools by perturbing existing individuals:
-
-\begin{algorithm}
-\caption{Candidate Pool Generation}
-\begin{enumerate}
-    \item \textbf{Function} generate\_candidate\_pool(individuals, pool\_factor):
-    \begin{enumerate}
-        \item $pool \leftarrow \emptyset$
-        \item \textbf{For each} individual in individuals:
-        \begin{enumerate}
-            \item Add individual to pool (original)
-            \item \textbf{For} $i \leftarrow 1$ to pool\_factor:
-            \begin{enumerate}
-                \item Create copy of individual
-                \item Perturb each parameter by $\mathcal{N}(0, 0.1 \cdot range)$
-                \item Clamp parameters to valid bounds
-                \item Add perturbed individual to pool
-            \end{enumerate}
-        \end{enumerate}
-        \item \textbf{Return} pool
-    \end{enumerate}
-\end{enumerate}
+\begin{algorithm}[H]
+\caption{Visualize, Report, and Export Results}
+\begin{algorithmic}[1]
+\REQUIRE For all parameters, per-criterion intervals, metrics, and final recommended ranges
+\STATE Present the results in the GUI as follows:
+    \begin{itemize}
+        \item Per-criterion tables showing $[L^{(c)}_j, U^{(c)}_j, W^{(c)}_j, C^{(c)}_j]$ for all parameters
+        \item Stacked-interval plots visualizing the intervals for each parameter and criterion
+        \item Overlays comparing intervals across criteria, width heatmaps, and summary metrics
+    \end{itemize}
+\STATE Export all computed intervals, union/intersection bands, comparison metrics, and final recommended ranges $[L_j, U_j]$ to CSV files. These are saved alongside the \texttt{benchmark\_metrics} for full traceability and reproducibility of the analysis.
+\end{algorithmic}
 \end{algorithm}
 
-\subsection{Advanced Seeding Strategies}
+\subsection{Mapping to software implementation}
+The GUI adds a \emph{Parameter Ranges} benchmarking tab with one subtab per criterion and a \emph{Compare Criteria} subtab. Each subtab presents: (i) a table of $[L^{(c)}_j, U^{(c)}_j, W^{(c)}_j, C^{(c)}_j]$ across all parameters; (ii) a horizontal stacked-rectangle visualization; and (iii) export options (CSV). The comparison subtab overlays stacked rectangles across selected criteria and provides a combined table to quantitatively compare ranges.
 
-The system implements multiple advanced seeding strategies for population initialization, providing better coverage of the parameter space compared to random initialization.
+\vspace{0.5em}
+\noindent\textbf{Engineering outcome.} The final ranges provide defensible, transparent envelopes for each DVA parameter, reflecting both central tendency and high-performance concentration while remaining robust to outliers and distributional irregularities.
 
-\subsubsection{Sobol Sequence Seeding}
 
-Sobol sequences provide quasi-random, low-discrepancy sampling:
 
-\begin{equation}\label{Eq.sobol_sequence}
-x_{i,j} = x_{L,j} + (x_{U,j} - x_{L,j}) \cdot s_{i,j}
-\end{equation}
-
-where $s_{i,j}$ is the $i$-th element of the $j$-th dimension of the Sobol sequence, scaled to $[0,1]$.
-
-\subsubsection{Latin Hypercube Sampling}
-
-LHS ensures uniform coverage of each parameter dimension:
-
-\begin{equation}\label{Eq.lhs_sampling}
-x_{i,j} = x_{L,j} + (x_{U,j} - x_{L,j}) \cdot \frac{\pi_j(i) + U_i}{N}
-\end{equation}
-
-where $\pi_j$ is a random permutation for dimension $j$, $U_i \sim U(0,1)$, and $N$ is population size.
-
-\subsubsection{Integration Algorithm}
-
-The system selects seeding method based on configuration:
-
-\begin{algorithm}
-\caption{Advanced Population Initialization}
-\begin{enumerate}
-    \item \textbf{Function} generate\_seed\_individuals(count):
-    \begin{enumerate}
-        \item \textbf{If} seeding\_method == "sobol":
-        \begin{enumerate}
-            \item Initialize Sobol sequence generator
-            \item \textbf{For} $i \leftarrow 1$ to count:
-            \begin{enumerate}
-                \item $s \leftarrow$ next Sobol sequence point
-                \item $x \leftarrow x_L + (x_U - x_L) \odot s$
-                \item Create Individual from $x$
-            \end{enumerate}
-        \end{enumerate}
-        \item \textbf{Else if} seeding\_method == "lhs":
-        \begin{enumerate}
-            \item Create Latin Hypercube design
-            \item \textbf{For} $i \leftarrow 1$ to count:
-            \begin{enumerate}
-                \item $x \leftarrow$ LHS point $i$
-                \item Create Individual from $x$
-            \end{enumerate}
-        \end{enumerate}
-        \item \textbf{Else} (default to random):
-        \begin{enumerate}
-            \item \textbf{For} $i \leftarrow 1$ to count:
-            \begin{enumerate}
-                \item $x_j \leftarrow U(x_{L,j}, x_{U,j})$ for each parameter $j$
-                \item Create Individual from $x$
-            \end{enumerate}
-        \end{enumerate}
-        \item \textbf{Return} list of Individuals
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsection{Adaptive Rate Control}
-
-The Adaptive Rate Control system uses heuristic rules to dynamically adjust crossover and mutation probabilities based on population diversity and optimization progress.
-
-\subsubsection{Diversity-Based Adaptation}
-
-The system monitors population diversity and adapts rates accordingly:
-
-\begin{equation}\label{Eq.diversity_measure}
-D = \frac{1}{N} \sum_{i=1}^{N} \left( \frac{f_i - \bar{f}}{\sigma_f + \epsilon} \right)^2
-\end{equation}
-
-where $f_i$ is individual fitness, $\bar{f}$ is mean fitness, $\sigma_f$ is fitness standard deviation.
-
-\subsubsection{Adaptive Rules}
-
-The adaptation follows these heuristic rules:
-
-\begin{itemize}
-    \item \textbf{Low Diversity ($D < 0.1$)}: Increase mutation, decrease crossover to promote exploration
-    \item \textbf{High Diversity ($D > 0.3$)}: Increase crossover, decrease mutation to promote exploitation
-    \item \textbf{Medium Diversity}: Alternate between exploration and exploitation strategies
-\end{itemize}
-
-\subsubsection{Integration Algorithm}
-
-\begin{algorithm}
-\caption{Adaptive Rate Control}
-\begin{enumerate}
-    \item \textbf{Function} adapt\_rates(population, current\_cx, current\_mu):
-    \begin{enumerate}
-        \item Calculate fitness statistics: $\bar{f}, \sigma_f$
-        \item Calculate normalized diversity: $D \leftarrow \min(1.0, \sigma_f / \bar{f})$ if $\bar{f} > 0$ else 0.5
-        \item \textbf{If} $D < 0.1$ (low diversity - increase exploration):
-        \begin{enumerate}
-            \item $\mu_{new} \leftarrow \min(\mu_{max}, current\_mu \times 1.5)$
-            \item $cx_{new} \leftarrow \max(cx_{min}, current\_cx \times 0.8)$
-            \item $strategy \leftarrow$ "Increasing exploration"
-        \end{enumerate}
-        \item \textbf{Else if} $D > 0.3$ (high diversity - increase exploitation):
-        \begin{enumerate}
-            \item $cx_{new} \leftarrow \min(cx_{max}, current\_cx \times 1.5)$
-            \item $\mu_{new} \leftarrow \max(\mu_{min}, current\_mu \times 0.8)$
-            \item $strategy \leftarrow$ "Increasing exploitation"
-        \end{enumerate}
-        \item \textbf{Else} (medium diversity - alternate strategies):
-        \begin{enumerate}
-            \item \textbf{If} generation is even:
-            \begin{enumerate}
-                \item $cx_{new} \leftarrow \min(cx_{max}, current\_cx \times 1.3)$
-                \item $\mu_{new} \leftarrow \max(\mu_{min}, current\_mu \times 0.9)$
-                \item $strategy \leftarrow$ "Balanced (↑crossover, ↓mutation)"
-            \end{enumerate}
-            \item \textbf{Else}:
-            \begin{enumerate}
-                \item $\mu_{new} \leftarrow \min(\mu_{max}, current\_mu \times 1.3)$
-                \item $cx_{new} \leftarrow \max(cx_{min}, current\_cx \times 0.9)$
-                \item $strategy \leftarrow$ "Balanced (↓crossover, ↑mutation)"
-            \end{enumerate}
-        \end{enumerate}
-        \item \textbf{Return} $cx_{new}, \mu_{new}, strategy$
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsection{Novelty and Integration Summary}
-
-The integration of these advanced features represents a significant novelty in evolutionary computation for DVA optimization. The system combines multiple adaptive mechanisms:
-
-\begin{enumerate}
-    \item \textbf{Multi-Level Adaptation}: RL Controller and Adaptive Rate Control provide different adaptation strategies
-    \item \textbf{Intelligent Seeding}: Neural networks and advanced sampling methods improve population quality
-    \item \textbf{Smart Evaluation}: Surrogate models reduce computational cost while maintaining search effectiveness
-    \item \textbf{Real-Time Learning}: All components learn and adapt during optimization execution
-    \item \textbf{Comprehensive Monitoring}: Detailed metrics track performance of each adaptive component
-\end{enumerate}
-
-This integrated approach addresses the fundamental limitations of traditional genetic algorithms by providing intelligent, adaptive control over all aspects of the evolutionary process. The combination of these features enables the genetic algorithm to effectively explore the complex 48-dimensional DVA parameter space while maintaining computational efficiency and achieving high solution quality.
-
-\section{System Integration and Implementation}
-
-This section presents the comprehensive system architecture and implementation details of the advanced genetic algorithm framework, focusing on modular design, thread safety, and performance optimization strategies that enable efficient execution of complex optimization tasks.
-
-\subsection{Modular Architecture Design}
-
-The system implements a modular architecture that separates concerns and enables flexible integration of advanced features. The architecture consists of three primary modules: the core genetic algorithm worker (GAWorker), the graphical user interface (GUI), and the frequency response function analysis module (FRF).
-
-\subsubsection{Component Interaction}
-
-The system follows a producer-consumer pattern with clear separation between computation and user interface:
-
-\begin{algorithm}
-\caption{System Component Interaction}
-\begin{enumerate}
-    \item \textbf{Initialization Phase:}
-    \begin{enumerate}
-        \item GUI creates GAWorker instance with configuration parameters
-        \item GAWorker initializes DEAP framework and parameter bounds
-        \item FRF module validates system parameters and target values
-        \item GUI establishes signal-slot connections for communication
-    \end{enumerate}
-    \item \textbf{Execution Phase:}
-    \begin{enumerate}
-        \item GUI emits run signal to GAWorker
-        \item GAWorker executes optimization in separate thread
-        \item GAWorker calls FRF module for fitness evaluation
-        \item GAWorker emits progress signals to GUI
-        \item GUI updates interface based on received signals
-    \end{enumerate}
-    \item \textbf{Completion Phase:}
-    \begin{enumerate}
-        \item GAWorker emits finished signal with results
-        \item GUI processes results and updates visualizations
-        \item System returns to idle state for next optimization
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsubsection{Data Flow Management}
-
-The data flow is managed through structured parameter passing and result aggregation:
-
-\begin{algorithm}
-\caption{Data Flow Management}
-\begin{enumerate}
-    \item \textbf{Parameter Configuration:}
-    \begin{enumerate}
-        \item GUI collects user inputs (bounds, targets, weights)
-        \item Validate parameter consistency and bounds
-        \item Package parameters into structured dictionaries
-        \item Pass configuration to GAWorker initialization
-    \end{enumerate}
-    \item \textbf{Optimization Data Flow:}
-    \begin{enumerate}
-        \item GAWorker generates parameter vectors
-        \item Convert vectors to FRF-compatible format
-        \item FRF processes parameters and returns results
-        \item GAWorker aggregates results into fitness values
-        \item Results flow back through signal-slot system
-    \end{enumerate}
-    \item \textbf{Result Aggregation:}
-    \begin{enumerate}
-        \item Collect fitness components (primary, sparsity, error)
-        \item Aggregate metrics across generations
-        \item Package results for GUI consumption
-        \item Maintain historical data for analysis
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsubsection{Error Handling and Recovery}
-
-The system implements comprehensive error handling with graceful degradation:
-
-\begin{algorithm}
-\caption{Error Handling and Recovery}
-\begin{enumerate}
-    \item \textbf{DEAP Framework Recovery:}
-    \begin{enumerate}
-        \item \textbf{Function} safe\_deap\_operation(func):
-        \begin{enumerate}
-            \item \textbf{For} attempt $\leftarrow$ 1 to 3:
-            \begin{enumerate}
-                \item \textbf{Try:} Execute func with arguments
-                \item \textbf{If} successful: Return result
-                \item \textbf{Else:} Clean up DEAP global state
-                \begin{enumerate}
-                    \item Remove creator.FitnessMin if exists
-                    \item Remove creator.Individual if exists
-                    \item Log cleanup attempt
-                \end{enumerate}
-            \end{enumerate}
-            \item \textbf{If} all attempts fail: Raise exception
-        \end{enumerate}
-    \end{enumerate}
-    \item \textbf{FRF Evaluation Error Handling:}
-    \begin{enumerate}
-        \item \textbf{Try:} Execute FRF analysis
-        \item \textbf{If} FRF fails: Return high fitness penalty (1e6)
-        \item \textbf{If} results invalid: Attempt recovery from composite measures
-        \item \textbf{If} recovery fails: Log warning and return penalty
-    \end{enumerate}
-    \item \textbf{Thread Safety Error Handling:}
-    \begin{enumerate}
-        \item Use mutex locks for shared resource access
-        \item Implement timeout mechanisms for long operations
-        \item Provide abort functionality for user cancellation
-        \item Clean up resources on thread termination
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsubsection{Performance Monitoring}
-
-The system implements comprehensive performance monitoring through metrics collection:
-
-\begin{algorithm}
-\caption{Performance Monitoring System}
-\begin{enumerate}
-    \item \textbf{Metrics Initialization:}
-    \begin{enumerate}
-        \item Initialize metrics dictionary with system information
-        \item Set up tracking arrays for CPU, memory, evaluation times
-        \item Configure timer for periodic metrics collection
-        \item Establish baseline system performance
-    \end{enumerate}
-    \item \textbf{Real-Time Monitoring:}
-    \begin{enumerate}
-        \item \textbf{Function} \_update\_resource\_metrics():
-        \begin{enumerate}
-            \item Collect CPU usage (per-core and overall)
-            \item Monitor memory consumption (RSS, VMS, shared)
-            \item Track I/O operations (read/write counts and bytes)
-            \item Measure disk and network usage
-            \item Count active threads and processes
-            \item Emit metrics to GUI for real-time display
-        \end{enumerate}
-    \end{enumerate}
-    \item \textbf{Performance Analysis:}
-    \begin{enumerate}
-        \item Calculate convergence rates and improvement metrics
-        \item Analyze computational efficiency per generation
-        \item Track adaptive feature performance
-        \item Generate performance reports and visualizations
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsection{Thread Safety and Concurrency}
-
-The system implements robust thread safety mechanisms to ensure reliable operation in multi-threaded environments.
-
-\subsubsection{Multi-Threading Implementation}
-
-The genetic algorithm execution is performed in a separate thread to maintain GUI responsiveness:
-
-\begin{algorithm}
-\caption{Multi-Threading Implementation}
-\begin{enumerate}
-    \item \textbf{Thread Architecture:}
-    \begin{enumerate}
-        \item GAWorker inherits from QThread for Qt integration
-        \item Main thread handles GUI events and user interactions
-        \item Worker thread executes optimization algorithm
-        \item Communication through Qt signal-slot mechanism
-    \end{enumerate}
-    \item \textbf{Thread Lifecycle Management:}
-    \begin{enumerate}
-        \item \textbf{Initialization:} Create worker thread with configuration
-        \item \textbf{Execution:} Start thread and monitor progress
-        \item \textbf{Communication:} Handle signals for updates and completion
-        \item \textbf{Cleanup:} Properly terminate thread and free resources
-    \end{enumerate}
-    \item \textbf{Thread Safety Mechanisms:}
-    \begin{enumerate}
-        \item Use QMutex for exclusive access to shared data
-        \item Implement QWaitCondition for thread synchronization
-        \item Provide abort mechanism for safe thread termination
-        \item Ensure proper resource cleanup on thread exit
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsubsection{Mutex and Condition Variables}
-
-The system uses mutex locks and condition variables to ensure thread-safe access to shared resources:
-
-\begin{algorithm}
-\caption{Mutex and Condition Variable Usage}
-\begin{enumerate}
-    \item \textbf{Shared Resource Protection:}
-    \begin{enumerate}
-        \item \textbf{Initialize:} self.mutex = QMutex(), self.condition = QWaitCondition()
-        \item \textbf{Resource Access:}
-        \begin{enumerate}
-            \item self.mutex.lock()  // Acquire exclusive access
-            \item \textbf{Try:} Access shared resource
-            \item \textbf{Finally:} self.mutex.unlock()  // Release access
-        \end{enumerate}
-    \end{enumerate}
-    \item \textbf{Abort Mechanism:}
-    \begin{enumerate}
-        \item \textbf{Set abort flag:} self.abort = True
-        \item \textbf{Signal waiting threads:} self.condition.wakeAll()
-        \item \textbf{Wait for completion:} self.wait()
-    \end{enumerate}
-    \item \textbf{Thread Synchronization:}
-    \begin{enumerate}
-        \item Use condition variables for producer-consumer synchronization
-        \item Implement timeout mechanisms for long operations
-        \item Ensure proper cleanup on thread termination
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsubsection{Signal-Slot Communication}
-
-The system uses Qt's signal-slot mechanism for thread-safe communication:
-
-\begin{algorithm}
-\caption{Signal-Slot Communication System}
-\begin{enumerate}
-    \item \textbf{Signal Definitions:}
-    \begin{enumerate}
-        \item finished: Emitted when optimization completes
-        \item error: Emitted when errors occur during execution
-        \item update: Emitted for status updates and progress information
-        \item progress: Emitted for progress bar updates (0-100)
-        \item benchmark\_data: Emitted for performance metrics
-        \item generation\_metrics: Emitted for per-generation statistics
-    \end{enumerate}
-    \item \textbf{Signal Emission:}
-    \begin{enumerate}
-        \item \textbf{Progress Updates:} self.progress.emit(percentage)
-        \item \textbf{Status Messages:} self.update.emit(message)
-        \item \textbf{Error Handling:} self.error.emit(error\_message)
-        \item \textbf{Completion:} self.finished.emit(results, best\_ind, names, fitness)
-    \end{enumerate}
-    \item \textbf{Slot Connections:}
-    \begin{enumerate}
-        \item GUI connects signals to appropriate handler functions
-        \item Handlers update interface elements safely
-        \item Progress updates trigger UI refresh
-        \item Error signals display user-friendly error messages
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsubsection{Resource Management}
-
-The system implements comprehensive resource management to prevent memory leaks and ensure efficient operation:
-
-\begin{algorithm}
-\caption{Resource Management}
-\begin{enumerate}
-    \item \textbf{Memory Management:}
-    \begin{enumerate}
-        \item \textbf{DEAP Cleanup:} Remove global types to prevent memory leaks
-        \item \textbf{Array Management:} Use numpy arrays for efficient numerical operations
-        \item \textbf{Object Lifecycle:} Properly dispose of large objects after use
-        \item \textbf{Garbage Collection:} Explicit cleanup of temporary data structures
-    \end{enumerate}
-    \item \textbf{File and I/O Management:}
-    \begin{enumerate}
-        \item \textbf{File Handles:} Use context managers for file operations
-        \item \textbf{Data Export:} Implement efficient serialization for large datasets
-        \item \textbf{Plot Management:} Properly close matplotlib figures
-        \item \textbf{Database Connections:} Close connections after use
-    \end{enumerate}
-    \item \textbf{Thread Resource Cleanup:}
-    \begin{enumerate}
-        \item \textbf{Thread Termination:} Ensure proper cleanup on thread exit
-        \item \textbf{Timer Management:} Stop and clean up QTimer instances
-        \item \textbf{Signal Disconnection:} Disconnect signals to prevent memory leaks
-        \item \textbf{Object Destruction:} Implement proper destructor methods
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsection{Performance Optimization}
-
-The system implements various performance optimization strategies to ensure efficient execution of computationally intensive optimization tasks.
-
-\subsubsection{Computational Efficiency}
-
-The system optimizes computational efficiency through several strategies:
-
-\begin{algorithm}
-\caption{Computational Efficiency Optimization}
-\begin{enumerate}
-    \item \textbf{FRF Analysis Optimization:}
-    \begin{enumerate}
-        \item \textbf{Matrix Operations:} Use numpy for efficient matrix computations
-        \item \textbf{Peak Detection:} Implement efficient peak finding algorithms
-        \item \textbf{Interpolation:} Use optimized interpolation methods (cubic, Akima)
-        \item \textbf{Memory Pre-allocation:} Pre-allocate arrays for repeated operations
-    \end{enumerate}
-    \item \textbf{Genetic Algorithm Optimization:}
-    \begin{enumerate}
-        \item \textbf{Population Management:} Efficient population resizing and selection
-        \item \textbf{Fitness Evaluation:} Batch evaluation where possible
-        \item \textbf{Parameter Updates:} Vectorized parameter adjustments
-        \item \textbf{Convergence Detection:} Early termination on convergence
-    \end{enumerate}
-    \item \textbf{Surrogate Model Efficiency:}
-    \begin{enumerate}
-        \item \textbf{KNN Optimization:} Use efficient distance calculations
-        \item \textbf{Pool Generation:} Optimize candidate pool creation
-        \item \textbf{Prediction Caching:} Cache surrogate predictions
-        \item \textbf{Model Updates:} Incremental model updates
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsubsection{Memory Management}
-
-The system implements sophisticated memory management strategies:
-
-\begin{algorithm}
-\caption{Memory Management Strategies}
-\begin{enumerate}
-    \item \textbf{Data Structure Optimization:}
-    \begin{enumerate}
-        \item \textbf{Numpy Arrays:} Use efficient array operations for numerical data
-        \item \textbf{List Comprehensions:} Optimize list operations and filtering
-        \item \textbf{Generator Expressions:} Use generators for large datasets
-        \item \textbf{Object Pooling:} Reuse objects where appropriate
-    \end{enumerate}
-    \item \textbf{Memory Monitoring:}
-    \begin{enumerate}
-        \item \textbf{Real-time Tracking:} Monitor memory usage during execution
-        \item \textbf{Leak Detection:} Track object creation and destruction
-        \item \textbf{Performance Alerts:} Alert on excessive memory usage
-        \item \textbf{Cleanup Triggers:} Automatic cleanup on memory thresholds
-    \end{enumerate}
-    \item \textbf{Data Serialization:}
-    \begin{enumerate}
-        \item \textbf{Efficient Storage:} Use compressed formats for large datasets
-        \item \textbf{Incremental Saving:} Save data incrementally to prevent memory buildup
-        \item \textbf{Streaming:} Use streaming for large file operations
-        \item \textbf{Caching:} Implement intelligent caching strategies
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsubsection{Algorithmic Complexity}
-
-The system optimizes algorithmic complexity through intelligent algorithm selection:
-
-\begin{algorithm}
-\caption{Algorithmic Complexity Optimization}
-\begin{enumerate}
-    \item \textbf{Time Complexity Analysis:}
-    \begin{enumerate}
-        \item \textbf{FRF Analysis:} $O(n \cdot m^3)$ where $n$ is frequency points, $m$ is DOF
-        \item \textbf{Peak Detection:} $O(n \log n)$ for sorting-based peak finding
-        \item \textbf{KNN Surrogate:} $O(k \cdot d \cdot n)$ where $k$ is neighbors, $d$ is dimensions
-        \item \textbf{Genetic Algorithm:} $O(p \cdot g \cdot f)$ where $p$ is population, $g$ is generations, $f$ is fitness cost
-    \end{enumerate}
-    \item \textbf{Space Complexity Optimization:}
-    \begin{enumerate}
-        \item \textbf{Matrix Storage:} Use sparse matrices where appropriate
-        \item \textbf{Population Storage:} Efficient population representation
-        \item \textbf{History Tracking:} Limit historical data storage
-        \item \textbf{Temporary Variables:} Minimize temporary storage requirements
-    \end{enumerate}
-    \item \textbf{Complexity Reduction Strategies:}
-    \begin{enumerate}
-        \item \textbf{Surrogate Screening:} Reduce fitness evaluations by 50-80\%
-        \item \textbf{Early Termination:} Stop optimization on convergence
-        \item \textbf{Adaptive Population:} Adjust population size based on progress
-        \item \textbf{Parallel Evaluation:} Use parallel processing where available
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsubsection{Scalability Analysis}
-
-The system is designed to scale efficiently with problem complexity:
-
-\begin{algorithm}
-\caption{Scalability Analysis and Optimization}
-\begin{enumerate}
-    \item \textbf{Dimensionality Scaling:}
-    \begin{enumerate}
-        \item \textbf{Parameter Space:} Efficient handling of 48-dimensional DVA problems
-        \item \textbf{Population Scaling:} Adaptive population sizing based on dimensionality
-        \item \textbf{Evaluation Scaling:} Surrogate models reduce evaluation cost
-        \item \textbf{Memory Scaling:} Efficient memory usage for high-dimensional problems
-    \end{enumerate}
-    \item \textbf{Problem Size Scaling:}
-    \begin{enumerate}
-        \item \textbf{Frequency Points:} Optimize FRF analysis for large frequency ranges
-        \item \textbf{System Complexity:} Efficient handling of multi-DOF systems
-        \item \textbf{Constraint Handling:} Scalable constraint management
-        \item \textbf{Multi-Objective:} Efficient multi-objective optimization
-    \end{enumerate}
-    \item \textbf{Performance Scaling:}
-    \begin{enumerate}
-        \item \textbf{Computational Resources:} Efficient use of available CPU and memory
-        \item \textbf{Parallel Processing:} Scalable parallel evaluation strategies
-        \item \textbf{Distributed Computing:} Framework for distributed optimization
-        \item \textbf{Real-time Requirements:} Scalable real-time performance monitoring
-    \end{enumerate}
-\end{enumerate}
-\end{algorithm}
-
-\subsection{Integration Summary}
-
-The system integration and implementation provide a robust, efficient, and scalable framework for advanced genetic algorithm optimization. The modular architecture ensures maintainability and extensibility, while the thread safety mechanisms guarantee reliable operation in multi-threaded environments. The performance optimization strategies enable efficient execution of computationally intensive optimization tasks, making the system suitable for complex engineering problems such as DVA optimization.
-
-The integration of these components creates a comprehensive optimization framework that addresses the challenges of high-dimensional parameter spaces, computational efficiency, and real-time performance monitoring, while maintaining the flexibility to adapt to different problem domains and user requirements.
-
-\end{document}
+\end{document} 

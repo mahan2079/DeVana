@@ -314,6 +314,19 @@ class MenuMixin:
                     for i, val in enumerate(main_params['nu']):
                         if i < len(self.nu_boxes):
                             self.nu_boxes[i].setValue(val)
+                # Additional main system fields
+                if 'a_low' in main_params and hasattr(self, 'a_low_box'):
+                    self.a_low_box.setValue(main_params['a_low'])
+                if 'a_up' in main_params and hasattr(self, 'a_up_box'):
+                    self.a_up_box.setValue(main_params['a_up'])
+                if 'f_1' in main_params and hasattr(self, 'f_1_box'):
+                    self.f_1_box.setValue(main_params['f_1'])
+                if 'f_2' in main_params and hasattr(self, 'f_2_box'):
+                    self.f_2_box.setValue(main_params['f_2'])
+                if 'omega_dc' in main_params and hasattr(self, 'omega_dc_box'):
+                    self.omega_dc_box.setValue(main_params['omega_dc'])
+                if 'zeta_dc' in main_params and hasattr(self, 'zeta_dc_box'):
+                    self.zeta_dc_box.setValue(main_params['zeta_dc'])
                             
             # Update DVA parameters
             if 'dva' in params:
@@ -344,6 +357,264 @@ class MenuMixin:
                     self.omega_end_box.setValue(freq_params['omega_end'])
                 if 'omega_points' in freq_params:
                     self.omega_points_box.setValue(freq_params['omega_points'])
+                # Plot and interpolation options (if present)
+                if 'plot_figure' in freq_params and hasattr(self, 'plot_figure_chk'):
+                    self.plot_figure_chk.setChecked(bool(freq_params['plot_figure']))
+                if 'show_peaks' in freq_params and hasattr(self, 'show_peaks_chk'):
+                    self.show_peaks_chk.setChecked(bool(freq_params['show_peaks']))
+                if 'show_slopes' in freq_params and hasattr(self, 'show_slopes_chk'):
+                    self.show_slopes_chk.setChecked(bool(freq_params['show_slopes']))
+                if 'interpolation_method' in freq_params and hasattr(self, 'interp_method_combo'):
+                    try:
+                        self.interp_method_combo.setCurrentText(str(freq_params['interpolation_method']))
+                    except Exception:
+                        pass
+                if 'interpolation_points' in freq_params and hasattr(self, 'interp_points_box'):
+                    self.interp_points_box.setValue(int(freq_params['interpolation_points']))
+
+            # Update target values and weights
+            try:
+                if 'targets' in params and 'weights' in params and \
+                   hasattr(self, 'mass_target_spins') and hasattr(self, 'mass_weight_spins'):
+                    targets = params['targets']
+                    weights = params['weights']
+                    # targets/weights schema: {"mass_1": {key: value}, ...}
+                    for mass_idx in range(1, 6):
+                        mass_key = f"mass_{mass_idx}"
+                        t_mass = targets.get(mass_key, {}) if isinstance(targets, dict) else {}
+                        w_mass = weights.get(mass_key, {}) if isinstance(weights, dict) else {}
+                        # Set all known keys present in UI maps
+                        for key, spin in self.mass_target_spins.items():
+                            if key.endswith(f"_m{mass_idx}"):
+                                simple_key = key.replace(f"_m{mass_idx}", "")
+                                if simple_key in t_mass:
+                                    try:
+                                        spin.setValue(float(t_mass[simple_key]))
+                                    except Exception:
+                                        pass
+                        for key, spin in self.mass_weight_spins.items():
+                            if key.endswith(f"_m{mass_idx}"):
+                                simple_key = key.replace(f"_m{mass_idx}", "")
+                                if simple_key in w_mass:
+                                    try:
+                                        spin.setValue(float(w_mass[simple_key]))
+                                    except Exception:
+                                        pass
+            except Exception:
+                # Be permissive with targets/weights import
+                pass
+
+            # Update omega sensitivity settings
+            if 'omega_sensitivity' in params:
+                sens = params['omega_sensitivity']
+                if hasattr(self, 'sensitivity_initial_points') and 'initial_points' in sens:
+                    self.sensitivity_initial_points.setValue(int(sens['initial_points']))
+                if hasattr(self, 'sensitivity_max_points') and 'max_points' in sens:
+                    self.sensitivity_max_points.setValue(int(sens['max_points']))
+                if hasattr(self, 'sensitivity_step_size') and 'step_size' in sens:
+                    self.sensitivity_step_size.setValue(int(sens['step_size']))
+                if hasattr(self, 'sensitivity_threshold') and 'threshold' in sens:
+                    self.sensitivity_threshold.setValue(float(sens['threshold']))
+                if hasattr(self, 'sensitivity_max_iterations') and 'max_iterations' in sens:
+                    self.sensitivity_max_iterations.setValue(int(sens['max_iterations']))
+                if hasattr(self, 'sensitivity_mass') and 'mass' in sens:
+                    try:
+                        self.sensitivity_mass.setCurrentText(str(sens['mass']))
+                    except Exception:
+                        pass
+                if hasattr(self, 'sensitivity_plot_results') and 'plot_results' in sens:
+                    self.sensitivity_plot_results.setChecked(bool(sens['plot_results']))
+                if hasattr(self, 'sensitivity_use_optimal') and 'use_optimal' in sens:
+                    self.sensitivity_use_optimal.setChecked(bool(sens['use_optimal']))
+
+            # Update GA settings
+            if 'ga_settings' in params:
+                ga = params['ga_settings']
+                try:
+                    # Basic hyperparameters
+                    pop = ga.get('population', {}) if isinstance(ga.get('population', {}), dict) else {}
+                    if hasattr(self, 'ga_pop_size_box') and 'size' in pop:
+                        self.ga_pop_size_box.setValue(int(pop['size']))
+                    if hasattr(self, 'ga_pop_min_box') and 'min' in pop:
+                        self.ga_pop_min_box.setValue(int(pop['min']))
+                    if hasattr(self, 'ga_pop_max_box') and 'max' in pop:
+                        self.ga_pop_max_box.setValue(int(pop['max']))
+                    if hasattr(self, 'ga_num_generations_box') and 'generations' in ga:
+                        self.ga_num_generations_box.setValue(int(ga['generations']))
+                    if hasattr(self, 'ga_cxpb_box') and 'crossover_probability' in ga:
+                        self.ga_cxpb_box.setValue(float(ga['crossover_probability']))
+                    if hasattr(self, 'ga_mutpb_box') and 'mutation_probability' in ga:
+                        self.ga_mutpb_box.setValue(float(ga['mutation_probability']))
+                    if hasattr(self, 'ga_tol_box') and 'tolerance' in ga:
+                        self.ga_tol_box.setValue(float(ga['tolerance']))
+                    if hasattr(self, 'ga_alpha_box') and 'alpha_sparsity' in ga:
+                        self.ga_alpha_box.setValue(float(ga['alpha_sparsity']))
+                    if hasattr(self, 'ga_percentage_error_scale_box') and 'percentage_error_scale' in ga:
+                        self.ga_percentage_error_scale_box.setValue(float(ga['percentage_error_scale']))
+                    if hasattr(self, 'ga_benchmark_runs_box') and 'benchmark_runs' in ga:
+                        self.ga_benchmark_runs_box.setValue(int(ga['benchmark_runs']))
+
+                    # Controller selection
+                    controller = str(ga.get('controller', 'fixed')).lower()
+                    if hasattr(self, 'controller_none_radio') and controller == 'fixed':
+                        self.controller_none_radio.setChecked(True)
+                    if hasattr(self, 'controller_adaptive_radio') and controller == 'adaptive':
+                        self.controller_adaptive_radio.setChecked(True)
+                    if hasattr(self, 'controller_ml_radio') and controller == 'ml':
+                        self.controller_ml_radio.setChecked(True)
+                    if hasattr(self, 'controller_rl_radio') and controller == 'rl':
+                        self.controller_rl_radio.setChecked(True)
+
+                    # Adaptive rates
+                    adaptive = ga.get('adaptive_rates', {}) if isinstance(ga.get('adaptive_rates', {}), dict) else {}
+                    if hasattr(self, 'adaptive_rates_checkbox') and 'enabled' in adaptive:
+                        self.adaptive_rates_checkbox.setChecked(bool(adaptive['enabled']))
+                    if hasattr(self, 'stagnation_limit_box') and 'stagnation_limit' in adaptive:
+                        self.stagnation_limit_box.setValue(int(adaptive['stagnation_limit']))
+                    if hasattr(self, 'cxpb_min_box') and 'cxpb_min' in adaptive:
+                        self.cxpb_min_box.setValue(float(adaptive['cxpb_min']))
+                    if hasattr(self, 'cxpb_max_box') and 'cxpb_max' in adaptive:
+                        self.cxpb_max_box.setValue(float(adaptive['cxpb_max']))
+                    if hasattr(self, 'mutpb_min_box') and 'mutpb_min' in adaptive:
+                        self.mutpb_min_box.setValue(float(adaptive['mutpb_min']))
+                    if hasattr(self, 'mutpb_max_box') and 'mutpb_max' in adaptive:
+                        self.mutpb_max_box.setValue(float(adaptive['mutpb_max']))
+
+                    # ML controller options
+                    ml = ga.get('ml_controller', {}) if isinstance(ga.get('ml_controller', {}), dict) else {}
+                    if hasattr(self, 'ml_controller_checkbox') and 'enabled' in ml:
+                        self.ml_controller_checkbox.setChecked(bool(ml['enabled']))
+                    if hasattr(self, 'ml_pop_adapt_checkbox') and 'adapt_population' in ml:
+                        self.ml_pop_adapt_checkbox.setChecked(bool(ml['adapt_population']))
+                    if hasattr(self, 'ml_ucb_c_box') and 'ucb_c' in ml:
+                        self.ml_ucb_c_box.setValue(float(ml['ucb_c']))
+                    if hasattr(self, 'ml_diversity_weight_box') and 'diversity_weight' in ml:
+                        self.ml_diversity_weight_box.setValue(float(ml['diversity_weight']))
+                    if hasattr(self, 'ml_diversity_target_box') and 'diversity_target' in ml:
+                        self.ml_diversity_target_box.setValue(float(ml['diversity_target']))
+                    if hasattr(self, 'ml_historical_weight_box') and 'historical_weight' in ml:
+                        self.ml_historical_weight_box.setValue(float(ml['historical_weight']))
+                    if hasattr(self, 'ml_current_weight_box') and 'current_weight' in ml:
+                        self.ml_current_weight_box.setValue(float(ml['current_weight']))
+
+                    # RL controller options
+                    rl = ga.get('rl_controller', {}) if isinstance(ga.get('rl_controller', {}), dict) else {}
+                    if hasattr(self, 'rl_alpha_box') and 'alpha' in rl:
+                        self.rl_alpha_box.setValue(float(rl['alpha']))
+                    if hasattr(self, 'rl_gamma_box') and 'gamma' in rl:
+                        self.rl_gamma_box.setValue(float(rl['gamma']))
+                    if hasattr(self, 'rl_epsilon_box') and 'epsilon' in rl:
+                        self.rl_epsilon_box.setValue(float(rl['epsilon']))
+                    if hasattr(self, 'rl_decay_box') and 'epsilon_decay' in rl:
+                        self.rl_decay_box.setValue(float(rl['epsilon_decay']))
+
+                    # Surrogate options
+                    surr = ga.get('surrogate', {}) if isinstance(ga.get('surrogate', {}), dict) else {}
+                    if hasattr(self, 'surrogate_checkbox') and 'enabled' in surr:
+                        self.surrogate_checkbox.setChecked(bool(surr['enabled']))
+                    if hasattr(self, 'surr_pool_factor_box') and 'pool_factor' in surr:
+                        self.surr_pool_factor_box.setValue(float(surr['pool_factor']))
+                    if hasattr(self, 'surr_k_box') and 'k' in surr:
+                        self.surr_k_box.setValue(int(surr['k']))
+                    if hasattr(self, 'surr_explore_frac_box') and 'explore_fraction' in surr:
+                        self.surr_explore_frac_box.setValue(float(surr['explore_fraction']))
+
+                    # Seeding and neural options
+                    seed = ga.get('seeding', {}) if isinstance(ga.get('seeding', {}), dict) else {}
+                    if hasattr(self, 'seeding_method_combo') and 'method' in seed:
+                        try:
+                            self.seeding_method_combo.setCurrentText(str(seed['method']))
+                        except Exception:
+                            pass
+                    neural = seed.get('neural', {}) if isinstance(seed.get('neural', {}), dict) else {}
+                    if hasattr(self, 'neural_options_group') and 'enabled' in neural:
+                        try:
+                            self.neural_options_group.setChecked(bool(neural['enabled']))
+                        except Exception:
+                            pass
+                    if hasattr(self, 'neural_acq_combo') and 'acquisition' in neural:
+                        try:
+                            self.neural_acq_combo.setCurrentText(str(neural['acquisition']))
+                        except Exception:
+                            pass
+                    if hasattr(self, 'neural_beta_min') and 'beta_min' in neural:
+                        self.neural_beta_min.setValue(float(neural['beta_min']))
+                    if hasattr(self, 'neural_beta_max') and 'beta_max' in neural:
+                        self.neural_beta_max.setValue(float(neural['beta_max']))
+                    if hasattr(self, 'neural_eps') and 'epsilon' in neural:
+                        self.neural_eps.setValue(float(neural['epsilon']))
+                    if hasattr(self, 'neural_pool_mult') and 'pool_mult' in neural:
+                        self.neural_pool_mult.setValue(float(neural['pool_mult']))
+                    if hasattr(self, 'neural_ensemble') and 'ensemble' in neural:
+                        self.neural_ensemble.setValue(int(neural['ensemble']))
+                    if hasattr(self, 'neural_layers') and 'layers' in neural:
+                        self.neural_layers.setValue(int(neural['layers']))
+                    if hasattr(self, 'neural_hidden') and 'hidden' in neural:
+                        self.neural_hidden.setValue(int(neural['hidden']))
+                    if hasattr(self, 'neural_dropout') and 'dropout' in neural:
+                        self.neural_dropout.setValue(float(neural['dropout']))
+                    if hasattr(self, 'neural_wd') and 'weight_decay' in neural:
+                        self.neural_wd.setValue(float(neural['weight_decay']))
+                    if hasattr(self, 'neural_epochs') and 'epochs' in neural:
+                        self.neural_epochs.setValue(int(neural['epochs']))
+                    if hasattr(self, 'neural_time_cap') and 'time_cap_ms' in neural:
+                        self.neural_time_cap.setValue(int(neural['time_cap_ms']))
+                    if hasattr(self, 'neural_grad_refine_chk') and 'grad_refine' in neural:
+                        self.neural_grad_refine_chk.setChecked(bool(neural['grad_refine']))
+                    if hasattr(self, 'neural_grad_steps') and 'grad_steps' in neural:
+                        self.neural_grad_steps.setValue(int(neural['grad_steps']))
+                    if hasattr(self, 'neural_device_combo') and 'device' in neural:
+                        try:
+                            self.neural_device_combo.setCurrentText(str(neural['device']))
+                        except Exception:
+                            pass
+                except Exception:
+                    # Be permissive when some GA fields are missing
+                    pass
+
+            # Update GA parameter bounds/fixed
+            if 'ga_parameters' in params and hasattr(self, 'ga_param_table'):
+                try:
+                    gp = params['ga_parameters']
+                    bounds = gp.get('bounds', {}) if isinstance(gp.get('bounds', {}), dict) else {}
+                    # Build name->row map
+                    name_to_row = {}
+                    for r in range(self.ga_param_table.rowCount()):
+                        nm_item = self.ga_param_table.item(r, 0)
+                        if nm_item:
+                            name_to_row[nm_item.text()] = r
+                    for pname, pinfo in bounds.items():
+                        if pname not in name_to_row or not isinstance(pinfo, dict):
+                            continue
+                        row = name_to_row[pname]
+                        fixed_chk = self.ga_param_table.cellWidget(row, 1)
+                        if fixed_chk:
+                            if bool(pinfo.get('fixed', False)):
+                                fixed_chk.setChecked(True)
+                                # Set fixed value if available
+                                if 'fixed_value' in pinfo:
+                                    fv_w = self.ga_param_table.cellWidget(row, 2)
+                                    if fv_w:
+                                        try:
+                                            fv_w.setValue(float(pinfo['fixed_value']))
+                                        except Exception:
+                                            pass
+                            else:
+                                fixed_chk.setChecked(False)
+                                lo_w = self.ga_param_table.cellWidget(row, 3)
+                                hi_w = self.ga_param_table.cellWidget(row, 4)
+                                if lo_w and 'lower' in pinfo:
+                                    try:
+                                        lo_w.setValue(float(pinfo['lower']))
+                                    except Exception:
+                                        pass
+                                if hi_w and 'upper' in pinfo:
+                                    try:
+                                        hi_w.setValue(float(pinfo['upper']))
+                                    except Exception:
+                                        pass
+                except Exception:
+                    pass
                     
             self.status_bar.showMessage("Parameters imported successfully", 3000)
             
@@ -372,11 +643,129 @@ class MenuMixin:
                 return
                 
             # Collect parameters
+            # Targets and weights
+            try:
+                target_values_dict, weights_dict = self.get_target_values_weights()
+            except Exception:
+                target_values_dict, weights_dict = {}, {}
+
+            # GA parameter bounds/fixed from table
+            ga_param_bounds = {}
+            try:
+                if hasattr(self, 'ga_param_table') and self.ga_param_table is not None:
+                    for row in range(self.ga_param_table.rowCount()):
+                        name_item = self.ga_param_table.item(row, 0)
+                        if not name_item:
+                            continue
+                        pname = name_item.text()
+                        fixed_widget = self.ga_param_table.cellWidget(row, 1)
+                        is_fixed = bool(fixed_widget.isChecked()) if fixed_widget else False
+                        if is_fixed:
+                            fv_w = self.ga_param_table.cellWidget(row, 2)
+                            fv = fv_w.value() if fv_w else 0.0
+                            ga_param_bounds[pname] = {
+                                'fixed': True,
+                                'fixed_value': float(fv)
+                            }
+                        else:
+                            lo_w = self.ga_param_table.cellWidget(row, 3)
+                            hi_w = self.ga_param_table.cellWidget(row, 4)
+                            lb = lo_w.value() if lo_w else 0.0
+                            ub = hi_w.value() if hi_w else 0.0
+                            ga_param_bounds[pname] = {
+                                'fixed': False,
+                                'lower': float(lb),
+                                'upper': float(ub)
+                            }
+            except Exception:
+                ga_param_bounds = {}
+
+            # GA hyperparameters and options
+            ga_settings = {}
+            try:
+                ga_settings = {
+                    'population': {
+                        'size': int(self.ga_pop_size_box.value()),
+                        'min': int(self.ga_pop_min_box.value()),
+                        'max': int(self.ga_pop_max_box.value()),
+                    },
+                    'generations': int(self.ga_num_generations_box.value()),
+                    'crossover_probability': float(self.ga_cxpb_box.value()),
+                    'mutation_probability': float(self.ga_mutpb_box.value()),
+                    'tolerance': float(self.ga_tol_box.value()),
+                    'alpha_sparsity': float(self.ga_alpha_box.value()),
+                    'percentage_error_scale': float(self.ga_percentage_error_scale_box.value()),
+                    'benchmark_runs': int(self.ga_benchmark_runs_box.value()),
+                    'controller': (
+                        'adaptive' if self.controller_adaptive_radio.isChecked() else
+                        ('ml' if self.controller_ml_radio.isChecked() else
+                         ('rl' if self.controller_rl_radio.isChecked() else 'fixed'))
+                    ),
+                    'adaptive_rates': {
+                        'enabled': bool(self.adaptive_rates_checkbox.isChecked()),
+                        'stagnation_limit': int(self.stagnation_limit_box.value()),
+                        'cxpb_min': float(self.cxpb_min_box.value()),
+                        'cxpb_max': float(self.cxpb_max_box.value()),
+                        'mutpb_min': float(self.mutpb_min_box.value()),
+                        'mutpb_max': float(self.mutpb_max_box.value()),
+                    },
+                    'ml_controller': {
+                        'enabled': bool(self.ml_controller_checkbox.isChecked()),
+                        'adapt_population': bool(self.ml_pop_adapt_checkbox.isChecked()),
+                        'ucb_c': float(self.ml_ucb_c_box.value()),
+                        'diversity_weight': float(self.ml_diversity_weight_box.value()),
+                        'diversity_target': float(self.ml_diversity_target_box.value()),
+                        'historical_weight': float(self.ml_historical_weight_box.value()),
+                        'current_weight': float(self.ml_current_weight_box.value()),
+                    },
+                    'rl_controller': {
+                        'alpha': float(self.rl_alpha_box.value()),
+                        'gamma': float(self.rl_gamma_box.value()),
+                        'epsilon': float(self.rl_epsilon_box.value()),
+                        'epsilon_decay': float(self.rl_decay_box.value()),
+                    },
+                    'surrogate': {
+                        'enabled': bool(self.surrogate_checkbox.isChecked()),
+                        'pool_factor': float(self.surr_pool_factor_box.value()),
+                        'k': int(self.surr_k_box.value()),
+                        'explore_fraction': float(self.surr_explore_frac_box.value()),
+                    },
+                    'seeding': {
+                        'method': str(self.seeding_method_combo.currentText()),
+                        'neural': {
+                            'enabled': bool(self.seeding_method_combo.currentText().lower().startswith('neural')),
+                            'acquisition': str(self.neural_acq_combo.currentText()),
+                            'beta_min': float(self.neural_beta_min.value()),
+                            'beta_max': float(self.neural_beta_max.value()),
+                            'epsilon': float(self.neural_eps.value()),
+                            'pool_mult': float(self.neural_pool_mult.value()),
+                            'ensemble': int(self.neural_ensemble.value()),
+                            'layers': int(self.neural_layers.value()),
+                            'hidden': int(self.neural_hidden.value()),
+                            'dropout': float(self.neural_dropout.value()),
+                            'weight_decay': float(self.neural_wd.value()),
+                            'epochs': int(self.neural_epochs.value()),
+                            'time_cap_ms': int(self.neural_time_cap.value()),
+                            'grad_refine': bool(self.neural_grad_refine_chk.isChecked()),
+                            'grad_steps': int(self.neural_grad_steps.value()),
+                            'device': str(self.neural_device_combo.currentText()),
+                        }
+                    }
+                }
+            except Exception:
+                ga_settings = {}
+
             params = {
                 'main_system': {
                     'mu': self.mu_box.value(),
                     'landa': [box.value() for box in self.landa_boxes],
-                    'nu': [box.value() for box in self.nu_boxes]
+                    'nu': [box.value() for box in self.nu_boxes],
+                    'a_low': self.a_low_box.value() if hasattr(self, 'a_low_box') else None,
+                    'a_up': self.a_up_box.value() if hasattr(self, 'a_up_box') else None,
+                    'f_1': self.f_1_box.value() if hasattr(self, 'f_1_box') else None,
+                    'f_2': self.f_2_box.value() if hasattr(self, 'f_2_box') else None,
+                    'omega_dc': self.omega_dc_box.value() if hasattr(self, 'omega_dc_box') else None,
+                    'zeta_dc': self.zeta_dc_box.value() if hasattr(self, 'zeta_dc_box') else None,
                 },
                 'dva': {
                     'beta': [box.value() for box in self.beta_boxes],
@@ -384,10 +773,31 @@ class MenuMixin:
                     'mu': [box.value() for box in self.mu_dva_boxes],
                     'nu': [box.value() for box in self.nu_dva_boxes]
                 },
+                'targets': target_values_dict,
+                'weights': weights_dict,
                 'frequency': {
                     'omega_start': self.omega_start_box.value(),
                     'omega_end': self.omega_end_box.value(),
-                    'omega_points': self.omega_points_box.value()
+                    'omega_points': self.omega_points_box.value(),
+                    'plot_figure': bool(self.plot_figure_chk.isChecked()) if hasattr(self, 'plot_figure_chk') else None,
+                    'show_peaks': bool(self.show_peaks_chk.isChecked()) if hasattr(self, 'show_peaks_chk') else None,
+                    'show_slopes': bool(self.show_slopes_chk.isChecked()) if hasattr(self, 'show_slopes_chk') else None,
+                    'interpolation_method': str(self.interp_method_combo.currentText()) if hasattr(self, 'interp_method_combo') else None,
+                    'interpolation_points': int(self.interp_points_box.value()) if hasattr(self, 'interp_points_box') else None,
+                },
+                'omega_sensitivity': {
+                    'initial_points': int(self.sensitivity_initial_points.value()) if hasattr(self, 'sensitivity_initial_points') else None,
+                    'max_points': int(self.sensitivity_max_points.value()) if hasattr(self, 'sensitivity_max_points') else None,
+                    'step_size': int(self.sensitivity_step_size.value()) if hasattr(self, 'sensitivity_step_size') else None,
+                    'threshold': float(self.sensitivity_threshold.value()) if hasattr(self, 'sensitivity_threshold') else None,
+                    'max_iterations': int(self.sensitivity_max_iterations.value()) if hasattr(self, 'sensitivity_max_iterations') else None,
+                    'mass': str(self.sensitivity_mass.currentText()) if hasattr(self, 'sensitivity_mass') else None,
+                    'plot_results': bool(self.sensitivity_plot_results.isChecked()) if hasattr(self, 'sensitivity_plot_results') else None,
+                    'use_optimal': bool(self.sensitivity_use_optimal.isChecked()) if hasattr(self, 'sensitivity_use_optimal') else None,
+                },
+                'ga_settings': ga_settings,
+                'ga_parameters': {
+                    'bounds': ga_param_bounds
                 }
             }
             

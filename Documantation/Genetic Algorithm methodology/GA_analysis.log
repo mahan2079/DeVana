@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.3.6)  24 AUG 2025 12:46
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.3.6)  26 AUG 2025 08:41
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -699,46 +699,233 @@ Package: enumitem 2025/02/06 v3.11 Customized lists
 (c:/texlive/2024/texmf-dist/tex/latex/setspace/setspace.sty
 Package: setspace 2022/12/04 v6.7b set line spacing
 )
+(c:/texlive/2024/texmf-dist/tex/latex/stackengine/stackengine.sty
+Package: stackengine 2021/07/22 v4.11\ Stacking text and objects in convenient 
+ways
+
+(c:/texlive/2024/texmf-dist/tex/generic/listofitems/listofitems.sty
+(c:/texlive/2024/texmf-dist/tex/generic/listofitems/listofitems.tex
+\loi_cnt_foreach_nest=\count343
+\loi_nestcnt=\count344
+)
+Package: listofitems 2024/03/09 v1.65 Grab items in lists using user-specified 
+sep char (CT)
+)
+(c:/texlive/2024/texmf-dist/tex/latex/tools/calc.sty
+Package: calc 2023/07/08 v4.3 Infix arithmetic (KKT,FJ)
+\calc@Acount=\count345
+\calc@Bcount=\count346
+\calc@Adimen=\dimen300
+\calc@Bdimen=\dimen301
+\calc@Askip=\skip62
+\calc@Bskip=\skip63
+LaTeX Info: Redefining \setlength on input line 80.
+LaTeX Info: Redefining \addtolength on input line 81.
+\calc@Ccount=\count347
+\calc@Cskip=\skip64
+)
+\c@@stackindex=\count348
+\@boxshift=\skip65
+\stack@tmplength=\skip66
+\temp@stkl=\skip67
+\@stackedboxwidth=\skip68
+\@addedbox=\box72
+\@anchorbox=\box73
+\@insetbox=\box74
+\se@backgroundbox=\box75
+\stackedbox=\box76
+\@centerbox=\box77
+\c@ROWcellindex@=\count349
+)
+(c:/texlive/2024/texmf-dist/tex/latex/glossaries/base/glossaries.sty
+Package: glossaries 2025/03/03 v4.56 (NLCT)
+
+(c:/texlive/2024/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+Package: xkeyval 2022/06/16 v2.9 package option processing (HA)
+
+(c:/texlive/2024/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+(c:/texlive/2024/texmf-dist/tex/generic/xkeyval/xkvutils.tex
+\XKV@toks=\toks44
+\XKV@tempa@toks=\toks45
+)
+\XKV@depth=\count350
+File: xkeyval.tex 2014/12/03 v2.7a key=value parser (HA)
+))
+(c:/texlive/2024/texmf-dist/tex/latex/mfirstuc/mfirstuc.sty
+Package: mfirstuc 2022/10/14 v2.08 (NLCT)
+\@glsmfirst=\toks46
+\@glsmrest=\toks47
+)
+(c:/texlive/2024/texmf-dist/tex/latex/xfor/xfor.sty
+Package: xfor 2009/02/05 v1.05 (NLCT)
+)
+(c:/texlive/2024/texmf-dist/tex/latex/datatool/datatool-base.sty
+Package: datatool-base 2025/03/03 v3.0 (NLCT)
+
+(c:/texlive/2024/texmf-dist/tex/latex/tracklang/tracklang.sty
+Package: tracklang 2025/03/04 v1.6.5 (NLCT) Track Languages
+
+(c:/texlive/2024/texmf-dist/tex/generic/tracklang/tracklang.tex))
+
+! Package datatool Error: Missing file `datatool-l3fp.def' for math=l3fp. No ma
+th commands available! .
+
+See the datatool package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.929  }
+        
+? 
+\@dtl@toks=\toks48
+\@dtl@tmpcount=\count351
+\dtl@tmplength=\skip69
+\l__datatool_measure_box=\box78
+\dtl@sortresult=\count352
+Package datatool-base Info: Missing file `datatool-utf8.ldf'. Falling back on U
+S-ASCII for \datatool_..._str commands on input line 1947.
+\@dtl@datatype=\count353
+\l__datatool_tmpa_int=\count354
+\l__datatool_tmpb_int=\count355
+\l__datatool_tmpc_int=\count356
+\l__datatool_tmpd_int=\count357
+\l__datatool_count_int=\count358
+\l__datatool_tmp_datatype_int=\count359
+\l__datatool_tmpa_dim=\dimen302
+\l__datatool_tmpb_dim=\dimen303
+\c_datatool_unknown_int=\count360
+\l__datatool_year_int=\count361
+\l__datatool_month_int=\count362
+\l__datatool_day_int=\count363
+\l__datatool_hour_int=\count364
+\l__datatool_minute_int=\count365
+\l__datatool_second_int=\count366
+\l__datatool_tzhour_int=\count367
+\l__datatool_tzminute_int=\count368
+\l__datatool_julian_int=\count369
+\l__datatool_local_julian_int=\count370
+\l__datatool_prefix_int=\count371
+\l__datatool_suffix_int=\count372
+\@dtl@foreach@level=\count373
+\dtl@codeA=\count374
+\dtl@codeB=\count375
+)
+\gls@level=\count376
+\@gls@tmpb=\toks49
+\gls@tmplen=\skip70
+\glskeylisttok=\toks50
+\glslabeltok=\toks51
+\glsshorttok=\toks52
+\glslongtok=\toks53
+ (c:/texlive/2024/texmf-dist/tex/latex/glossaries/styles/glossary-hypernav.sty
+Package: glossary-hypernav 2025/03/03 v4.56 (NLCT)
+) (c:/texlive/2024/texmf-dist/tex/latex/glossaries/styles/glossary-list.sty
+Package: glossary-list 2025/03/03 v4.56 (NLCT)
+\glslistdottedwidth=\skip71
+)
+(c:/texlive/2024/texmf-dist/tex/latex/glossaries/styles/glossary-long.sty
+Package: glossary-long 2025/03/03 v4.56 (NLCT)
+
+(c:/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty
+Package: longtable 2024-10-27 v4.22 Multi-page Table package (DPC)
+\LTleft=\skip72
+\LTright=\skip73
+\LTpre=\skip74
+\LTpost=\skip75
+\LTchunksize=\count377
+\LTcapwidth=\dimen304
+\LT@head=\box79
+\LT@firsthead=\box80
+\LT@foot=\box81
+\LT@lastfoot=\box82
+\LT@gbox=\box83
+\LT@cols=\count378
+\LT@rows=\count379
+\c@LT@tables=\count380
+\c@LT@chunks=\count381
+\LT@p@ftn=\toks54
+)
+\glsdescwidth=\skip76
+\glspagelistwidth=\skip77
+)
+(c:/texlive/2024/texmf-dist/tex/latex/glossaries/styles/glossary-super.sty
+Package: glossary-super 2025/03/03 v4.56 (NLCT)
+
+(c:/texlive/2024/texmf-dist/tex/latex/supertabular/supertabular.sty
+Package: supertabular 2024/07/20 v4.2c the supertabular environment
+\c@tracingst=\count382
+\ST@wd=\dimen305
+\ST@rightskip=\skip78
+\ST@leftskip=\skip79
+\ST@parfillskip=\skip80
+\ST@pageleft=\dimen306
+\ST@headht=\dimen307
+\ST@tailht=\dimen308
+\ST@pagesofar=\dimen309
+\ST@pboxht=\dimen310
+\ST@rowht=\dimen311
+\ST@prevht=\dimen312
+\ST@toadd=\dimen313
+\ST@dimen=\dimen314
+\ST@pbox=\box84
+))
+(c:/texlive/2024/texmf-dist/tex/latex/glossaries/styles/glossary-tree.sty
+Package: glossary-tree 2025/03/03 v4.56 (NLCT)
+\glstreeindent=\skip81
+))
+\glswrite=\write4
+\glo@main@file=\write5
+\openout5 = `GA_analysis.glo'.
+
+Package glossaries Info: Writing glossary file GA_analysis.glo on input line 24
+.
+\glo@acronym@file=\write6
+\openout6 = `GA_analysis.acn'.
+
+Package glossaries Info: Writing glossary file GA_analysis.acn on input line 24
+.
+Package hyperref Info: Option `colorlinks' set `true' on input line 39.
+
 (c:/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2024-05-08 L3 backend support: PDF output (pdfTeX)
-\l__color_backend_stack_int=\count343
-\l__pdf_internal_box=\box72
+\l__color_backend_stack_int=\count383
+\l__pdf_internal_box=\box85
 )
 (./GA_analysis.aux)
 \openout1 = `GA_analysis.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 42.
-LaTeX Font Info:    ... okay on input line 42.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 42.
-LaTeX Font Info:    ... okay on input line 42.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 42.
-LaTeX Font Info:    ... okay on input line 42.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 42.
-LaTeX Font Info:    ... okay on input line 42.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 42.
-LaTeX Font Info:    ... okay on input line 42.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 42.
-LaTeX Font Info:    ... okay on input line 42.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 42.
-LaTeX Font Info:    ... okay on input line 42.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 42.
-LaTeX Font Info:    ... okay on input line 42.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 42.
-LaTeX Font Info:    ... okay on input line 42.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 81.
+LaTeX Font Info:    ... okay on input line 81.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 81.
+LaTeX Font Info:    ... okay on input line 81.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 81.
+LaTeX Font Info:    ... okay on input line 81.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 81.
+LaTeX Font Info:    ... okay on input line 81.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 81.
+LaTeX Font Info:    ... okay on input line 81.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 81.
+LaTeX Font Info:    ... okay on input line 81.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 81.
+LaTeX Font Info:    ... okay on input line 81.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 81.
+LaTeX Font Info:    ... okay on input line 81.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 81.
+LaTeX Font Info:    ... okay on input line 81.
 
 (c:/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
-\scratchcounter=\count344
-\scratchdimen=\dimen300
-\scratchbox=\box73
-\nofMPsegments=\count345
-\nofMParguments=\count346
-\everyMPshowfont=\toks44
-\MPscratchCnt=\count347
-\MPscratchDim=\dimen301
-\MPnumerator=\count348
-\makeMPintoPDFobject=\count349
-\everyMPtoPDFconversion=\toks45
+\scratchcounter=\count384
+\scratchdimen=\dimen315
+\scratchbox=\box86
+\nofMPsegments=\count385
+\nofMParguments=\count386
+\everyMPshowfont=\toks55
+\MPscratchCnt=\count387
+\MPscratchDim=\dimen316
+\MPnumerator=\count388
+\makeMPintoPDFobject=\count389
+\everyMPtoPDFconversion=\toks56
 ) (c:/texlive/2024/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
@@ -782,21 +969,27 @@ e
 * \@reversemarginfalse
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
-\c@lstlisting=\count350
-Package hyperref Info: Link coloring OFF on input line 42.
+\c@lstlisting=\count390
+Package hyperref Info: Link coloring ON on input line 81.
 (./GA_analysis.out) (./GA_analysis.out)
-\@outlinefile=\write4
-\openout4 = `GA_analysis.out'.
+\@outlinefile=\write7
+\openout7 = `GA_analysis.out'.
 
 Package caption Info: Begin \AtBeginDocument code.
+Package caption Info: longtable package is loaded.
+
+(c:/texlive/2024/texmf-dist/tex/latex/caption/ltcaption.sty
+Package: ltcaption 2021/01/08 v1.4c longtable captions (AR)
+)
+Package caption Info: supertabular package is loaded.
 Package caption Info: End \AtBeginDocument code.
-LaTeX Font Info:    Trying to load font information for U+msa on input line 45.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 84.
 
 
 (c:/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 45.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 84.
 
 
 (c:/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd
@@ -805,31 +998,52 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 
 [1
 
+\openout4 = `GA_analysis.ist'.
+
 {c:/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{c:/texlive/2024/
 texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc}]
 
-[2])
-\tf@toc=\write5
-\openout5 = `GA_analysis.toc'.
+[2]
+
+[3])
+\tf@toc=\write8
+\openout8 = `GA_analysis.toc'.
 
 
 
-[3]
-Overfull \hbox (3.07433pt too wide) in paragraph at lines 65--66
+[4]
+No file GA_analysis.acr.
+
+
+[5]
+
+[6]
+
+LaTeX Warning: Reference `subsubsec:chosen_performance_criteria_combined' on pa
+ge 7 undefined on input line 137.
+
+
+
+[7{c:/texlive/2024/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc}]
+
+[8]
+
+[9]
+Overfull \hbox (3.07433pt too wide) in paragraph at lines 228--229
 []\T1/cmr/bx/n/12 Complete cou-pling\T1/cmr/m/n/12 : All com-po-nents in-ter-co
 n-nected through mass, stiff-ness, damp-
  []
 
 
-Overfull \hbox (10.4643pt too wide) in paragraph at lines 76--77
+Overfull \hbox (10.4643pt too wide) in paragraph at lines 239--240
 \T1/cmr/m/n/12 ca-pa-ble of ef-fi-ciently ex-plor-ing the de-sign do-main while
  main-tain-ing com-pu-ta-tional tractabil-
  []
 
 
 
-[4{c:/texlive/2024/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc}]
-Overfull \hbox (0.80128pt too wide) in paragraph at lines 84--85
+[10]
+Overfull \hbox (0.80128pt too wide) in paragraph at lines 247--248
 []\T1/cmr/bx/n/12 Linear vis-cous damp-ing\T1/cmr/m/n/12 : All damp-ing el-e-me
 nts ($\OML/cmm/m/it/12 C[]$\T1/cmr/m/n/12 , $\OML/cmm/m/it/12 C[]$\T1/cmr/m/n/1
 2 , $\OML/cmm/m/it/12 C[]$\T1/cmr/m/n/12 ) fol-low lin-ear velocity-
@@ -837,45 +1051,65 @@ nts ($\OML/cmm/m/it/12 C[]$\T1/cmr/m/n/12 , $\OML/cmm/m/it/12 C[]$\T1/cmr/m/n/1
 
 
 
-[5]
-Overfull \hbox (332.29912pt too wide) detected at line 158
-[]
- []
-
-
-
-[6]
-Overfull \hbox (396.56046pt too wide) detected at line 181
-[]
- []
-
-
-Overfull \hbox (409.27585pt too wide) detected at line 203
-[]
- []
-
-
-
-[7]
-Overfull \hbox (174.41992pt too wide) detected at line 225
-[]
- []
-
-
-
-[8]
-
-[9]
-
-[10]
-
 [11]
+
+Package amsmath Warning: Bracket group [M] at formula start!
+(amsmath)                It could be a misspelled positional argument.
+(amsmath)                If it belongs to the formula add a \relax in
+(amsmath)                front to hide it on input line 330.
+
+
 
 [12]
 
+Package amsmath Warning: Bracket group [C] at formula start!
+(amsmath)                It could be a misspelled positional argument.
+(amsmath)                If it belongs to the formula add a \relax in
+(amsmath)                front to hide it on input line 345.
+
+
+Package amsmath Warning: Bracket group [K] at formula start!
+(amsmath)                It could be a misspelled positional argument.
+(amsmath)                If it belongs to the formula add a \relax in
+(amsmath)                front to hide it on input line 360.
+
+
+Package amsmath Warning: Bracket group [F] at formula start!
+(amsmath)                It could be a misspelled positional argument.
+(amsmath)                If it belongs to the formula add a \relax in
+(amsmath)                front to hide it on input line 375.
+
+
+
 [13]
 
+Package amsmath Warning: Bracket group [\bar {M}] at formula start!
+(amsmath)                It could be a misspelled positional argument.
+(amsmath)                If it belongs to the formula add a \relax in
+(amsmath)                front to hide it on input line 427.
+
+
+
 [14]
+
+Package amsmath Warning: Bracket group [\bar {C}] at formula start!
+(amsmath)                It could be a misspelled positional argument.
+(amsmath)                If it belongs to the formula add a \relax in
+(amsmath)                front to hide it on input line 442.
+
+
+Package amsmath Warning: Bracket group [\bar {K}] at formula start!
+(amsmath)                It could be a misspelled positional argument.
+(amsmath)                If it belongs to the formula add a \relax in
+(amsmath)                front to hide it on input line 457.
+
+
+Package amsmath Warning: Bracket group [\bar {F}] at formula start!
+(amsmath)                It could be a misspelled positional argument.
+(amsmath)                If it belongs to the formula add a \relax in
+(amsmath)                front to hide it on input line 472.
+
+
 
 [15]
 
@@ -891,7 +1125,36 @@ Overfull \hbox (174.41992pt too wide) detected at line 225
 
 [21]
 
+LaTeX Warning: Reference `subsubsec:chosen_performance_criteria_combined' on pa
+ge 22 undefined on input line 771.
+
+
+
 [22]
+Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
+put line 789.
+
+
+! LaTeX Error: Something's wrong--perhaps a missing \item.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.795 ...mathbf{x})\le\tau$} \textbf{break} \ENDIF
+                                                  
+? 
+
+! LaTeX Error: Something's wrong--perhaps a missing \item.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.799 ...th Eq.~\eqref{Eq.bound_projection} \ENDIF
+                                                  
+? 
+
 
 [23]
 
@@ -900,26 +1163,129 @@ Overfull \hbox (174.41992pt too wide) detected at line 225
 [25]
 
 [26]
-
-[27]
-Overfull \hbox (10.8818pt too wide) in paragraph at lines 973--974
-[]\T1/cmr/m/n/12 Third, the ge-netic op-er-a-tors them-selves con-tribute to co
-m-pu-ta-tional over-head. Crossover
+Overfull \hbox (0.81654pt too wide) in paragraph at lines 932--933
+ []\T1/cmr/bx/n/12 External va-lid-ity[] \T1/cmr/m/n/12 We val-i-date across mu
+l-ti-ple me-chan-i-cal sce-nar-ios (mass ra-tios, damp-
  []
 
 
 
+[27]
+
+LaTeX Warning: Reference `subsubsec:chosen_performance_criteria_combined' on pa
+ge 28 undefined on input line 945.
+
+
+
 [28]
+Overfull \hbox (43.0481pt too wide) in paragraph at lines 984--985
+\T1/cmtt/m/n/12 _p5_p95\T1/cmr/m/n/12 , \T1/cmtt/m/n/12 _tukey_whisker\T1/cmr/m
+/n/12 , \T1/cmtt/m/n/12 _shortest_interval\T1/cmr/m/n/12 , \T1/cmtt/m/n/12 _top
+_quantile_p5_p95\T1/cmr/m/n/12 , \T1/cmtt/m/n/12 _trimmed_mean_mad\T1/cmr/m/n/1
+2 )
+ []
+
+
+Overfull \hbox (56.58026pt too wide) in paragraph at lines 984--985
+\T1/cmr/m/n/12 and op-er-ate di-rectly on the em-pir-i-cal sam-ples of each pa-
+ram-e-ter, as pro-duced by \T1/cmtt/m/n/12 GAWorker.finished\T1/cmr/m/n/12 .
+ []
+
+
 
 [29]
+Overfull \hbox (14.49791pt too wide) detected at line 1006
+[]
+ []
+
+
 
 [30]
 
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 1009.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\alpha' on input line 1009.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 1009.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 1016.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 1016.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 1023.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\pm' on input line 1023.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 1023.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\leavevmode@ifvmode' on input line 1023.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                \kern 1.95827pt
+(hyperref)                removed on input line 1023.
+
+
+
 [31]
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 1031.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\rightarrow' on input line 1031.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 1031.
+
+
+Overfull \hbox (3.64299pt too wide) in paragraph at lines 1035--1036
+[]\T1/cmtt/m/n/12 final_results\T1/cmr/m/n/12 : The full re-sults of the run, o
+p-tion-ally in-clud-ing \T1/cmtt/m/n/12 singular_response
+ []
+
+
 
 [32]
 
+! LaTeX Error: Something's wrong--perhaps a missing \item.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.1072 ...ftarrow w$, $s^\star\leftarrow s$ \ENDIF
+                                                  
+? 
+
+
 [33]
+Overfull \hbox (15.35269pt too wide) in paragraph at lines 1098--1099
+[]\T1/cmr/bx/n/12 Pairwise Intersection-over-Union (IoU): \T1/cmr/m/n/12 For an
+y two cri-te-ria $\OML/cmm/m/it/12 c[]$ \T1/cmr/m/n/12 and $\OML/cmm/m/it/12 c[
+]$\T1/cmr/m/n/12 , $[][] \OT1/cmr/m/n/12 =
+ []
+
+
 
 [34]
 
@@ -930,108 +1296,165 @@ m-pu-ta-tional over-head. Crossover
 [37]
 
 [38]
-Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
-put line 1239.
-
 
 [39]
 
 [40]
-Overfull \hbox (8.67918pt too wide) in paragraph at lines 1315--1316
-[]\T1/cmr/m/n/12 where $\OML/cmm/m/it/12 ^^V\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x
-\OT1/cmr/m/n/12 )$ \T1/cmr/m/n/12 is pre-dicted fit-ness, $\OML/cmm/m/it/12 ^^[
-\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x\OT1/cmr/m/n/12 )$ \T1/cmr/m/n/12 is pre-dic
--tion un-cer-tainty, and $\OML/cmm/m/it/12 ^^T$ \T1/cmr/m/n/12 con-trols explor
-ation-
+
+LaTeX Warning: Reference `subsec:single_run_protocol' on page 41 undefined on i
+nput line 1269.
+
+
+Overfull \hbox (7.9081pt too wide) in paragraph at lines 1269--1271
+\T1/cmr/m/n/12 For each run we per-sist \T1/cmtt/m/n/12 (final_results, best_in
+d, parameter_names, best_fitness)
  []
 
 
 
 [41]
 
-[42]
-
-[43]
-
-[44]
-
-[45]
-
-[46]
-
-[47]
-
-[48]
-
-! LaTeX Error: Too deeply nested.
-
-See the LaTeX manual or LaTeX Companion for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.1695                     \item
-                                 Remove creator.FitnessMin if exists
-? 
+LaTeX Warning: Reference `Eq.benchmark.Cs' on page 42 undefined on input line 1
+271.
 
 
-[49]
 
-[50]
-
-[51]
-
-[52]
-
-[53]
-
-[54]
-
-[55]
-
-[56]
-
-[57]
-
-[58]
-
-[59]
-
-[60] (./GA_analysis.aux)
+[42] (./GA_analysis.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
-Package rerunfilecheck Info: File `GA_analysis.out' has not changed.
-(rerunfilecheck)             Checksum: 58D6A25D08E55CB39EB2B7E2335160FB;17771.
+
+
+LaTeX Warning: There were undefined references.
+
+
+LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
+
+
+Package rerunfilecheck Warning: File `GA_analysis.out' has changed.
+(rerunfilecheck)                Rerun to get outlines right
+(rerunfilecheck)                or use package `bookmark'.
+
+Package rerunfilecheck Info: Checksums for `GA_analysis.out':
+(rerunfilecheck)             Before: B9431A61133A25FB4F9C4CE410F97192;15723
+(rerunfilecheck)             After:  8A33D44CDA13565450C5C096B48F4F56;15955.
  ) 
 Here is how much of TeX's memory you used:
- 25224 strings out of 473201
- 451070 string characters out of 5720300
- 840076 words of memory out of 5000000
- 47497 multiletter control sequences out of 15000+600000
- 574276 words of font info for 78 fonts, out of 8000000 for 9000
+ 32391 strings out of 473201
+ 606561 string characters out of 5720300
+ 1045223 words of memory out of 5000000
+ 54822 multiletter control sequences out of 15000+600000
+ 580980 words of font info for 94 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 84i,15n,91p,614b,731s stack positions out of 10000i,1000n,20000p,200000b,200000s
-<c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb><c:/tex
-live/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb><c:/texlive/2024/
-texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><c:/texlive/2024/texmf-dis
-t/fonts/type1/public/amsfonts/cm/cmmi12.pfb><c:/texlive/2024/texmf-dist/fonts/t
-ype1/public/amsfonts/cm/cmmi6.pfb><c:/texlive/2024/texmf-dist/fonts/type1/publi
-c/amsfonts/cm/cmmi8.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts
-/cm/cmr12.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.p
-fb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb><c:/te
-xlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb><c:/texlive/2024
-/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb><c:/texlive/2024/texmf-dis
-t/fonts/type1/public/amsfonts/symbols/msbm10.pfb><c:/texlive/2024/texmf-dist/fo
-nts/type1/public/cm-super/sfbx1200.pfb><c:/texlive/2024/texmf-dist/fonts/type1/
-public/cm-super/sfbx1440.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-
-super/sfbx1728.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfrm
-1200.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfrm1440.pfb><
-c:/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfrm2074.pfb>
-Output written on GA_analysis.pdf (60 pages, 395586 bytes).
+ 84i,18n,91p,2372b,852s stack positions out of 10000i,1000n,20000p,200000b,200000s
+
+pdfTeX warning (dest): name{glo:DVA} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{glo:kpi} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{glo:gui} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{glo:hdi} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{glo:qmc} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{glo:ei} has been referenced but does not exist, rep
+laced by a fixed one
+
+
+pdfTeX warning (dest): name{glo:ucb} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{glo:knn} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{glo:de} has been referenced but does not exist, rep
+laced by a fixed one
+
+
+pdfTeX warning (dest): name{glo:rl} has been referenced but does not exist, rep
+laced by a fixed one
+
+
+pdfTeX warning (dest): name{glo:cmaes} has been referenced but does not exist, 
+replaced by a fixed one
+
+
+pdfTeX warning (dest): name{glo:sa} has been referenced but does not exist, rep
+laced by a fixed one
+
+
+pdfTeX warning (dest): name{glo:pso} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{glo:ga} has been referenced but does not exist, rep
+laced by a fixed one
+
+
+pdfTeX warning (dest): name{glo:frf} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{glo:dva} has been referenced but does not exist, re
+placed by a fixed one
+
+
+pdfTeX warning (dest): name{appendix.B} has been referenced but does not exist,
+ replaced by a fixed one
+
+
+pdfTeX warning (dest): name{appendix.A} has been referenced but does not exist,
+ replaced by a fixed one
+
+
+pdfTeX warning (dest): name{section.13} has been referenced but does not exist,
+ replaced by a fixed one
+
+
+pdfTeX warning (dest): name{section.12} has been referenced but does not exist,
+ replaced by a fixed one
+
+<c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb><c:/texli
+ve/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb><c:/texlive/2024/te
+xmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><c:/texlive/2024/texmf-dist/
+fonts/type1/public/amsfonts/cm/cmmi12.pfb><c:/texlive/2024/texmf-dist/fonts/typ
+e1/public/amsfonts/cm/cmmi6.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/
+amsfonts/cm/cmmi8.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/c
+m/cmmib10.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.
+pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb><c:/tex
+live/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb><c:/texlive/2024/t
+exmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb><c:/texlive/2024/texmf-dist
+/fonts/type1/public/amsfonts/cm/cmsy6.pfb><c:/texlive/2024/texmf-dist/fonts/typ
+e1/public/amsfonts/cm/cmsy8.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/
+amsfonts/symbols/msbm10.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-s
+uper/sfbx1095.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfbx1
+200.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfbx1440.pfb><c
+:/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfbx1728.pfb><c:/texlive/
+2024/texmf-dist/fonts/type1/public/cm-super/sfrm0800.pfb><c:/texlive/2024/texmf
+-dist/fonts/type1/public/cm-super/sfrm1000.pfb><c:/texlive/2024/texmf-dist/font
+s/type1/public/cm-super/sfrm1095.pfb><c:/texlive/2024/texmf-dist/fonts/type1/pu
+blic/cm-super/sfrm1200.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-su
+per/sfrm1440.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfrm20
+74.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfti1200.pfb><c:
+/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sftt1200.pfb>
+Output written on GA_analysis.pdf (42 pages, 570277 bytes).
 PDF statistics:
- 1355 PDF objects out of 1440 (max. 8388607)
- 1243 compressed objects within 13 object streams
- 583 named destinations out of 1000 (max. 500000)
- 693 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 1069 PDF objects out of 1200 (max. 8388607)
+ 962 compressed objects within 10 object streams
+ 337 named destinations out of 1000 (max. 500000)
+ 589 words of extra memory for PDF output out of 10000 (max. 10000000)
 
