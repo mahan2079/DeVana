@@ -1,0 +1,655 @@
+{
+    "main_system": {
+        "mu": 1.0,
+        "landa": [
+            1.0,
+            1.0,
+            0.5,
+            0.5,
+            0.5
+        ],
+        "nu": [
+            0.75,
+            0.75,
+            0.75,
+            0.75,
+            0.75
+        ],
+        "a_low": 0.05,
+        "a_up": 0.05,
+        "f_1": 100.0,
+        "f_2": 100.0,
+        "omega_dc": 100.0,
+        "zeta_dc": 0.01
+    },
+    "dva": {
+        "beta": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ],
+        "lambda": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ],
+        "mu": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "nu": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ]
+    },
+    "targets": {
+        "mass_1": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 100.0,
+            "peak_position_3": 250.0,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        },
+        "mass_2": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 0.0,
+            "peak_position_3": 0.0,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        },
+        "mass_3": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 0.0,
+            "peak_position_3": 0.0,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        },
+        "mass_4": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 0.0,
+            "peak_position_3": 0.0,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        },
+        "mass_5": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 0.0,
+            "peak_position_3": 0.0,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        }
+    },
+    "weights": {
+        "mass_1": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 0.5,
+            "peak_position_3": 0.5,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        },
+        "mass_2": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 0.0,
+            "peak_position_3": 0.0,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        },
+        "mass_3": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 0.0,
+            "peak_position_3": 0.0,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        },
+        "mass_4": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 0.0,
+            "peak_position_3": 0.0,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        },
+        "mass_5": {
+            "peak_value_1": 0.0,
+            "peak_value_2": 0.0,
+            "peak_value_3": 0.0,
+            "peak_value_4": 0.0,
+            "peak_position_1": 0.0,
+            "peak_position_2": 0.0,
+            "peak_position_3": 0.0,
+            "peak_position_4": 0.0,
+            "peak_position_5": 0.0,
+            "bandwidth_1_2": 0.0,
+            "bandwidth_1_3": 0.0,
+            "bandwidth_1_4": 0.0,
+            "bandwidth_2_3": 0.0,
+            "bandwidth_2_4": 0.0,
+            "bandwidth_3_4": 0.0,
+            "slope_1_2": 0.0,
+            "slope_1_3": 0.0,
+            "slope_1_4": 0.0,
+            "slope_2_3": 0.0,
+            "slope_2_4": 0.0,
+            "slope_3_4": 0.0,
+            "area_under_curve": 0.0
+        }
+    },
+    "frequency": {
+        "omega_start": 0.0,
+        "omega_end": 350.0,
+        "omega_points": 350,
+        "plot_figure": true,
+        "show_peaks": false,
+        "show_slopes": false,
+        "interpolation_method": "none",
+        "interpolation_points": 1000
+    },
+    "omega_sensitivity": {
+        "initial_points": 100,
+        "max_points": 2000,
+        "step_size": 1000,
+        "threshold": 0.01,
+        "max_iterations": 200,
+        "mass": "mass_1",
+        "plot_results": true,
+        "use_optimal": true
+    },
+    "ga_settings": {
+        "population": {
+            "size": 150,
+            "min": 400,
+            "max": 1600
+        },
+        "generations": 150,
+        "crossover_probability": 0.7,
+        "mutation_probability": 0.2,
+        "tolerance": 0.1,
+        "alpha_sparsity": 0.02,
+        "percentage_error_scale": 1000.0,
+        "benchmark_runs": 10,
+        "controller": "fixed",
+        "adaptive_rates": {
+            "enabled": false,
+            "stagnation_limit": 5,
+            "cxpb_min": 0.1,
+            "cxpb_max": 0.9,
+            "mutpb_min": 0.05,
+            "mutpb_max": 0.5
+        },
+        "ml_controller": {
+            "enabled": false,
+            "adapt_population": false,
+            "ucb_c": 0.6,
+            "diversity_weight": 0.02,
+            "diversity_target": 0.0,
+            "historical_weight": 0.7,
+            "current_weight": 0.3
+        },
+        "rl_controller": {
+            "alpha": 0.001,
+            "gamma": 0.95,
+            "epsilon": 1.0,
+            "epsilon_decay": 0.95
+        },
+        "surrogate": {
+            "enabled": false,
+            "pool_factor": 2.0,
+            "k": 5,
+            "explore_fraction": 0.15
+        },
+        "seeding": {
+            "method": "Random",
+            "neural": {
+                "enabled": false,
+                "acquisition": "UCB",
+                "beta_min": 1.0,
+                "beta_max": 2.5,
+                "epsilon": 0.1,
+                "pool_mult": 3.0,
+                "ensemble": 3,
+                "layers": 2,
+                "hidden": 96,
+                "dropout": 0.1,
+                "weight_decay": 0.0001,
+                "epochs": 8,
+                "time_cap_ms": 750,
+                "grad_refine": false,
+                "grad_steps": 0,
+                "device": "cpu"
+            }
+        }
+    },
+    "ga_parameters": {
+        "bounds": {
+            "beta_1": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_2": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_3": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_4": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_5": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_6": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_7": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_8": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_9": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_10": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_11": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_12": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_13": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_14": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "beta_15": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_1": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_2": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_3": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_4": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_5": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_6": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_7": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_8": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_9": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_10": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_11": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_12": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_13": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_14": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "lambda_15": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "mu_1": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "mu_2": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "mu_3": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_1": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_2": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_3": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_4": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_5": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_6": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_7": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_8": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_9": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_10": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_11": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_12": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_13": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_14": {
+                "fixed": false,
+                "lower": 0.0,
+                "upper": 1.0
+            },
+            "nu_15": {
+                "fixed": true,
+                "fixed_value": 0.0
+            }
+        }
+    }
+}

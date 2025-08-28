@@ -3327,6 +3327,253 @@ class GAOptimizationMixin:
 
                     ranges_tabs.addTab(cmp_tab, "Compare Criteria")
 
+                    # Recommendation subtab: decision rules + metrics + visualization
+                    rec_tab = QWidget()
+                    rec_layout = QVBoxLayout(rec_tab)
+
+                    # Controls
+                    rec_controls = QGroupBox("Recommendation Controls")
+                    rec_controls_form = QFormLayout(rec_controls)
+                    rec_rule_combo = QComboBox()
+                    rec_rule_combo.addItems([
+                        "Intersection (all)",
+                        "Majority k-of-n",
+                        "Weighted average",
+                        "Pick single criterion",
+                        "Auto: min normalized width",
+                        "Auto: max IoU with others",
+                    ])
+                    rec_rule_combo.setCurrentIndex(0)
+
+                    rec_k_spin = QDoubleSpinBox(); rec_k_spin.setRange(0.5, 1.0); rec_k_spin.setSingleStep(0.05); rec_k_spin.setValue(0.6)
+                    rec_pick_crit_combo = QComboBox(); rec_pick_crit_combo.addItems(list(ranges_by_criterion.keys()))
+                    clamp_bounds_chk = QCheckBox("Clamp to parameter bounds"); clamp_bounds_chk.setChecked(True)
+                    show_union_chk = QCheckBox("Show union band"); show_union_chk.setChecked(True)
+                    show_intersection_chk = QCheckBox("Show intersection band"); show_intersection_chk.setChecked(True)
+
+                    rec_controls_form.addRow("Rule:", rec_rule_combo)
+                    rec_controls_form.addRow("k (fraction)", rec_k_spin)
+                    rec_controls_form.addRow("Pick criterion:", rec_pick_crit_combo)
+                    rec_controls_form.addRow(clamp_bounds_chk)
+                    rec_controls_form.addRow(show_union_chk)
+                    rec_controls_form.addRow(show_intersection_chk)
+                    rec_layout.addWidget(rec_controls)
+
+                    # Plot + table
+                    rec_plot_container = QWidget(); rec_plot_layout = QVBoxLayout(rec_plot_container)
+                    rec_table = QTableWidget()
+                    rec_table.setColumnCount(8)
+                    rec_table.setHorizontalHeaderLabels(["Parameter", "Low", "High", "Width", "Center", "Consensus", "IoU_mean", "Source"])
+                    rec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+                    rec_layout.addWidget(rec_plot_container)
+                    rec_layout.addWidget(rec_table)
+
+                    # Actions
+                    rec_btns = QWidget(); rec_btns_layout = QHBoxLayout(rec_btns)
+                    rec_apply_btn = QPushButton("Apply Recommendation")
+                    rec_export_btn = QPushButton("Export Recommended Ranges (CSV)")
+                    rec_btns_layout.addWidget(rec_apply_btn); rec_btns_layout.addStretch(); rec_btns_layout.addWidget(rec_export_btn)
+                    rec_layout.addWidget(rec_btns)
+
+                    # Interval helpers
+                    def _interval_union(_ivals):
+                        los = [x[0] for x in _ivals if _np.isfinite(x[0]) and _np.isfinite(x[1])]
+                        his = [x[1] for x in _ivals if _np.isfinite(x[0]) and _np.isfinite(x[1])]
+                        if not los or not his: return _np.nan, _np.nan
+                        return float(min(los)), float(max(his))
+
+                    def _interval_intersection(_ivals):
+                        los = [x[0] for x in _ivals if _np.isfinite(x[0]) and _np.isfinite(x[1])]
+                        his = [x[1] for x in _ivals if _np.isfinite(x[0]) and _np.isfinite(x[1])]
+                        if not los or not his: return _np.nan, _np.nan
+                        lo_i = float(max(los)); hi_i = float(min(his))
+                        return (lo_i, hi_i) if lo_i <= hi_i else (_np.nan, _np.nan)
+
+                    def _pairwise_iou_matrix(_ivals):
+                        C = len(_ivals); M = _np.full((C, C), _np.nan, float)
+                        for a in range(C):
+                            la, ha = _ivals[a]
+                            for b in range(C):
+                                lb, hb = _ivals[b]
+                                if _np.isfinite(la) and _np.isfinite(ha) and _np.isfinite(lb) and _np.isfinite(hb):
+                                    inter_lo = max(la, lb); inter_hi = min(ha, hb)
+                                    inter = max(0.0, inter_hi - inter_lo)
+                                    union_lo = min(la, lb); union_hi = max(ha, hb)
+                                    union = max(0.0, union_hi - union_lo)
+                                    M[a, b] = inter / union if union > 0 else _np.nan
+                        return M
+
+                    def _majority_interval(_ivals, frac):
+                        C = len(_ivals); k = max(1, int(_np.ceil(frac * C)))
+                        events = []
+                        for (lo, hi) in _ivals:
+                            if _np.isfinite(lo) and _np.isfinite(hi) and hi >= lo:
+                                events.append((lo, +1)); events.append((hi, -1))
+                        if not events: return _np.nan, _np.nan
+                        events.sort(key=lambda t: (t[0], -t[1]))
+                        cover = 0; cur = None; best_lo = _np.nan; best_hi = _np.nan
+                        for x, d in events:
+                            prev = cover; cover += d
+                            if prev < k and cover >= k: cur = x
+                            elif prev >= k and cover < k and cur is not None:
+                                if not _np.isfinite(best_lo) or (x - cur) > (best_hi - best_lo):
+                                    best_lo, best_hi = float(cur), float(x)
+                                cur = None
+                        return (best_lo, best_hi) if _np.isfinite(best_lo) and _np.isfinite(best_hi) and best_hi >= best_lo else (_np.nan, _np.nan)
+
+                    # Bounds for clamping
+                    try:
+                        _cfg_names, _cfg_bounds, _cfg_fixed, _cfg_fixed_vals = self._get_current_ga_param_config()
+                        bounds_by_name = {n: _cfg_bounds[i] for i, n in enumerate(_cfg_names)}
+                    except Exception:
+                        bounds_by_name = {n: (float(param_df[n].min()), float(param_df[n].max())) for n in param_names}
+
+                    def _apply_recommendation():
+                        # Clear plot
+                        while rec_plot_layout.count():
+                            w = rec_plot_layout.itemAt(0).widget()
+                            if w: w.setParent(None)
+
+                        crit_list = list(ranges_by_criterion.keys())
+                        rule = rec_rule_combo.currentText(); frac = rec_k_spin.value(); pick = rec_pick_crit_combo.currentText()
+                        clamp = clamp_bounds_chk.isChecked(); show_union = show_union_chk.isChecked(); show_intersection = show_intersection_chk.isChecked()
+
+                        rec_data = {}; metrics_rows = {}
+                        for pn in param_names:
+                            ivals = [ranges_by_criterion[c].get(pn, (_np.nan, _np.nan)) for c in crit_list]
+                            u_lo, u_hi = _interval_union(ivals)
+                            i_lo, i_hi = _interval_intersection(ivals)
+                            u_w = (u_hi - u_lo) if _np.isfinite(u_lo) and _np.isfinite(u_hi) else _np.nan
+
+                            # widths/centers
+                            widths = []; centers = []
+                            for (lo, hi) in ivals:
+                                if _np.isfinite(lo) and _np.isfinite(hi):
+                                    widths.append(float(hi - lo)); centers.append(float((hi + lo) * 0.5))
+                                else:
+                                    widths.append(_np.nan); centers.append(_np.nan)
+
+                            # consensus and IoU
+                            i_w = (i_hi - i_lo) if _np.isfinite(i_lo) and _np.isfinite(i_hi) else 0.0
+                            consensus = (i_w / u_w) if _np.isfinite(u_w) and u_w > 0 else 0.0
+                            M = _pairwise_iou_matrix(ivals)
+                            iou_vals = M[_np.triu_indices_from(M, k=1)] if M.size else _np.array([_np.nan])
+                            iou_mean = float(_np.nanmean(iou_vals)) if _np.isfinite(_np.nanmean(iou_vals)) else 0.0
+                            norm_widths = [(w / u_w) if _np.isfinite(w) and _np.isfinite(u_w) and u_w > 0 else _np.nan for w in widths]
+
+                            # Decision
+                            rec_lo, rec_hi = _np.nan, _np.nan; src = rule
+                            if rule == "Intersection (all)":
+                                rec_lo, rec_hi = i_lo, i_hi
+                                if not (_np.isfinite(rec_lo) and _np.isfinite(rec_hi) and rec_hi >= rec_lo):
+                                    rec_lo, rec_hi = u_lo, u_hi; src += " (fallback to union)"
+                            elif rule == "Majority k-of-n":
+                                rec_lo, rec_hi = _majority_interval(ivals, frac)
+                                if not (_np.isfinite(rec_lo) and _np.isfinite(rec_hi) and rec_hi >= rec_lo):
+                                    rec_lo, rec_hi = u_lo, u_hi; src += " (fallback to union)"
+                            elif rule == "Weighted average":
+                                mids = []; halfs = []
+                                for (lo, hi) in ivals:
+                                    if _np.isfinite(lo) and _np.isfinite(hi):
+                                        mids.append(0.5 * (lo + hi)); halfs.append(0.5 * (hi - lo))
+                                if mids:
+                                    m = float(_np.mean(mids)); h = float(_np.mean(halfs)); rec_lo, rec_hi = m - h, m + h
+                                    if _np.isfinite(u_lo) and _np.isfinite(u_hi):
+                                        rec_lo = max(rec_lo, u_lo); rec_hi = min(rec_hi, u_hi)
+                                else:
+                                    rec_lo, rec_hi = u_lo, u_hi; src += " (fallback to union)"
+                            elif rule == "Pick single criterion":
+                                rec_lo, rec_hi = ranges_by_criterion.get(pick, {}).get(pn, (_np.nan, _np.nan)); src = f"Pick: {pick}"
+                            elif rule == "Auto: min normalized width":
+                                best_idx, best_w = None, _np.inf
+                                for ci, w in enumerate(norm_widths):
+                                    if _np.isfinite(w) and w < best_w: best_w = w; best_idx = ci
+                                if best_idx is None: rec_lo, rec_hi = u_lo, u_hi; src += " (fallback to union)"
+                                else: rec_lo, rec_hi = ivals[best_idx]; src = f"Auto-minNW: {crit_list[best_idx]}"
+                            else:  # Auto: max IoU with others
+                                best_idx, best_val = None, -1
+                                for a in range(len(crit_list)):
+                                    row = M[a, :] if M.size else _np.array([_np.nan])
+                                    mu = _np.nanmean(_np.delete(row, a)) if row.size > 1 else _np.nan
+                                    if _np.isfinite(mu) and mu > best_val: best_val = mu; best_idx = a
+                                if best_idx is None: rec_lo, rec_hi = u_lo, u_hi; src += " (fallback to union)"
+                                else: rec_lo, rec_hi = ivals[best_idx]; src = f"Auto-maxIoU: {crit_list[best_idx]}"
+
+                            if clamp:
+                                blo, bhi = bounds_by_name.get(pn, (_np.nan, _np.nan))
+                                if _np.isfinite(blo): rec_lo = blo if not _np.isfinite(rec_lo) else max(rec_lo, blo)
+                                if _np.isfinite(bhi): rec_hi = bhi if not _np.isfinite(rec_hi) else min(rec_hi, bhi)
+                            if not (_np.isfinite(rec_lo) and _np.isfinite(rec_hi)): rec_lo, rec_hi = u_lo, u_hi
+                            if rec_lo > rec_hi: rec_lo, rec_hi = rec_hi, rec_lo
+
+                            rec_data[pn] = { 'low': float(rec_lo), 'high': float(rec_hi), 'width': float(rec_hi - rec_lo), 'center': float((rec_lo + rec_hi) * 0.5), 'source': src }
+                            metrics_rows[pn] = { 'consensus': float(consensus), 'iou_mean': float(iou_mean) }
+
+                        # Table
+                        rec_table.setRowCount(len(param_names))
+                        for i, pn in enumerate(param_names):
+                            rd = rec_data.get(pn, {}); mr = metrics_rows.get(pn, {})
+                            vals = [ pn,
+                                f"{rd.get('low', _np.nan):.6f}", f"{rd.get('high', _np.nan):.6f}", f"{rd.get('width', _np.nan):.6f}", f"{rd.get('center', _np.nan):.6f}",
+                                f"{mr.get('consensus', _np.nan):.3f}", f"{mr.get('iou_mean', _np.nan):.3f}", rd.get('source', '-') ]
+                            for j, v in enumerate(vals):
+                                it = QTableWidgetItem(str(v)); it.setTextAlignment(Qt.AlignCenter); rec_table.setItem(i, j, it)
+
+                        # Plot
+                        from matplotlib.patches import Rectangle
+                        fig = _Figure(figsize=(16, max(5, len(param_names) * 0.28)), tight_layout=True)
+                        ax = fig.add_subplot(111)
+                        y = _np.arange(len(param_names))
+                        ax.set_yticks(y); ax.set_yticklabels(param_names)
+                        ax.set_xlabel("Value"); ax.set_title("Recommended Ranges (highlighted)"); ax.grid(True, axis='x', linestyle='--', alpha=0.3)
+                        xmin_glob = _np.inf; xmax_glob = -_np.inf
+                        # Background bands
+                        for i, pn in enumerate(param_names):
+                            ivals = [ranges_by_criterion[c].get(pn, (_np.nan, _np.nan)) for c in crit_list]
+                            u_lo, u_hi = _interval_union(ivals); i_lo, i_hi = _interval_intersection(ivals)
+                            if show_union and _np.isfinite(u_lo) and _np.isfinite(u_hi):
+                                ax.add_patch(Rectangle((u_lo, i - 0.42), u_hi - u_lo, 0.84, facecolor='#BBBBBB', edgecolor='none', alpha=0.2))
+                                xmin_glob = min(xmin_glob, u_lo); xmax_glob = max(xmax_glob, u_hi)
+                            if show_intersection and _np.isfinite(i_lo) and _np.isfinite(i_hi):
+                                ax.add_patch(Rectangle((i_lo, i - 0.30), i_hi - i_lo, 0.60, facecolor='#3BAFDA', edgecolor='none', alpha=0.25))
+                                xmin_glob = min(xmin_glob, i_lo); xmax_glob = max(xmax_glob, i_hi)
+                        # Recommended bars
+                        for i, pn in enumerate(param_names):
+                            lo = rec_data[pn]['low']; hi = rec_data[pn]['high']
+                            ax.add_patch(Rectangle((lo, i - 0.18), hi - lo, 0.36, facecolor='#2ecc71', edgecolor='black', linewidth=1.2, alpha=0.9))
+                            xmin_glob = min(xmin_glob, lo); xmax_glob = max(xmax_glob, hi)
+                        if _np.isfinite(xmin_glob) and _np.isfinite(xmax_glob) and xmin_glob < xmax_glob:
+                            pad = 0.02 * (xmax_glob - xmin_glob); ax.set_xlim(xmin_glob - pad, xmax_glob + pad)
+                        ax.set_ylim(-0.5, len(param_names) - 0.5)
+                        canvas = _FigureCanvas(fig); rec_plot_layout.addWidget(canvas)
+                        try:
+                            toolbar = NavigationToolbar(canvas, None); rec_plot_layout.addWidget(toolbar)
+                        except Exception:
+                            pass
+
+                        # Persist for export
+                        self.recommended_param_ranges = rec_data
+
+                    def _export_recommended():
+                        try:
+                            from PyQt5.QtWidgets import QFileDialog
+                            path, _ = QFileDialog.getSaveFileName(self, "Export Recommended Ranges", "recommended_parameter_ranges.csv", "CSV files (*.csv)")
+                            if not path: return
+                            import csv
+                            with open(path, 'w', newline='') as f:
+                                w = csv.writer(f); w.writerow(["Parameter", "Low", "High", "Width", "Center", "Source"])
+                                for pn in param_names:
+                                    rd = getattr(self, 'recommended_param_ranges', {}).get(pn, {})
+                                    w.writerow([ pn, f"{rd.get('low', _np.nan):.6f}", f"{rd.get('high', _np.nan):.6f}", f"{rd.get('width', _np.nan):.6f}", f"{rd.get('center', _np.nan):.6f}", rd.get('source', '-') ])
+                        except Exception as _e:
+                            print(f"Error exporting recommended ranges: {str(_e)}")
+
+                    rec_apply_btn.clicked.connect(_apply_recommendation)
+                    rec_export_btn.clicked.connect(_export_recommended)
+                    _apply_recommendation()
+
+                    ranges_tabs.addTab(rec_tab, "Recommendation")
+
                     # Assemble overall tab
                     param_ranges_layout.addWidget(ranges_tabs)
                     # Add the new top-level tab to the benchmark widget
