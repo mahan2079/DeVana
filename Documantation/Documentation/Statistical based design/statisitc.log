@@ -1,0 +1,86 @@
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.3.6)  29 AUG 2025 16:12
+entering extended mode
+ restricted \write18 enabled.
+ %&-line parsing enabled.
+**statisitc.tex
+(./statisitc.tex
+LaTeX2e <2024-11-01> patch level 2
+L3 programming layer <2025-01-18>
+(c:/texlive/2024/texmf-dist/tex/latex/subfiles/subfiles.cls
+Document Class: subfiles 2020/11/14 v2.2 Multi-file projects (class)
+Preamble taken from file `../main.tex'
+(c:/texlive/2024/texmf-dist/tex/latex/import/import.sty
+Package: import 2020/04/01  v 6.2
+)
+
+! LaTeX Error: File `../main.tex' not found.
+
+Type X to quit or <RETURN> to proceed,
+or enter new name. (Default extension: tex)
+
+Enter file name: 
+(c:/texlive/2024/texmf-dist/tex/latex/tools/.tex File ignored))
+(c:/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
+File: l3backend-pdftex.def 2024-05-08 L3 backend support: PDF output (pdfTeX)
+\l__color_backend_stack_int=\count196
+\l__pdf_internal_box=\box52
+)
+No file statisitc.aux.
+\openout1 = `statisitc.aux'.
+
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 2.
+LaTeX Font Info:    ... okay on input line 2.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 2.
+LaTeX Font Info:    ... okay on input line 2.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 2.
+LaTeX Font Info:    ... okay on input line 2.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 2.
+LaTeX Font Info:    ... okay on input line 2.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 2.
+LaTeX Font Info:    ... okay on input line 2.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 2.
+LaTeX Font Info:    ... okay on input line 2.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 2.
+LaTeX Font Info:    ... okay on input line 2.
+
+! LaTeX Error: The font size command \normalsize is not defined:
+               there is probably something wrong with the class file.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.2 \begin{document}
+                    
+? 
+! Undefined control sequence.
+l.4 \chapter
+            {Statistical Design of Optimum DVA Parameter Ranges}
+? 
+! Undefined control sequence.
+l.6 \section
+            {Introduction and Problem Statement}
+? 
+! Undefined control sequence.
+l.21 \section
+             {Methodology Overview}
+? 
+! Undefined control sequence.
+l.33 \section
+             {Optimization Algorithm Selection}
+? 
+! Emergency stop.
+l.33 
+     
+End of file on the terminal!
+
+ 
+Here is how much of TeX's memory you used:
+ 287 strings out of 473201
+ 7336 string characters out of 5720300
+ 395671 words of memory out of 5000000
+ 23619 multiletter control sequences out of 15000+600000
+ 559491 words of font info for 38 fonts, out of 8000000 for 9000
+ 1141 hyphenation exceptions out of 8191
+ 42i,1n,55p,471b,130s stack positions out of 10000i,1000n,20000p,200000b,200000s
+!  ==> Fatal error occurred, no output PDF file produced!

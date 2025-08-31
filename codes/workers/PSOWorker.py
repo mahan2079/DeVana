@@ -209,7 +209,13 @@ class PSOWorker(QThread):
                  ml_ucb_c=0.6,
                  ml_adapt_population=True,
                  ml_diversity_weight=0.02,
-                 ml_diversity_target=0.2):
+                 ml_diversity_target=0.2,
+                 # RL controller (GA parity)
+                 use_rl_controller=False,
+                 rl_alpha=0.1,
+                 rl_gamma=0.9,
+                 rl_epsilon=0.2,
+                 rl_epsilon_decay=0.95):
         """
         Initialize the enhanced PSO optimization worker with advanced features.
         
@@ -312,6 +318,12 @@ class PSOWorker(QThread):
         self.quasi_random_init = quasi_random_init
         self.track_metrics = track_metrics
         self.use_ml_adaptive = use_ml_adaptive
+        # RL controller config
+        self.use_rl_controller = bool(use_rl_controller)
+        self.rl_alpha = float(rl_alpha)
+        self.rl_gamma = float(rl_gamma)
+        self.rl_epsilon = float(rl_epsilon)
+        self.rl_epsilon_decay = float(rl_epsilon_decay)
         
         # Runtime data
         self.iteration_best_fitness = []
@@ -347,6 +359,7 @@ class PSOWorker(QThread):
             'rates_history': [],
             'controller': 'pso',
             'diversity_history': [],
+            'rl_controller_history': [],
             'surrogate_enabled': False,
             'surrogate_info': []
         }
@@ -876,7 +889,9 @@ class PSOWorker(QThread):
 
             # Debug output for controller settings (GA parity)
             try:
-                if self.use_ml_adaptive:
+                if self.use_rl_controller:
+                    self.metrics['controller'] = 'rl'
+                elif self.use_ml_adaptive:
                     self.metrics['controller'] = 'ml_bandit'
                 elif self.adaptive_params:
                     self.metrics['controller'] = 'adaptive'
@@ -885,6 +900,8 @@ class PSOWorker(QThread):
                 self.update.emit(f"DEBUG: PSO controller is set to: {self.metrics['controller']}")
                 if self.use_ml_adaptive:
                     self.update.emit(f"DEBUG: ML params: UCB c={self.ml_ucb_c:.2f}, pop_adapt={self.ml_adapt_population}, div_weight={self.ml_diversity_weight:.3f}, div_target={self.ml_diversity_target:.2f}")
+                if self.use_rl_controller:
+                    self.update.emit(f"DEBUG: RL params: alpha={self.rl_alpha:.3f}, gamma={self.rl_gamma:.3f}, epsilon={self.rl_epsilon:.3f}, decay={self.rl_epsilon_decay:.3f}")
             except Exception:
                 pass
             
@@ -1058,6 +1075,78 @@ class PSOWorker(QThread):
                         })
                     return swarm_list
 
+            # Optional RL controller setup (GA parity)
+            if self.use_rl_controller:
+                # Define action space for RL agent: relative deltas for w, c1, c2 and population multiplier
+                deltas = [-0.25, -0.1, -0.05, 0.0, 0.05, 0.1, 0.25]
+                pop_multipliers = [0.5, 0.75, 1.0, 1.25, 1.5]
+                rl_actions = [(dw, dc1, dc2, pm) for dw in deltas for dc1 in deltas for dc2 in deltas for pm in pop_multipliers]
+                # Simple 2-state setup (e.g., improvement vs no improvement)
+                rl_q = {0: [0.0 for _ in rl_actions], 1: [0.0 for _ in rl_actions]}
+                rl_state = 0
+
+                def rl_select_action(cur_w, cur_c1, cur_c2, cur_pop):
+                    # Epsilon-greedy selection
+                    if random.random() < self.rl_epsilon:
+                        idx = random.randrange(len(rl_actions))
+                    else:
+                        # Exploit best action for current state
+                        values = rl_q[rl_state]
+                        # argmax
+                        best_val = None
+                        best_idx = 0
+                        for i, val in enumerate(values):
+                            if best_val is None or val > best_val:
+                                best_val = val
+                                best_idx = i
+                        idx = best_idx
+                    dw, dc1, dc2, pm = rl_actions[idx]
+                    new_w = min(self.pso_w_max, max(self.pso_w_min, cur_w * (1.0 + dw)))
+                    new_c1 = max(0.1, cur_c1 * (1.0 + dc1))
+                    new_c2 = max(0.1, cur_c2 * (1.0 + dc2))
+                    new_pop = int(min(self.pop_max, max(self.pop_min, round(cur_pop * pm))))
+                    return idx, new_w, new_c1, new_c2, new_pop
+
+                def rl_update(state, action_idx, reward, next_state):
+                    q_old = rl_q[state][action_idx]
+                    q_next_max = max(rl_q[next_state]) if rl_q[next_state] else 0.0
+                    rl_q[state][action_idx] = q_old + self.rl_alpha * (reward + self.rl_gamma * q_next_max - q_old)
+
+                def rl_resize_swarm(swarm_list, new_size):
+                    # Shrink: keep best by current fitness
+                    if new_size < len(swarm_list):
+                        swarm_list.sort(key=lambda p: p['best_fitness'])
+                        return swarm_list[:new_size]
+                    # Grow: add random particles around global best
+                    extra = new_size - len(swarm_list)
+                    for _ in range(extra):
+                        gb = swarm[global_best_particle_idx]
+                        new_pos = []
+                        for j in range(num_params):
+                            lo, hi = parameter_bounds[j]
+                            center = gb['position'][j]
+                            radius = (hi - lo) * 0.1
+                            new_pos.append(random.uniform(max(lo, center - radius), min(hi, center + radius)))
+                        new_vel = []
+                        for j in range(num_params):
+                            if j in fixed_parameters:
+                                new_vel.append(0.0)
+                            else:
+                                max_vel = (parameter_bounds[j][1] - parameter_bounds[j][0]) * self.max_velocity_factor
+                                new_vel.append(random.uniform(-max_vel/2, max_vel/2))
+                        new_fit = self.evaluate_particle(new_pos, parameter_bounds)
+                        swarm_list.append({
+                            'position': new_pos,
+                            'velocity': new_vel,
+                            'best_position': new_pos[:],
+                            'best_fitness': new_fit,
+                            'current_fitness': new_fit,
+                            'stagnation_counter': 0,
+                            'neighborhood_best_position': None,
+                            'neighborhood_best_fitness': float('inf')
+                        })
+                    return swarm_list
+
             # PSO main loop: update each particle's velocity and position.
             for iteration in range(1, self.pso_num_iterations + 1):
                 # Check if termination has been requested
@@ -1078,8 +1167,8 @@ class PSOWorker(QThread):
                     iter_start_time = time.time()
                     time_breakdown = {}
                 
-                # Update adaptive parameters if enabled
-                if self.adaptive_params or self.use_ml_adaptive:
+                # Update adaptive parameters (Adaptive, ML-bandit, or RL)
+                if self.adaptive_params or self.use_ml_adaptive or self.use_rl_controller:
                     adapt_start = time.time() if self.track_metrics else None
                     # Calculate current average fitness
                     avg_fitness = sum(p['current_fitness'] for p in swarm) / len(swarm)
@@ -1099,6 +1188,15 @@ class PSOWorker(QThread):
                             # Recompute global best after resizing
                             global_best_particle_idx = min(range(len(swarm)), key=lambda i: swarm[i]['best_fitness'])
                         # Log/record rates for this iteration
+                        if self.track_metrics:
+                            self.metrics['rates_history'].append({'generation': iteration, 'w': self.pso_w, 'c1': self.pso_c1, 'c2': self.pso_c2})
+                    elif self.use_rl_controller:
+                        # RL controller: choose new parameters and possibly resize swarm
+                        rl_idx, new_w, new_c1, new_c2, new_pop = rl_select_action(self.pso_w, self.pso_c1, self.pso_c2, len(swarm))
+                        self.pso_w, self.pso_c1, self.pso_c2 = new_w, new_c1, new_c2
+                        if new_pop != len(swarm):
+                            swarm = rl_resize_swarm(swarm, new_pop)
+                            global_best_particle_idx = min(range(len(swarm)), key=lambda i: swarm[i]['best_fitness'])
                         if self.track_metrics:
                             self.metrics['rates_history'].append({'generation': iteration, 'w': self.pso_w, 'c1': self.pso_c1, 'c2': self.pso_c2})
                     else:
@@ -1334,6 +1432,35 @@ class PSOWorker(QThread):
                                 'mean_fitness': self.metrics['mean_fitness_history'][-1] if self.metrics['mean_fitness_history'] else None,
                                 'std_fitness': self.metrics['std_fitness_history'][-1] if self.metrics['std_fitness_history'] else None,
                                 'reward': reward
+                            })
+                        except Exception:
+                            pass
+                    elif self.use_rl_controller:
+                        last_best = self.metrics['best_fitness_per_gen'][-2] if len(self.metrics['best_fitness_per_gen']) > 1 else None
+                        imp = (last_best - self.metrics['best_fitness_per_gen'][-1]) if (last_best is not None and last_best > self.metrics['best_fitness_per_gen'][-1]) else 0.0
+                        cv = (self.metrics['std_fitness_history'][-1] / (abs(self.metrics['mean_fitness_history'][-1]) + 1e-12)) if self.metrics['mean_fitness_history'] else 0.0
+                        effort = max(1.0, len(current_fitnesses))
+                        reward = (imp / max(iter_time, 1e-6)) / effort - self.ml_diversity_weight * abs(cv - self.ml_diversity_target)
+                        try:
+                            next_state = 1 if imp > 0 else 0
+                            rl_update(rl_state, rl_idx, reward, next_state)
+                            rl_state = next_state
+                            self.rl_epsilon *= self.rl_epsilon_decay
+                        except Exception:
+                            pass
+                        # Record RL controller history
+                        try:
+                            self.metrics['rl_controller_history'].append({
+                                'generation': iteration,
+                                'w': self.pso_w,
+                                'c1': self.pso_c1,
+                                'c2': self.pso_c2,
+                                'pop': len(swarm),
+                                'best_fitness': self.metrics['best_fitness_per_gen'][-1],
+                                'mean_fitness': self.metrics['mean_fitness_history'][-1] if self.metrics['mean_fitness_history'] else None,
+                                'std_fitness': self.metrics['std_fitness_history'][-1] if self.metrics['std_fitness_history'] else None,
+                                'reward': reward,
+                                'epsilon': self.rl_epsilon
                             })
                         except Exception:
                             pass

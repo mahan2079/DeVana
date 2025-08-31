@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+from workers.SAWorker import SAWorker
 
 class SAOptimizationMixin:
     def create_sa_tab(self):
@@ -40,11 +41,51 @@ class SAOptimizationMixin:
         self.sa_alpha_box.setSingleStep(0.01)
         self.sa_alpha_box.setValue(0.01)
 
+        # Controller Mode
+        self.sa_controller_group = QGroupBox("Controller Mode")
+        sa_ctrl_layout = QHBoxLayout(self.sa_controller_group)
+        self.sa_controller_fixed_radio = QRadioButton("Fixed")
+        self.sa_controller_ml_radio = QRadioButton("ML Bandit")
+        self.sa_controller_rl_radio = QRadioButton("RL Controller")
+        self.sa_controller_fixed_radio.setChecked(True)
+        sa_ctrl_layout.addWidget(self.sa_controller_fixed_radio)
+        sa_ctrl_layout.addWidget(self.sa_controller_ml_radio)
+        sa_ctrl_layout.addWidget(self.sa_controller_rl_radio)
+
+        # ML options
+        self.sa_ml_group = QGroupBox("ML Bandit Options")
+        ml_layout = QFormLayout(self.sa_ml_group)
+        self.sa_ml_ucb_c = QDoubleSpinBox(); self.sa_ml_ucb_c.setRange(0.1, 3.0); self.sa_ml_ucb_c.setDecimals(2); self.sa_ml_ucb_c.setSingleStep(0.05); self.sa_ml_ucb_c.setValue(0.60)
+        self.sa_ml_accept_target = QDoubleSpinBox(); self.sa_ml_accept_target.setRange(0.0, 1.0); self.sa_ml_accept_target.setDecimals(2); self.sa_ml_accept_target.setSingleStep(0.05); self.sa_ml_accept_target.setValue(0.30)
+        self.sa_step_scale_box = QDoubleSpinBox(); self.sa_step_scale_box.setRange(1e-6, 1.0); self.sa_step_scale_box.setDecimals(6); self.sa_step_scale_box.setSingleStep(0.01); self.sa_step_scale_box.setValue(0.10)
+        ml_layout.addRow("ML UCB c:", self.sa_ml_ucb_c)
+        ml_layout.addRow("Accept Target:", self.sa_ml_accept_target)
+        ml_layout.addRow("Base Step Scale:", self.sa_step_scale_box)
+
+        # RL options
+        self.sa_rl_group = QGroupBox("RL Options")
+        rl_layout = QFormLayout(self.sa_rl_group)
+        self.sa_rl_alpha = QDoubleSpinBox(); self.sa_rl_alpha.setRange(0.0, 1.0); self.sa_rl_alpha.setDecimals(3); self.sa_rl_alpha.setValue(0.1)
+        self.sa_rl_gamma = QDoubleSpinBox(); self.sa_rl_gamma.setRange(0.0, 1.0); self.sa_rl_gamma.setDecimals(3); self.sa_rl_gamma.setValue(0.9)
+        self.sa_rl_epsilon = QDoubleSpinBox(); self.sa_rl_epsilon.setRange(0.0, 1.0); self.sa_rl_epsilon.setDecimals(3); self.sa_rl_epsilon.setValue(0.2)
+        self.sa_rl_decay = QDoubleSpinBox(); self.sa_rl_decay.setRange(0.0, 1.0); self.sa_rl_decay.setDecimals(3); self.sa_rl_decay.setValue(0.95)
+        rl_layout.addRow("RL α (learning rate):", self.sa_rl_alpha)
+        rl_layout.addRow("RL γ (discount):", self.sa_rl_gamma)
+        rl_layout.addRow("RL ε (explore):", self.sa_rl_epsilon)
+        rl_layout.addRow("RL ε decay:", self.sa_rl_decay)
+        self.sa_ml_group.setVisible(False)
+        self.sa_rl_group.setVisible(False)
+        self.sa_controller_ml_radio.toggled.connect(lambda _: self.sa_ml_group.setVisible(self.sa_controller_ml_radio.isChecked()))
+        self.sa_controller_rl_radio.toggled.connect(lambda _: self.sa_rl_group.setVisible(self.sa_controller_rl_radio.isChecked()))
+
         sa_hyper_layout.addRow("Initial Temperature:", self.sa_initial_temp_box)
         sa_hyper_layout.addRow("Cooling Rate:", self.sa_cooling_rate_box)
         sa_hyper_layout.addRow("Number of Iterations:", self.sa_num_iterations_box)
         sa_hyper_layout.addRow("Tolerance (tol):", self.sa_tol_box)
         sa_hyper_layout.addRow("Sparsity Penalty (alpha):", self.sa_alpha_box)
+        sa_hyper_layout.addRow(self.sa_controller_group)
+        sa_hyper_layout.addRow(self.sa_ml_group)
+        sa_hyper_layout.addRow(self.sa_rl_group)
 
         # Add a small Run SA button in the hyperparameters sub-tab
         self.hyper_run_sa_button = QPushButton("Run SA")
@@ -146,11 +187,92 @@ class SAOptimizationMixin:
         
     def run_sa(self):
         """Run the simulated annealing optimization"""
-        # Implementation already exists at line 2591
-        pass
+        try:
+            if hasattr(self, 'sa_worker') and self.sa_worker.isRunning():
+                QMessageBox.warning(self, "Process Running", "A Simulated Annealing run is already in progress.")
+                return
+            # Gather parameter data
+            sa_parameter_data = []
+            row_count = self.sa_param_table.rowCount()
+            for row in range(row_count):
+                name = self.sa_param_table.item(row, 0).text()
+                fixed = self.sa_param_table.cellWidget(row, 1).isChecked()
+                if fixed:
+                    val = self.sa_param_table.cellWidget(row, 2).value()
+                    sa_parameter_data.append((name, val, val, True))
+                else:
+                    low = self.sa_param_table.cellWidget(row, 3).value()
+                    high = self.sa_param_table.cellWidget(row, 4).value()
+                    sa_parameter_data.append((name, low, high, False))
+
+            main_params = self.get_main_system_params()
+            target_values, weights = self.get_target_values_weights()
+            omega_start_val = self.omega_start_box.value()
+            omega_end_val = self.omega_end_box.value()
+            omega_points_val = self.omega_points_box.value()
+
+            # Controller selection
+            use_ml = self.sa_controller_ml_radio.isChecked()
+            use_rl = self.sa_controller_rl_radio.isChecked()
+
+            self.sa_results_text.clear()
+            self.sa_results_text.append("Starting SA optimization...")
+
+            self.sa_worker = SAWorker(
+                main_params=main_params,
+                target_values_dict=target_values,
+                weights_dict=weights,
+                omega_start=omega_start_val,
+                omega_end=omega_end_val,
+                omega_points=omega_points_val,
+                sa_initial_temp=self.sa_initial_temp_box.value(),
+                sa_cooling_rate=self.sa_cooling_rate_box.value(),
+                sa_num_iterations=self.sa_num_iterations_box.value(),
+                sa_tol=self.sa_tol_box.value(),
+                sa_parameter_data=sa_parameter_data,
+                alpha=self.sa_alpha_box.value(),
+                track_metrics=True,
+                use_ml_adaptive=bool(use_ml and not use_rl),
+                ml_ucb_c=self.sa_ml_ucb_c.value() if use_ml else 0.6,
+                ml_accept_target=self.sa_ml_accept_target.value() if use_ml else 0.3,
+                use_rl_controller=bool(use_rl and not use_ml),
+                rl_alpha=self.sa_rl_alpha.value() if use_rl else 0.1,
+                rl_gamma=self.sa_rl_gamma.value() if use_rl else 0.9,
+                rl_epsilon=self.sa_rl_epsilon.value() if use_rl else 0.2,
+                rl_epsilon_decay=self.sa_rl_decay.value() if use_rl else 0.95,
+                step_scale=self.sa_step_scale_box.value()
+            )
+            self.sa_worker.update.connect(lambda msg: self.sa_results_text.append(msg))
+            self.sa_worker.error.connect(lambda err: QMessageBox.critical(self, "SA Error", err))
+            self.sa_worker.finished.connect(self._handle_sa_finished)
+            self.sa_worker.progress.connect(lambda p: None)
+            try:
+                self.sa_worker.benchmark_data.connect(lambda m: None)
+                self.sa_worker.generation_metrics.connect(lambda m: None)
+            except Exception:
+                pass
+            self.sa_worker.start()
+        except Exception as e:
+            QMessageBox.critical(self, "SA Error", str(e))
         
     def run_cmaes(self):
         """Run the CMA-ES optimization"""
         # Implementation already exists at line 2840
         pass
+
+    def _handle_sa_finished(self, results, best_candidate, parameter_names, best_fitness):
+        try:
+            self.sa_results_text.append("\n=== SA Optimization Complete ===")
+            self.sa_results_text.append(f"Best fitness: {best_fitness:.6f}")
+            self.sa_results_text.append("Best parameters:")
+            for n, v in zip(parameter_names, best_candidate):
+                self.sa_results_text.append(f"  {n}: {float(v):.6f}")
+            metrics = results.get('benchmark_metrics', {}) if isinstance(results, dict) else {}
+            if metrics:
+                if metrics.get('best_fitness_per_gen'):
+                    self.sa_results_text.append(f"Final best fitness (metrics): {metrics['best_fitness_per_gen'][-1]:.6f}")
+                if metrics.get('total_duration'):
+                    self.sa_results_text.append(f"Duration: {float(metrics['total_duration']):.2f}s")
+        except Exception as e:
+            QMessageBox.warning(self, "SA Results", f"Error processing SA results: {str(e)}")
         

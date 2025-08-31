@@ -347,8 +347,8 @@
     "ga_settings": {
         "population": {
             "size": 150,
-            "min": 400,
-            "max": 1600
+            "min": 100,
+            "max": 200
         },
         "generations": 150,
         "crossover_probability": 0.7,
@@ -361,10 +361,10 @@
         "adaptive_rates": {
             "enabled": false,
             "stagnation_limit": 5,
-            "cxpb_min": 0.1,
+            "cxpb_min": 0.6,
             "cxpb_max": 0.9,
-            "mutpb_min": 0.05,
-            "mutpb_max": 0.5
+            "mutpb_min": 0.001,
+            "mutpb_max": 0.05
         },
         "ml_controller": {
             "enabled": false,

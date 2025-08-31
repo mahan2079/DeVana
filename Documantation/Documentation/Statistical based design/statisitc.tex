@@ -1,0 +1,463 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+
+\chapter{Statistical Design of Optimum DVA Parameter Ranges}
+
+\section{Introduction and Problem Statement}
+
+In the design and optimization of Dynamic Vibration Absorbers (DVAs), one fundamental challenge persists regardless of the optimization algorithm employed: parameter variability across multiple optimization runs. Even when optimization algorithms converge to successful solutions that effectively suppress vibrations, the specific parameter values obtained can vary significantly between different runs of the same optimization problem.
+
+This inherent variability arises from several sources:
+\begin{itemize}
+    \item The stochastic nature of evolutionary algorithms (genetic algorithms, particle swarm optimization, etc.)
+    \item Different initial population seeding strategies
+    \item Variations in algorithm hyperparameters (crossover rates, mutation rates, population sizes)
+    \item Numerical precision and convergence criteria
+    \item The multi-modal nature of the optimization landscape
+\end{itemize}
+
+While individual optimization runs may yield excellent vibration suppression performance, relying on a single run's parameter values for practical DVA implementation is statistically insufficient. The true engineering challenge lies not in finding \textit{a} good solution, but in determining the \textit{robust parameter ranges} that consistently yield optimal performance across multiple optimization scenarios.
+
+\section{Methodology Overview}
+
+The statistical design methodology presented in this chapter follows a systematic approach:
+
+\begin{enumerate}
+    \item \textbf{Selection of Optimization Algorithm}: Choose an appropriate optimization method based on the problem characteristics
+    \item \textbf{Multiple Independent Runs}: Execute numerous optimization runs with identical system parameters but different random seeds
+    \item \textbf{Statistical Analysis of Results}: Apply robust statistical methods to analyze the distribution of optimal parameter values
+    \item \textbf{Range Determination}: Use statistical measures to establish optimum parameter ranges
+    \item \textbf{Validation and Recommendations}: Validate the derived ranges and provide implementation guidelines
+\end{enumerate}
+
+\section{Optimization Algorithm Selection}
+
+For the statistical design of DVA parameter ranges, we recommend the Genetic Algorithm (GA) due to its proven effectiveness in handling multi-modal optimization landscapes typical of vibration absorber design problems. The GA's population-based approach naturally provides statistical information about parameter distributions.
+
+\subsection{GA Configuration for Statistical Analysis}
+
+The GA is configured with the following key parameters:
+
+\begin{itemize}
+    \item \textbf{Population Size}: $N_{pop} = 50-200$ individuals
+    \item \textbf{Number of Generations}: $N_{gen} = 50-200$
+    \item \textbf{Crossover Probability}: $p_c = 0.7-0.9$
+    \item \textbf{Mutation Probability}: $p_m = 0.01-0.1$
+    \item \textbf{Selection Method}: Tournament selection with size 3
+    \item \textbf{Fitness Function}: Multi-objective combining primary objective and sparsity penalty
+\end{itemize}
+
+\subsection{Fitness Function Formulation}
+
+The fitness function for DVA optimization is formulated as:
+
+\begin{equation}
+f(\mathbf{x}) = |SR(\mathbf{x}) - 1.0| + \alpha \sum_{i=1}^{n} |x_i| + \beta \sum_{j=1}^{m} w_j |PD_j(\mathbf{x})|
+\label{eq:fitness}
+\end{equation}
+
+Where:
+\begin{itemize}
+    \item $\mathbf{x} = [x_1, x_2, \dots, x_n]$ is the parameter vector
+    \item $SR(\mathbf{x})$ is the singular response metric
+    \item $\alpha$ is the sparsity penalty weight
+    \item $\beta$ is the percentage difference scaling factor
+    \item $PD_j(\mathbf{x})$ are percentage differences from target values
+    \item $w_j$ are weights for different performance criteria
+\end{itemize}
+
+\section{Multiple Run Statistical Analysis}
+
+\subsection{Experimental Design}
+
+To establish statistically robust parameter ranges, we perform $N_{runs} = 30-50$ independent optimization runs. Each run uses:
+\begin{itemize}
+    \item Identical system parameters (masses, stiffnesses, damping coefficients)
+    \item Identical GA configuration
+    \item Different random seeds for reproducibility analysis
+    \item Same convergence criteria and stopping conditions
+\end{itemize}
+
+\subsection{Data Collection}
+
+For each optimization run $k = 1, 2, \dots, N_{runs}$, we collect:
+
+\begin{enumerate}
+    \item \textbf{Best Parameter Vector}: $\mathbf{x}_k^* = [x_{1,k}^*, x_{2,k}^*, \dots, x_{n,k}^*]$
+    \item \textbf{Best Fitness Value}: $f_k^*$
+    \item \textbf{Convergence Metrics}: Number of generations to convergence, evaluation count
+    \item \textbf{Algorithm Performance}: Final population diversity, stagnation measures
+    \item \textbf{Computational Metrics}: CPU time, memory usage, evaluation times
+\end{enumerate}
+
+\subsection{Parameter Distribution Analysis}
+
+For each parameter $x_i$, we analyze the distribution of optimal values across all runs:
+
+\begin{equation}
+\mathbf{X}_i = \{x_{i,1}^*, x_{i,2}^*, \dots, x_{i,N_{runs}}^*\}
+\label{eq:param_distribution}
+\end{equation}
+
+The statistical properties of each parameter distribution include:
+
+\begin{enumerate}
+    \item \textbf{Central Tendency}: Mean, median, mode
+    \item \textbf{Dispersion}: Standard deviation, variance, coefficient of variation
+    \item \textbf{Shape}: Skewness, kurtosis
+    \item \textbf{Range}: Minimum, maximum, percentiles
+    \item \textbf{Outlier Detection}: Statistical tests for anomalous values
+\end{enumerate}
+
+\section{Statistical Methods for Range Determination}
+
+\subsection{Interquartile Range (IQR) Method}
+
+The Interquartile Range method provides a robust approach to determining parameter ranges by focusing on the middle 50\% of the data distribution:
+
+\subsubsection{IQR Calculation}
+
+For each parameter $x_i$, we compute:
+
+\begin{equation}
+Q1_i = \text{25th percentile of } \mathbf{X}_i
+\label{eq:q1}
+\end{equation}
+
+\begin{equation}
+Q3_i = \text{75th percentile of } \mathbf{X}_i
+\label{eq:q3}
+\end{equation}
+
+\begin{equation}
+IQR_i = Q3_i - Q1_i
+\label{eq:iqr}
+\end{equation}
+
+\subsubsection{IQR-Based Range Determination}
+
+The recommended parameter range using IQR method is:
+
+\begin{equation}
+[x_i^{min}, x_i^{max}] = [Q1_i - 1.5 \times IQR_i, Q3_i + 1.5 \times IQR_i]
+\label{eq:iqr_range}
+\end{equation}
+
+This approach:
+\begin{itemize}
+    \item Excludes outliers beyond 1.5 × IQR
+    \item Focuses on the most consistent parameter values
+    \item Provides a balance between comprehensiveness and robustness
+\end{itemize}
+
+\subsection{Percentile-Based Range Methods}
+
+\subsubsection{P5-P95 Percentile Range}
+
+This method uses the 5th and 95th percentiles to define parameter bounds:
+
+\begin{equation}
+[x_i^{min}, x_i^{max}] = [P5_i, P95_i]
+\label{eq:p5_p95}
+\end{equation}
+
+Where $P5_i$ and $P95_i$ are the 5th and 95th percentiles of $\mathbf{X}_i$.
+
+\subsubsection{P10-P90 Percentile Range}
+
+For more conservative ranges:
+
+\begin{equation}
+[x_i^{min}, x_i^{max}] = [P10_i, P90_i]
+\label{eq:p10_p90}
+\end{equation}
+
+\subsubsection{P2.5-P97.5 Percentile Range}
+
+For comprehensive coverage including most outliers:
+
+\begin{equation}
+[x_i^{min}, x_i^{max}] = [P2.5_i, P97.5_i]
+\label{eq:p2p97}
+\end{equation}
+
+\subsection{Statistical Distribution Analysis}
+
+\subsubsection{Moments of Distribution}
+
+For each parameter distribution, we compute higher-order moments:
+
+\begin{equation}
+\mu_i = \frac{1}{N_{runs}} \sum_{k=1}^{N_{runs}} x_{i,k}^*
+\label{eq:mean}
+\end{equation}
+
+\begin{equation}
+\sigma_i^2 = \frac{1}{N_{runs}-1} \sum_{k=1}^{N_{runs}} (x_{i,k}^* - \mu_i)^2
+\label{eq:variance}
+\end{equation}
+
+\begin{equation}
+\gamma_{1,i} = \frac{\frac{1}{N_{runs}} \sum_{k=1}^{N_{runs}} (x_{i,k}^* - \mu_i)^3}{\sigma_i^3}
+\label{eq:skewness}
+\end{equation}
+
+\begin{equation}
+\gamma_{2,i} = \frac{\frac{1}{N_{runs}} \sum_{k=1}^{N_{runs}} (x_{i,k}^* - \mu_i)^4}{\sigma_i^4} - 3
+\label{eq:kurtosis}
+\end{equation}
+
+\subsubsection{Distribution Classification}
+
+Based on skewness ($\gamma_1$) and kurtosis ($\gamma_2$), we classify the parameter distributions:
+
+\begin{table}[H]
+\centering
+\caption{Distribution Classification Criteria}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Distribution Type & Skewness ($\gamma_1$) & Kurtosis ($\gamma_2$) \\
+\midrule
+Normal & $\approx 0$ & $\approx 0$ \\
+Right-skewed & $> 0.5$ & - \\
+Left-skewed & $< -0.5$ & - \\
+Platykurtic & - & $< -0.5$ \\
+Leptokurtic & - & $> 0.5$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Robust Statistical Measures}
+
+\subsubsection{Trimmed Mean and Median Absolute Deviation}
+
+For robust central tendency estimation:
+
+\begin{equation}
+\mu_{trim,i} = \frac{1}{N_{runs} - 2k} \sum_{j=k+1}^{N_{runs}-k} x_{i,(j)}^*
+\label{eq:trimmed_mean}
+\end{equation}
+
+Where $x_{i,(j)}^*$ are the ordered values of $\mathbf{X}_i$, and $k$ is the number of values trimmed from each end.
+
+The Median Absolute Deviation (MAD) provides robust scale estimation:
+
+\begin{equation}
+MAD_i = \text{median}(|x_{i,k}^* - \text{median}(\mathbf{X}_i)|)
+\label{eq:mad}
+\end{equation}
+
+\subsubsection{Tukey's Fences for Outlier Detection}
+
+Tukey's method for outlier detection:
+
+\begin{equation}
+\text{Lower Fence} = Q1_i - 1.5 \times IQR_i
+\label{eq:lower_fence}
+\end{equation}
+
+\begin{equation}
+\text{Upper Fence} = Q3_i + 1.5 \times IQR_i
+\label{eq:upper_fence}
+\end{equation}
+
+Values outside these fences are considered outliers and may be excluded from range determination.
+
+\subsection{Shortest Probability Interval}
+
+The shortest probability interval of a given probability mass $p$ (typically $p = 0.68$ for 1$\sigma$ equivalent) is defined as the narrowest interval containing at least $p$ proportion of the data:
+
+\begin{equation}
+[x_i^L, x_i^U] = \arg\min_{a,b} (b - a) \quad \text{subject to} \quad P(x_i \in [a,b]) \geq p
+\label{eq:shortest_interval}
+\end{equation}
+
+\subsection{Top Quantile Analysis}
+
+For high-performance parameter ranges, we analyze the top quantile of solutions:
+
+\begin{equation}
+\mathbf{X}_i^{top} = \{x_{i,k}^* \mid f_k^* \leq Q_q(f^*)\}
+\label{eq:top_quantile}
+\end{equation}
+
+Where $Q_q(f^*)$ is the q-th quantile of the fitness values (e.g., $q = 0.25$ for top 25\%).
+
+The range for high-performance parameters is then:
+
+\begin{equation}
+[x_i^{min}, x_i^{max}] = [P5_i^{top}, P95_i^{top}]
+\label{eq:top_quantile_range}
+\end{equation}
+
+\section{Advanced Statistical Methods}
+
+\subsection{Multi-Parameter Correlation Analysis}
+
+\subsubsection{Pearson Correlation Coefficient}
+
+To understand parameter interdependencies:
+
+\begin{equation}
+\rho_{ij} = \frac{\sum_{k=1}^{N_{runs}} (x_{i,k}^* - \mu_i)(x_{j,k}^* - \mu_j)}{\sqrt{\sum_{k=1}^{N_{runs}} (x_{i,k}^* - \mu_i)^2} \sqrt{\sum_{k=1}^{N_{runs}} (x_{j,k}^* - \mu_j)^2}}
+\label{eq:pearson_corr}
+\end{equation}
+
+\subsubsection{Spearman Rank Correlation}
+
+For non-parametric correlation analysis:
+
+\begin{equation}
+\rho_{ij}^S = 1 - \frac{6 \sum_{k=1}^{N_{runs}} (R_{i,k} - R_{j,k})^2}{N_{runs}(N_{runs}^2 - 1)}
+\label{eq:spearman_corr}
+\end{equation}
+
+Where $R_{i,k}$ is the rank of $x_{i,k}^*$.
+
+\subsection{Parameter Sensitivity Analysis}
+
+\subsubsection{Coefficient of Variation}
+
+The coefficient of variation measures relative parameter variability:
+
+\begin{equation}
+CV_i = \frac{\sigma_i}{|\mu_i|}
+\label{eq:cv}
+\end{equation}
+
+Parameters with high CV values ($CV_i > 1$) indicate high relative variability and may require wider ranges.
+
+\subsubsection{Parameter Importance Ranking}
+
+Parameter importance can be assessed using:
+
+\begin{enumerate}
+    \item \textbf{Variance-based importance}: Parameters with higher variance contribute more to solution diversity
+    \item \textbf{Correlation with fitness}: Parameters strongly correlated with fitness values are more critical
+    \item \textbf{Range width}: Wider optimal ranges indicate less critical parameters
+\end{enumerate}
+
+\section{Range Recommendation Methodology}
+
+\subsection{Composite Range Determination}
+
+We recommend using multiple statistical methods to establish parameter ranges and then combine them using:
+
+\subsubsection{Intersection Method}
+
+\begin{equation}
+[x_i^{min}, x_i^{max}] = \bigcap_{m \in M} [x_{i,m}^{min}, x_{i,m}^{max}]
+\label{eq:intersection}
+\end{equation}
+
+Where $M$ is the set of statistical methods used.
+
+\subsubsection{Union Method}
+
+\begin{equation}
+[x_i^{min}, x_i^{max}] = \bigcup_{m \in M} [x_{i,m}^{min}, x_{i,m}^{max}]
+\label{eq:union}
+\end{equation}
+
+\subsubsection{Consensus Method}
+
+The consensus range uses the most frequent bounds across methods:
+
+\begin{equation}
+x_i^{min} = \text{mode}(\{x_{i,m}^{min} \mid m \in M\})
+\label{eq:consensus_min}
+\end{equation}
+
+\begin{equation}
+x_i^{max} = \text{mode}(\{x_{i,m}^{max} \mid m \in M\})
+\label{eq:consensus_max}
+\end{equation}
+
+\subsection{Engineering Validation}
+
+\subsubsection{Range Robustness Testing}
+
+For each recommended parameter range, we perform validation by:
+
+1. Sampling $N_{test} = 100-1000$ parameter combinations within the range
+2. Evaluating fitness for each combination
+3. Computing the percentage of combinations meeting performance criteria
+
+\subsubsection{Monte Carlo Validation}
+
+Using Monte Carlo sampling within the recommended ranges:
+
+\begin{equation}
+\mathbf{x}_{test,j} \sim \mathcal{U}([x_1^{min}, x_1^{max}] \times \cdots \times [x_n^{min}, x_n^{max}])
+\label{eq:monte_carlo}
+\end{equation}
+
+The validation metric is the percentage of test points meeting the design requirements.
+
+\section{Implementation Guidelines}
+
+\subsection{Parameter Range Specification}
+
+For practical DVA implementation, we recommend specifying parameter ranges as:
+
+\begin{table}[H]
+\centering
+\caption{Recommended Parameter Range Format}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Parameter & Recommended Range & Statistical Method & Confidence Level \\
+\midrule
+Mass ($m$) & [0.85, 1.15] $\times m_{nominal}$ & IQR + 1.5 IQR & 90\% \\
+Stiffness ($k$) & [0.75, 1.25] $\times k_{nominal}$ & P5-P95 & 90\% \\
+Damping ($c$) & [0.90, 1.10] $\times c_{nominal}$ & P10-P90 & 80\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Tolerance Analysis}
+
+Manufacturing and implementation tolerances should be considered:
+
+\begin{equation}
+x_i^{tolerance} = x_i^{nominal} \pm t_i
+\label{eq:tolerance}
+\end{equation}
+
+The statistical ranges should encompass these tolerances with sufficient margin.
+
+\subsection{Robustness Assessment}
+
+The robustness of recommended ranges is assessed using:
+
+\subsubsection{Range Stability Index}
+
+\begin{equation}
+RSI_i = 1 - \frac{|\mu_i^{new} - \mu_i^{original}|}{\sigma_i^{original}}
+\label{eq:rsi}
+\end{equation}
+
+Where $\mu_i^{new}$ and $\mu_i^{original}$ are means from different sample sets.
+
+\subsubsection{Confidence Interval Coverage}
+
+The probability that the true optimal range is contained within the recommended range:
+
+\begin{equation}
+P(\text{true range} \subseteq \text{recommended range}) \geq 1 - \alpha
+\label{eq:confidence}
+\end{equation}
+
+\section{Conclusion}
+
+The statistical design methodology presented in this chapter provides a comprehensive framework for determining robust parameter ranges for DVA systems. By performing multiple optimization runs and applying sophisticated statistical analysis methods, we can establish parameter ranges that:
+
+\begin{itemize}
+    \item Account for the inherent variability in optimization results
+    \item Provide statistical confidence in the recommended bounds
+    \item Balance between comprehensiveness and practicality
+    \item Support robust engineering implementation
+\end{itemize}
+
+The methodology combines classical statistical measures (IQR, percentiles) with advanced techniques (correlation analysis, distribution classification) to provide a complete characterization of optimal parameter distributions. The resulting ranges serve as the foundation for reliable DVA design and implementation in engineering applications.
+
+\end{document}

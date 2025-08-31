@@ -926,13 +926,33 @@ def frf(
 
     n_dofs = mm.shape[0]
     A = np.zeros((n_dofs, len(omega)), dtype=complex)
+    def _robust_solve(hmat, rhs):
+        """Solve hmat x = rhs with regularization/pseudoinverse fallbacks."""
+        try:
+            return np.linalg.solve(hmat, rhs)
+        except np.linalg.LinAlgError:
+            # Regularize the system progressively on the diagonal
+            # Scale epsilon with the matrix norm to be unit-agnostic
+            scale = np.linalg.norm(hmat, ord=np.inf)
+            base_eps = (1e-12 if scale == 0 else 1e-12 * scale)
+            I = np.eye(hmat.shape[0], dtype=hmat.dtype)
+            for mult in (1.0, 1e1, 1e2, 1e3, 1e4):
+                try:
+                    return np.linalg.solve(hmat + (base_eps * mult) * I, rhs)
+                except np.linalg.LinAlgError:
+                    continue
+            # Final fallback: use pseudo-inverse
+            try:
+                return np.linalg.pinv(hmat) @ rhs
+            except Exception:
+                # As a last resort, least-squares
+                return np.linalg.lstsq(hmat, rhs, rcond=None)[0]
+
     for i, Om in enumerate(Omega):
         hh = -Om**2 * mm + 2 * ZETA_DC * Om * cc + kk
         hh *= OMEGA_DC**2
-        try:
-            A[:, i] = np.linalg.solve(hh, f_reduced[:, i]) * OMEGA_DC**2
-        except np.linalg.LinAlgError as err:
-            raise np.linalg.LinAlgError(f"Linear algebra error at frequency index {i}: {err}")
+        # Use robust solver that avoids hard failures on singular/ill-conditioned systems
+        A[:, i] = _robust_solve(hh, f_reduced[:, i]) * OMEGA_DC**2
 
     results = {}
     idxs = np.where(active)[0]

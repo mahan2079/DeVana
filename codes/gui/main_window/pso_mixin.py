@@ -98,10 +98,12 @@ class PSOMixin:
         self.pso_controller_fixed_radio = QRadioButton("Fixed")
         self.pso_controller_adaptive_radio = QRadioButton("Adaptive Params")
         self.pso_controller_ml_radio = QRadioButton("ML Bandit")
+        self.pso_controller_rl_radio = QRadioButton("RL Controller")
         self.pso_controller_fixed_radio.setChecked(True)
         controller_layout.addWidget(self.pso_controller_fixed_radio)
         controller_layout.addWidget(self.pso_controller_adaptive_radio)
         controller_layout.addWidget(self.pso_controller_ml_radio)
+        controller_layout.addWidget(self.pso_controller_rl_radio)
 
         # Adaptive Parameters
         self.pso_adaptive_params_checkbox = QCheckBox()
@@ -217,6 +219,32 @@ class PSOMixin:
         self.pso_controller_ml_radio.toggled.connect(lambda _: _toggle_ml_options())
         _toggle_ml_options()
 
+        # RL options (parity with GA rl_options_widget)
+        self.pso_rl_options_group = QGroupBox("RL Options")
+        pso_rl_layout = QFormLayout(self.pso_rl_options_group)
+        self.pso_rl_alpha_box = QDoubleSpinBox()
+        self.pso_rl_alpha_box.setRange(0.0, 1.0)
+        self.pso_rl_alpha_box.setDecimals(3)
+        self.pso_rl_alpha_box.setValue(0.1)
+        pso_rl_layout.addRow("RL b1 (learning rate):", self.pso_rl_alpha_box)
+        self.pso_rl_gamma_box = QDoubleSpinBox()
+        self.pso_rl_gamma_box.setRange(0.0, 1.0)
+        self.pso_rl_gamma_box.setDecimals(3)
+        self.pso_rl_gamma_box.setValue(0.9)
+        pso_rl_layout.addRow("RL b3 (discount):", self.pso_rl_gamma_box)
+        self.pso_rl_epsilon_box = QDoubleSpinBox()
+        self.pso_rl_epsilon_box.setRange(0.0, 1.0)
+        self.pso_rl_epsilon_box.setDecimals(3)
+        self.pso_rl_epsilon_box.setValue(0.2)
+        pso_rl_layout.addRow("RL b5 (explore):", self.pso_rl_epsilon_box)
+        self.pso_rl_decay_box = QDoubleSpinBox()
+        self.pso_rl_decay_box.setRange(0.0, 1.0)
+        self.pso_rl_decay_box.setDecimals(3)
+        self.pso_rl_decay_box.setValue(0.95)
+        pso_rl_layout.addRow("RL b5 decay:", self.pso_rl_decay_box)
+        self.pso_rl_options_group.setVisible(False)
+        self.pso_controller_rl_radio.toggled.connect(self.pso_rl_options_group.setVisible)
+
         # Add controller and ML groups to layout
         pso_advanced_layout.addRow(self.pso_controller_group)
         pso_advanced_layout.addRow("Enable Adaptive Parameters:", self.pso_adaptive_params_checkbox)
@@ -232,6 +260,7 @@ class PSOMixin:
         pso_advanced_layout.addRow("Early Stopping Tolerance:", self.pso_early_stopping_tol_box)
         pso_advanced_layout.addRow("Use Quasi-Random Init:", self.pso_quasi_random_init_checkbox)
         pso_advanced_layout.addRow(self.pso_ml_options_group)
+        pso_advanced_layout.addRow(self.pso_rl_options_group)
 
         # Add a small Run PSO button in the advanced settings sub-tab
         self.hyper_run_pso_button = QPushButton("Run PSO")
@@ -696,6 +725,7 @@ class PSOMixin:
             # Map controller mode to worker args
             use_ml = self.pso_controller_ml_radio.isChecked()
             use_adaptive = self.pso_controller_adaptive_radio.isChecked()
+            use_rl = self.pso_controller_rl_radio.isChecked()
 
             self.pso_worker = PSOWorker(
                 main_params=main_params,
@@ -725,13 +755,18 @@ class PSOMixin:
                 diversity_threshold=diversity_threshold,
                 quasi_random_init=quasi_random_init,
                 track_metrics=True,
-                use_ml_adaptive=bool(use_ml and not use_adaptive),
+                use_ml_adaptive=bool(use_ml and not use_adaptive and not use_rl),
                 pop_min=int(max(10, self.pso_ml_pop_min_box.value())) if use_ml else None,
                 pop_max=int(max(self.pso_ml_pop_min_box.value(), self.pso_ml_pop_max_box.value())) if use_ml else None,
                 ml_ucb_c=self.pso_ml_ucb_c_box.value() if use_ml else 0.6,
                 ml_adapt_population=self.pso_ml_pop_adapt_checkbox.isChecked() if use_ml else True,
                 ml_diversity_weight=self.pso_ml_diversity_weight_box.value() if use_ml else 0.02,
-                ml_diversity_target=self.pso_ml_diversity_target_box.value() if use_ml else 0.2
+                ml_diversity_target=self.pso_ml_diversity_target_box.value() if use_ml else 0.2,
+                use_rl_controller=bool(use_rl and not use_ml),
+                rl_alpha=self.pso_rl_alpha_box.value() if use_rl else 0.1,
+                rl_gamma=self.pso_rl_gamma_box.value() if use_rl else 0.9,
+                rl_epsilon=self.pso_rl_epsilon_box.value() if use_rl else 0.2,
+                rl_epsilon_decay=self.pso_rl_decay_box.value() if use_rl else 0.95
             )
             
             self.pso_worker.finished.connect(self.handle_pso_finished)
@@ -1575,6 +1610,136 @@ class PSOMixin:
             pass
         self.pso_export_benchmark_button.clicked.connect(self.export_pso_benchmark_data)
         
+        # Parameter Ranges Recommendation Tab (parity with GA)
+        try:
+            # Collate parameter values per run
+            param_records = []
+            for run in self.pso_benchmark_data:
+                if 'best_solution' in run and 'parameter_names' in run:
+                    rec = {'run_number': run.get('run_number')}
+                    for n, v in zip(run['parameter_names'], run['best_solution']):
+                        rec[n] = float(v)
+                    param_records.append(rec)
+            if param_records:
+                import numpy as _np
+                import pandas as _pd
+                pdf = _pd.DataFrame(param_records)
+                def _iqr(vals):
+                    q1 = _np.nanpercentile(vals, 25)
+                    q3 = _np.nanpercentile(vals, 75)
+                    return float(q1), float(q3)
+                def _p5_p95(vals):
+                    p5 = _np.nanpercentile(vals, 5)
+                    p95 = _np.nanpercentile(vals, 95)
+                    return float(p5), float(p95)
+                ranges_by_crit = {}
+                for crit_name, fn in {"IQR (Q1–Q3)": _iqr, "P5–P95": _p5_p95}.items():
+                    d = {}
+                    for col in pdf.columns:
+                        if col == 'run_number':
+                            continue
+                        arr = _np.asarray(pdf[col].values, dtype=float)
+                        lo, hi = fn(arr)
+                        if not (_np.isfinite(lo) and _np.isfinite(hi)) or lo > hi:
+                            lo = float(_np.nanmin(arr))
+                            hi = float(_np.nanmax(arr))
+                        d[col] = (lo, hi)
+                    ranges_by_crit[crit_name] = d
+
+                # Remove existing Parameter Ranges tab if present
+                try:
+                    for _i in range(self.pso_benchmark_viz_tabs.count()):
+                        if self.pso_benchmark_viz_tabs.tabText(_i) == "Parameter Ranges":
+                            self.pso_benchmark_viz_tabs.removeTab(_i)
+                            break
+                except Exception:
+                    pass
+
+                param_ranges_tab = QWidget(); _lay = QVBoxLayout(param_ranges_tab)
+                ranges_tabs = QTabWidget(); _lay.addWidget(ranges_tabs)
+
+                def _build_table(rdict):
+                    tbl = QTableWidget(); tbl.setColumnCount(3)
+                    tbl.setHorizontalHeaderLabels(["Parameter", "Low", "High"])
+                    pnames = sorted(list(rdict.keys()))
+                    tbl.setRowCount(len(pnames))
+                    for i, pn in enumerate(pnames):
+                        lo, hi = rdict[pn]
+                        tbl.setItem(i, 0, QTableWidgetItem(str(pn)))
+                        tbl.setItem(i, 1, QTableWidgetItem(f"{lo:.6f}"))
+                        tbl.setItem(i, 2, QTableWidgetItem(f"{hi:.6f}"))
+                    tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+                    tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+                    return tbl
+
+                def _add_crit_tab(crit, rdict):
+                    tab = QWidget(); lay = QVBoxLayout(tab)
+                    lay.addWidget(QLabel(f"Recommended ranges per parameter using: {crit}"))
+                    table = _build_table(rdict); lay.addWidget(table)
+                    # Range plot
+                    from matplotlib.figure import Figure
+                    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+                    fig = Figure(figsize=(9, max(4, len(rdict) * 0.2)), tight_layout=True)
+                    ax = fig.add_subplot(111)
+                    names = list(sorted(rdict.keys()))
+                    lows = [rdict[n][0] for n in names]
+                    highs = [rdict[n][1] for n in names]
+                    y = _np.arange(len(names))
+                    ax.hlines(y, lows, highs, color='#1f77b4', linewidth=2)
+                    ax.plot(lows, y, '|', color='#1f77b4', markersize=12)
+                    ax.plot(highs, y, '|', color='#1f77b4', markersize=12)
+                    ax.set_yticks(y); ax.set_yticklabels(names)
+                    ax.set_xlabel('Value'); ax.set_title(f'Ranges ({crit})')
+                    ax.grid(True, axis='x', alpha=0.3)
+                    canvas = FigureCanvasQTAgg(fig); toolbar = NavigationToolbar(canvas, None)
+                    lay.addWidget(toolbar); lay.addWidget(canvas)
+                    # Buttons
+                    btn_row = QWidget(); btn_lay = QHBoxLayout(btn_row); btn_lay.setContentsMargins(0,0,0,0)
+                    export_btn = QPushButton("Export Table")
+                    def _export():
+                        path, _ = QFileDialog.getSaveFileName(self, "Export Parameter Ranges", f"pso_param_ranges_{crit.replace(' ', '_')}.csv", "CSV Files (*.csv);;All Files (*)")
+                        if path:
+                            try:
+                                with open(path, 'w') as f:
+                                    f.write('parameter,low,high\n')
+                                    for n in names:
+                                        lo, hi = rdict[n]
+                                        f.write(f"{n},{lo},{hi}\n")
+                                self.status_bar.showMessage(f"Exported parameter ranges to {path}")
+                            except Exception as _e:
+                                QMessageBox.critical(self, "Export Error", str(_e))
+                    export_btn.clicked.connect(_export)
+                    apply_btn = QPushButton("Apply to PSO Parameters")
+                    def _apply():
+                        try:
+                            name_to_row = {self.pso_param_table.item(r, 0).text(): r for r in range(self.pso_param_table.rowCount())}
+                            for pname, (lo, hi) in rdict.items():
+                                if pname in name_to_row:
+                                    row = name_to_row[pname]
+                                    fixed_widget = self.pso_param_table.cellWidget(row, 1)
+                                    if isinstance(fixed_widget, QCheckBox) and not fixed_widget.isChecked():
+                                        lb = self.pso_param_table.cellWidget(row, 3)
+                                        ub = self.pso_param_table.cellWidget(row, 4)
+                                        if hasattr(lb, 'setValue') and hasattr(ub, 'setValue'):
+                                            if lo > hi:
+                                                lo, hi = hi, lo
+                                            lb.setValue(float(max(0.0, lo)))
+                                            ub.setValue(float(max(lo, hi)))
+                            self.status_bar.showMessage(f"Applied {crit} recommended ranges to PSO parameters")
+                        except Exception as _e:
+                            QMessageBox.critical(self, "Apply Error", str(_e))
+                    apply_btn.clicked.connect(_apply)
+                    btn_lay.addWidget(apply_btn); btn_lay.addWidget(export_btn); btn_lay.addStretch(1)
+                    lay.addWidget(btn_row)
+                    return tab
+
+                for crit, rdict in ranges_by_crit.items():
+                    ranges_tabs.addTab(_add_crit_tab(crit, rdict), crit)
+
+                self.pso_benchmark_viz_tabs.addTab(param_ranges_tab, "Parameter Ranges")
+        except Exception as e:
+            print(f"Error building PSO parameter ranges: {str(e)}")
+        
     def export_pso_benchmark_data(self):
         """Export PSO benchmark data to a JSON file with all visualization data"""
         try:
@@ -1928,6 +2093,22 @@ class PSOMixin:
                 pso_ops_tabs.addTab(efficiency_tab, "Computational Efficiency")
                 pso_ops_tabs.addTab(rates_tab, "Rates (w, c1, c2)")
                 pso_ops_tabs.addTab(breakdown_tab, "Iteration Breakdown")
+                # RL/ML controller tabs conditional
+                if isinstance(run_data.get('benchmark_metrics'), dict):
+                    metrics = run_data['benchmark_metrics']
+                    if metrics.get('ml_controller_history') or metrics.get('rates_history'):
+                        ml_tab = QWidget(); ml_tab.setLayout(QVBoxLayout())
+                        self.create_pso_ml_bandit_plots(ml_tab.layout(), run_data, metrics)
+                        pso_ops_tabs.addTab(ml_tab, "ML Controller")
+                    if metrics.get('rl_controller_history'):
+                        rl_tab = QWidget(); rl_tab.setLayout(QVBoxLayout())
+                        # Reuse GA RL plot builder adapted to PSO-provided metrics keys
+                        try:
+                            self.create_run_rl_controller_plots(rl_tab.layout(), run_data, metrics)
+                        except Exception:
+                            # Fallback simple RL plot if GA helper not available
+                            pass
+                        pso_ops_tabs.addTab(rl_tab, "RL Controller")
                 
                 # Try to create each visualization in its own tab
                 try:

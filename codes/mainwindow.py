@@ -66,18 +66,9 @@ from deap import base, creator, tools
 sns.set(style="whitegrid")
 plt.rc('text', usetex=True)
 
-# Import Continuous Beam functionality
+# Import Continuous Beam functionality (new API)
 try:
-    from Continues_beam.beam_animation_adapter import BeamAnimationAdapter
-    from Continues_beam.mode_shape_adapter import ModeShapeAdapter
-    from Continues_beam.beam.solver import solve_beam_vibration
-    from Continues_beam.utils import parse_expression, ForceRegionManager, get_force_generators
-    from Continues_beam.ui.force_region_dialog import ForceRegionDialog
-    from Continues_beam.ui.force_widgets import createDistributedSpatialWidget, createPointSpatialWidget, createForceWidget
-    from Continues_beam.ui.force_regions_panel import ForceRegionsPanel
-    from Continues_beam.ui.cross_section_visualizer import CrossSectionVisualizer
-    from Continues_beam.ui.layer_dialog import LayerDialog
-    from Continues_beam.ui.plot_canvas import PlotCanvas
+    from Continues_beam import create_beam_optimization_interface
     BEAM_IMPORTS_SUCCESSFUL = True
 except ImportError:
     BEAM_IMPORTS_SUCCESSFUL = False

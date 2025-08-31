@@ -5,6 +5,8 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from RL.RLWorker import RLWorker
 import numpy as np
+import time
+import json
 
 
 class RLOptimizationMixin:
@@ -199,6 +201,84 @@ class RLOptimizationMixin:
 
         self.rl_sub_tabs.addTab(results_tab, "Results")
 
+        # ------------------- Sub-tab 4: Benchmark -------------------
+        bench_tab = QWidget()
+        bench_layout = QVBoxLayout(bench_tab)
+
+        # Controls
+        ctrl_group = QGroupBox("Benchmark Controls")
+        ctrl_form = QFormLayout(ctrl_group)
+        self.rl_bench_runs_box = QSpinBox()
+        self.rl_bench_runs_box.setRange(1, 200)
+        self.rl_bench_runs_box.setValue(5)
+        self.rl_bench_seed_box = QSpinBox()
+        self.rl_bench_seed_box.setRange(0, 10_000_000)
+        self.rl_bench_seed_box.setValue(0)
+        self.rl_bench_seed_box.setToolTip("Optional base seed; 0 = random")
+        btn_row = QWidget()
+        btn_row_layout = QHBoxLayout(btn_row)
+        btn_row_layout.setContentsMargins(0,0,0,0)
+        self.rl_bench_start_button = QPushButton("Start Benchmark")
+        self.rl_bench_export_button = QPushButton("Export Results")
+        self.rl_bench_import_button = QPushButton("Import Results")
+        btn_row_layout.addWidget(self.rl_bench_start_button)
+        btn_row_layout.addWidget(self.rl_bench_export_button)
+        btn_row_layout.addWidget(self.rl_bench_import_button)
+        ctrl_form.addRow("Number of Runs:", self.rl_bench_runs_box)
+        ctrl_form.addRow("Base Seed:", self.rl_bench_seed_box)
+        ctrl_form.addRow(btn_row)
+        bench_layout.addWidget(ctrl_group)
+
+        # Runs table
+        self.rl_benchmark_table = QTableWidget()
+        self.rl_benchmark_table.setColumnCount(6)
+        self.rl_benchmark_table.setHorizontalHeaderLabels([
+            "Run #", "Best Fitness", "Duration (s)", "Episodes", "Epsilon Final", "Details"
+        ])
+        self.rl_benchmark_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        bench_layout.addWidget(self.rl_benchmark_table)
+
+        # Parameter Ranges Recommendation
+        rec_group = QGroupBox("Parameter Ranges Recommendation")
+        rec_layout = QVBoxLayout(rec_group)
+
+        rec_row = QWidget()
+        rec_row_layout = QHBoxLayout(rec_row)
+        rec_row_layout.setContentsMargins(0,0,0,0)
+        self.rl_rec_method_combo = QComboBox()
+        self.rl_rec_method_combo.addItems(["IQR", "P05-P95"])
+        self.rl_compute_rec_button = QPushButton("Compute Recommendations")
+        self.rl_apply_rec_button = QPushButton("Apply to Parameter Table")
+        rec_row_layout.addWidget(QLabel("Method:"))
+        rec_row_layout.addWidget(self.rl_rec_method_combo)
+        rec_row_layout.addWidget(self.rl_compute_rec_button)
+        rec_row_layout.addWidget(self.rl_apply_rec_button)
+        rec_layout.addWidget(rec_row)
+
+        self.rl_rec_table = QTableWidget()
+        self.rl_rec_table.setColumnCount(4)
+        self.rl_rec_table.setHorizontalHeaderLabels(["Parameter", "Lower", "Upper", "N"])
+        self.rl_rec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        rec_layout.addWidget(self.rl_rec_table)
+        bench_layout.addWidget(rec_group)
+
+        self.rl_sub_tabs.addTab(bench_tab, "Benchmark")
+
+        # State
+        self.rl_benchmark_data = []
+        self._rl_bench_active = False
+        self._rl_bench_total = 0
+        self._rl_bench_index = 0
+        self._rl_current_episode_history = []
+        self._rl_run_start_time = None
+
+        # Wire actions
+        self.rl_bench_start_button.clicked.connect(self.start_rl_benchmark)
+        self.rl_bench_export_button.clicked.connect(self.export_rl_benchmark_data)
+        self.rl_bench_import_button.clicked.connect(self.import_rl_benchmark_data)
+        self.rl_compute_rec_button.clicked.connect(self.compute_rl_parameter_recommendations)
+        self.rl_apply_rec_button.clicked.connect(self.apply_rl_recommended_ranges_to_table)
+
     def run_rl_optimization(self):
         """Run RL optimization with improved parameter handling"""
         try:
@@ -311,6 +391,10 @@ class RLOptimizationMixin:
             self.rl_results_text.clear()
             self.rl_results_text.append("Starting RL optimization...")
             self.rl_results_text.append("Performing Sobol sensitivity analysis...")
+            # For benchmark capturing
+            if self._rl_bench_active:
+                self._rl_current_episode_history = []
+                self._rl_run_start_time = time.time()
             self.rl_worker.start()
             
         except Exception as e:
@@ -319,27 +403,58 @@ class RLOptimizationMixin:
     def handle_rl_finished(self, results, best_params, param_names, best_fitness):
         """Handle completion of RL optimization (consistent with other methods)"""
         self.run_rl_button.setEnabled(True)
-        
-        # Store results for later use
+
+        # Store results
         best_dict = {n: v for n, v in zip(param_names, best_params)}
         self.current_rl_best_params = best_dict
         self.current_rl_best_fitness = best_fitness
-        
-        # Display results
-        self.rl_results_text.append("\n" + "="*50)
-        self.rl_results_text.append("OPTIMIZATION COMPLETED")
-        self.rl_results_text.append("="*50)
-        
-        self.rl_results_text.append(f"\nBest Fitness: {best_fitness:.6f}")
-        
-        if isinstance(results, dict) and 'singular_response' in results:
-            self.rl_results_text.append(f"Singular Response: {results['singular_response']:.6f}")
-        
-        self.rl_results_text.append("\nBest Parameters:")
-        for name, val in best_dict.items():
-            self.rl_results_text.append(f"  {name}: {val:.6f}")
-        
-        self.status_bar.showMessage("RL optimization completed successfully")
+
+        # If benchmarking, record run and chain next
+        if self._rl_bench_active:
+            duration_s = 0.0
+            if self._rl_run_start_time is not None:
+                duration_s = max(0.0, time.time() - self._rl_run_start_time)
+
+            # Determine final epsilon if present in metrics history
+            eps_final = None
+            if self._rl_current_episode_history:
+                try:
+                    eps_final = float(self._rl_current_episode_history[-1].get('epsilon', None))
+                except Exception:
+                    eps_final = None
+
+            run_record = {
+                'run_number': int(self._rl_bench_index + 1),
+                'best_fitness': float(best_fitness),
+                'best_solution': [float(best_dict[n]) for n in param_names],
+                'parameter_names': list(param_names),
+                'episode_history': list(self._rl_current_episode_history),
+                'episodes': int(len(self._rl_current_episode_history)),
+                'epsilon_final': eps_final,
+                'duration_s': float(duration_s),
+            }
+            self.rl_benchmark_data.append(run_record)
+            self._append_rl_benchmark_row(run_record)
+
+            # Next run or finish
+            self._rl_bench_index += 1
+            if self._rl_bench_index < self._rl_bench_total:
+                self.run_next_rl_benchmark()
+            else:
+                self._rl_bench_active = False
+                self.status_bar.showMessage("RL benchmark completed")
+        else:
+            # Single-run display
+            self.rl_results_text.append("\n" + "="*50)
+            self.rl_results_text.append("OPTIMIZATION COMPLETED")
+            self.rl_results_text.append("="*50)
+            self.rl_results_text.append(f"\nBest Fitness: {best_fitness:.6f}")
+            if isinstance(results, dict) and 'singular_response' in results:
+                self.rl_results_text.append(f"Singular Response: {results['singular_response']:.6f}")
+            self.rl_results_text.append("\nBest Parameters:")
+            for name, val in best_dict.items():
+                self.rl_results_text.append(f"  {name}: {val:.6f}")
+            self.status_bar.showMessage("RL optimization completed successfully")
 
     def handle_rl_error(self, err):
         """Handle RL optimization errors (consistent with other methods)"""
@@ -365,6 +480,14 @@ class RLOptimizationMixin:
         if not hasattr(self, 'rl_reward_history'):
             self.rl_reward_history = []
         self.rl_reward_history.append((episode, reward))
+
+        # If benchmarking, capture the raw metrics per episode
+        if self._rl_bench_active:
+            self._rl_current_episode_history.append({
+                'episode': int(metrics.get('episode', 0)),
+                'best_reward': float(metrics.get('best_reward', 0.0)),
+                'epsilon': float(metrics.get('epsilon', 0.0))
+            })
 
         # Update plot
         self.rl_reward_fig.clear()
@@ -407,4 +530,207 @@ class RLOptimizationMixin:
             # When unfixing, ensure bounds are valid
             if lower_spin.value() > upper_spin.value():
                 upper_spin.setValue(lower_spin.value() + 1.0)
+
+    # ------------------- Benchmark orchestration -------------------
+    def start_rl_benchmark(self):
+        try:
+            self.rl_benchmark_table.setRowCount(0)
+            self.rl_benchmark_data = []
+            self._rl_bench_total = self.rl_bench_runs_box.value()
+            self._rl_bench_index = 0
+            self._rl_bench_active = True
+            self.status_bar.showMessage("Starting RL benchmark...")
+            self.run_next_rl_benchmark()
+        except Exception as e:
+            QMessageBox.critical(self, "RL Benchmark Error", str(e))
+
+    def run_next_rl_benchmark(self):
+        # For each run, just reuse current settings and start RL
+        self._rl_current_episode_history = []
+        self._rl_run_start_time = time.time()
+        self.run_rl_optimization()
+
+    def _append_rl_benchmark_row(self, run_record):
+        row = self.rl_benchmark_table.rowCount()
+        self.rl_benchmark_table.insertRow(row)
+        self.rl_benchmark_table.setItem(row, 0, QTableWidgetItem(str(run_record.get('run_number', ''))))
+        self.rl_benchmark_table.setItem(row, 1, QTableWidgetItem(f"{run_record.get('best_fitness', float('nan')):.6f}"))
+        self.rl_benchmark_table.setItem(row, 2, QTableWidgetItem(f"{run_record.get('duration_s', 0.0):.2f}"))
+        self.rl_benchmark_table.setItem(row, 3, QTableWidgetItem(str(run_record.get('episodes', 0))))
+        eps_final = run_record.get('epsilon_final', None)
+        self.rl_benchmark_table.setItem(row, 4, QTableWidgetItem("" if eps_final is None else f"{eps_final:.4f}"))
+        btn = QPushButton("Details")
+        btn.clicked.connect(lambda _=False, rr=run_record: self.show_rl_run_details(rr))
+        self.rl_benchmark_table.setCellWidget(row, 5, btn)
+
+    def show_rl_run_details(self, run_data):
+        try:
+            # Create a simple window with training plots and best params
+            dlg = QDialog(self)
+            dlg.setWindowTitle(f"RL Run Details - Run #{run_data.get('run_number', '')}")
+            vbox = QVBoxLayout(dlg)
+
+            # Plot
+            fig = Figure(figsize=(8, 5), tight_layout=True)
+            canvas = FigureCanvas(fig)
+            ax1 = fig.add_subplot(2,1,1)
+            ax2 = fig.add_subplot(2,1,2)
+            hist = run_data.get('episode_history', [])
+            if hist:
+                episodes = [h.get('episode', i+1) for i, h in enumerate(hist)]
+                rewards = [h.get('best_reward', 0.0) for h in hist]
+                eps = [h.get('epsilon', 0.0) for h in hist]
+                ax1.plot(episodes, rewards, 'b-', marker='o', linewidth=1)
+                ax1.set_title('Best Reward per Episode')
+                ax1.set_xlabel('Episode')
+                ax1.set_ylabel('Reward')
+                ax1.grid(True, alpha=0.3)
+                ax2.plot(episodes, eps, 'g-', marker='s', linewidth=1)
+                ax2.set_title('Epsilon per Episode')
+                ax2.set_xlabel('Episode')
+                ax2.set_ylabel('Epsilon')
+                ax2.grid(True, alpha=0.3)
+            else:
+                ax1.text(0.5, 0.5, 'No episode history', ha='center', va='center', transform=ax1.transAxes)
+                ax2.axis('off')
+            vbox.addWidget(canvas)
+
+            # Best parameters
+            best_params = run_data.get('best_solution', [])
+            param_names = run_data.get('parameter_names', [])
+            if best_params and param_names:
+                text = QTextEdit()
+                text.setReadOnly(True)
+                text.append(f"Best Fitness: {run_data.get('best_fitness', float('nan')):.6f}")
+                text.append("")
+                text.append("Best Parameters:")
+                for n, v in zip(param_names, best_params):
+                    try:
+                        text.append(f"  {n}: {float(v):.6f}")
+                    except Exception:
+                        text.append(f"  {n}: {v}")
+                vbox.addWidget(text)
+
+            dlg.resize(900, 700)
+            dlg.exec_()
+        except Exception as e:
+            QMessageBox.warning(self, "Details Error", str(e))
+
+    # ------------------- Export / Import -------------------
+    def export_rl_benchmark_data(self):
+        if not self.rl_benchmark_data:
+            QMessageBox.information(self, "Export RL Benchmark", "No benchmark data to export.")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export RL Benchmark Data", "rl_benchmark.json", "JSON Files (*.json)")
+        if not path:
+            return
+        class NumpyEncoder(json.JSONEncoder):
+            def default(self, obj):
+                try:
+                    if isinstance(obj, (np.integer,)):
+                        return int(obj)
+                    if isinstance(obj, (np.floating,)):
+                        return float(obj)
+                    if isinstance(obj, (np.ndarray,)):
+                        return obj.tolist()
+                except Exception:
+                    pass
+                return json.JSONEncoder.default(self, obj)
+        try:
+            with open(path, 'w') as f:
+                json.dump(self.rl_benchmark_data, f, cls=NumpyEncoder, indent=2)
+            QMessageBox.information(self, "Export RL Benchmark", f"Exported {len(self.rl_benchmark_data)} runs.")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
+    def import_rl_benchmark_data(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Import RL Benchmark Data", "", "JSON Files (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, 'r') as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                raise ValueError("Invalid file format: expected a list of runs")
+            self.rl_benchmark_data = data
+            self.rl_benchmark_table.setRowCount(0)
+            for run in self.rl_benchmark_data:
+                self._append_rl_benchmark_row(run)
+            QMessageBox.information(self, "Import RL Benchmark", f"Imported {len(self.rl_benchmark_data)} runs.")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", str(e))
+
+    # ------------------- Parameter range recommendations -------------------
+    def compute_rl_parameter_recommendations(self):
+        if not self.rl_benchmark_data:
+            QMessageBox.information(self, "Parameter Ranges", "Run a benchmark or import data first.")
+            return
+        # Collect best parameter values across runs
+        param_to_values = {}
+        param_names = None
+        for run in self.rl_benchmark_data:
+            names = run.get('parameter_names', [])
+            vals = run.get('best_solution', [])
+            if not names or not vals or len(names) != len(vals):
+                continue
+            if param_names is None:
+                param_names = names
+            for n, v in zip(names, vals):
+                param_to_values.setdefault(n, []).append(float(v))
+
+        if not param_to_values:
+            QMessageBox.information(self, "Parameter Ranges", "No parameter data found in runs.")
+            return
+
+        method = self.rl_rec_method_combo.currentText()
+        recs = []
+        for n, vals in param_to_values.items():
+            arr = np.array(vals, dtype=float)
+            arr = arr[np.isfinite(arr)]
+            if arr.size == 0:
+                continue
+            if method == "IQR":
+                q1, q3 = np.percentile(arr, [25, 75])
+                iqr = q3 - q1
+                low = q1 - 0.1 * iqr
+                high = q3 + 0.1 * iqr
+            else:  # P05-P95
+                low, high = np.percentile(arr, [5, 95])
+            recs.append((n, float(low), float(high), int(arr.size)))
+
+        # Populate table
+        self.rl_rec_table.setRowCount(0)
+        for r, (n, low, high, cnt) in enumerate(sorted(recs)):
+            self.rl_rec_table.insertRow(r)
+            self.rl_rec_table.setItem(r, 0, QTableWidgetItem(n))
+            self.rl_rec_table.setItem(r, 1, QTableWidgetItem(f"{low:.6g}"))
+            self.rl_rec_table.setItem(r, 2, QTableWidgetItem(f"{high:.6g}"))
+            self.rl_rec_table.setItem(r, 3, QTableWidgetItem(str(cnt)))
+
+    def apply_rl_recommended_ranges_to_table(self):
+        rows = self.rl_rec_table.rowCount()
+        if rows == 0:
+            QMessageBox.information(self, "Apply Ranges", "No recommendations to apply.")
+            return
+        # Build a map from name to (low, high)
+        rec_map = {}
+        for r in range(rows):
+            name = self.rl_rec_table.item(r, 0).text()
+            try:
+                low = float(self.rl_rec_table.item(r, 1).text())
+                high = float(self.rl_rec_table.item(r, 2).text())
+            except Exception:
+                continue
+            rec_map[name] = (low, high)
+        # Apply to parameter table
+        for row in range(self.rl_param_table.rowCount()):
+            name = self.rl_param_table.item(row, 0).text()
+            if name in rec_map:
+                low, high = rec_map[name]
+                fixed_checkbox = self.rl_param_table.cellWidget(row, 1)
+                # Unfix to allow editing bounds
+                if fixed_checkbox.isChecked():
+                    fixed_checkbox.setChecked(False)
+                self.rl_param_table.cellWidget(row, 3).setValue(low)
+                self.rl_param_table.cellWidget(row, 4).setValue(high)
 

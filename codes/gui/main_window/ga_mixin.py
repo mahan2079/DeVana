@@ -34,6 +34,8 @@ from PyQt5.QtWidgets import (
     QProgressBar,
     QFileDialog,
     QDialog,
+    QMenu,
+    QApplication,
     QToolBar,
     QAction,
 )
@@ -54,6 +56,340 @@ class GAOptimizationMixin:
             action = QAction("Open in New Window", toolbar)
             action.triggered.connect(lambda checked=False, f=fig, t=title: self._open_plot_window(f, t))
             toolbar.addAction(action)
+        except Exception:
+            pass
+    
+    def _get_ga_parameters_from_table(self):
+        """Read GA parameters table into a list of dicts: name, fixed, fixed_value, low, high."""
+        params = []
+        try:
+            tbl = self.ga_param_table
+            if not tbl:
+                return params
+            for r in range(tbl.rowCount()):
+                name_item = tbl.item(r, 0)
+                name = name_item.text() if name_item else f"param_{r}"
+                fixed_chk = tbl.cellWidget(r, 1)
+                fixed_val = tbl.cellWidget(r, 2)
+                low_spin = tbl.cellWidget(r, 3)
+                high_spin = tbl.cellWidget(r, 4)
+                fixed = bool(fixed_chk.isChecked()) if fixed_chk is not None else False
+                fixed_value = float(fixed_val.value()) if fixed_val is not None else 0.0
+                low = float(low_spin.value()) if low_spin is not None else 0.0
+                high = float(high_spin.value()) if high_spin is not None else 0.0
+                params.append({
+                    'name': name,
+                    'fixed': fixed,
+                    'fixed_value': fixed_value,
+                    'low': low,
+                    'high': high,
+                    'row': r,
+                })
+        except Exception:
+            pass
+        return params
+
+    def _apply_ranges_to_ga_table(self, ranges_by_name):
+        """Apply low/high ranges to GA Parameters table for matching parameter names."""
+        try:
+            tbl = self.ga_param_table
+            if not tbl:
+                return
+            for r in range(tbl.rowCount()):
+                name_item = tbl.item(r, 0)
+                name = name_item.text() if name_item else None
+                if not name or name not in ranges_by_name:
+                    continue
+                lo, hi = ranges_by_name[name]
+                low_spin = tbl.cellWidget(r, 3)
+                high_spin = tbl.cellWidget(r, 4)
+                fixed_chk = tbl.cellWidget(r, 1)
+                fixed_val = tbl.cellWidget(r, 2)
+                # Switch to range mode
+                if fixed_chk is not None and fixed_chk.isChecked():
+                    fixed_chk.setChecked(False)
+                if low_spin is not None:
+                    low_spin.setEnabled(True)
+                    low_spin.setValue(float(lo))
+                if high_spin is not None:
+                    high_spin.setEnabled(True)
+                    high_spin.setValue(float(hi))
+                if fixed_val is not None:
+                    fixed_val.setEnabled(False)
+        except Exception as e:
+            print(f"Error applying ranges to GA table: {str(e)}")
+
+    def _build_current_ga_config_with_ranges(self, source_table):
+        """Build a JSON-serializable GA config snapshot, swapping in ranges from a given table.
+        source_table is expected to have columns [Parameter, Low, High, Width, Center].
+        """
+        try:
+            import json
+            cfg = {}
+            # Global GA settings from controls
+            cfg['ga_settings'] = {
+                'pop_min': int(self.ga_pop_min_box.value()),
+                'pop_max': int(self.ga_pop_max_box.value()),
+                'pop_size': int(self.ga_pop_size_box.value()),
+                'generations': int(self.ga_num_generations_box.value()),
+                'cxpb': float(self.ga_cxpb_box.value()),
+                'mutpb': float(self.ga_mutpb_box.value()),
+                'tol': float(self.ga_tol_box.value()),
+                'alpha': float(self.ga_alpha_box.value()),
+                'percentage_error_scale': float(self.ga_percentage_error_scale_box.value()),
+                'adaptive_rates': bool(self.adaptive_rates_checkbox.isChecked()),
+                'stagnation_limit': int(self.stagnation_limit_box.value()),
+                'cxpb_min': float(self.cxpb_min_box.value()),
+                'cxpb_max': float(self.cxpb_max_box.value()),
+                'mutpb_min': float(self.mutpb_min_box.value()),
+                'mutpb_max': float(self.mutpb_max_box.value()),
+                'controller': (
+                    'adaptive' if self.controller_adaptive_radio.isChecked() else
+                    ('ml_bandit' if self.controller_ml_radio.isChecked() else
+                     ('rl' if self.controller_rl_radio.isChecked() else 'fixed'))
+                )
+            }
+
+            # Current parameter names
+            current_params = self._get_ga_parameters_from_table()
+            name_to_row = {p['name']: p for p in current_params}
+
+            # Extract ranges from source_table
+            ranges = {}
+            for r in range(source_table.rowCount()):
+                name_it = source_table.item(r, 0)
+                lo_it = source_table.item(r, 1)
+                hi_it = source_table.item(r, 2)
+                if not name_it:
+                    continue
+                name = name_it.text()
+                try:
+                    lo = float(lo_it.text()) if lo_it and lo_it.text() not in ("-", "") else None
+                    hi = float(hi_it.text()) if hi_it and hi_it.text() not in ("-", "") else None
+                except Exception:
+                    lo, hi = None, None
+                if lo is None or hi is None:
+                    continue
+                ranges[name] = (lo, hi)
+
+            # Build parameter section
+            cfg_params = []
+            for p in current_params:
+                name = p['name']
+                if name in ranges:
+                    lo, hi = ranges[name]
+                    cfg_params.append({
+                        'name': name,
+                        'fixed': False,
+                        'fixed_value': float(p['fixed_value']),
+                        'low': float(lo),
+                        'high': float(hi)
+                    })
+                else:
+                    cfg_params.append({
+                        'name': name,
+                        'fixed': bool(p['fixed']),
+                        'fixed_value': float(p['fixed_value']),
+                        'low': float(p['low']),
+                        'high': float(p['high'])
+                    })
+            cfg['parameters'] = cfg_params
+            cfg['export_timestamp'] = QDateTime.currentDateTime().toString(Qt.ISODate)
+            cfg['type'] = 'ga_config'
+            return cfg
+        except Exception as e:
+            print(f"Error building GA config: {str(e)}")
+            return None
+
+    def import_ga_config(self):
+        """Import GA config JSON and apply settings and DVA ranges to the UI."""
+        try:
+            import json
+            path, _ = QFileDialog.getOpenFileName(self, "Import GA Config", "", "JSON files (*.json)")
+            if not path:
+                return
+            with open(path, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+            if not isinstance(cfg, dict) or cfg.get('type') != 'ga_config':
+                QMessageBox.warning(self, "Import", "Selected file is not a GA config.")
+                return
+            # Apply GA settings
+            try:
+                s = cfg.get('ga_settings', {})
+                if 'pop_min' in s: self.ga_pop_min_box.setValue(int(s['pop_min']))
+                if 'pop_max' in s: self.ga_pop_max_box.setValue(int(s['pop_max']))
+                if 'pop_size' in s: self.ga_pop_size_box.setValue(int(s['pop_size']))
+                if 'generations' in s: self.ga_num_generations_box.setValue(int(s['generations']))
+                if 'cxpb' in s: self.ga_cxpb_box.setValue(float(s['cxpb']))
+                if 'mutpb' in s: self.ga_mutpb_box.setValue(float(s['mutpb']))
+                if 'tol' in s: self.ga_tol_box.setValue(float(s['tol']))
+                if 'alpha' in s: self.ga_alpha_box.setValue(float(s['alpha']))
+                if 'percentage_error_scale' in s: self.ga_percentage_error_scale_box.setValue(float(s['percentage_error_scale']))
+                if 'adaptive_rates' in s: self.adaptive_rates_checkbox.setChecked(bool(s['adaptive_rates']))
+                if 'stagnation_limit' in s: self.stagnation_limit_box.setValue(int(s['stagnation_limit']))
+                if 'cxpb_min' in s: self.cxpb_min_box.setValue(float(s['cxpb_min']))
+                if 'cxpb_max' in s: self.cxpb_max_box.setValue(float(s['cxpb_max']))
+                if 'mutpb_min' in s: self.mutpb_min_box.setValue(float(s['mutpb_min']))
+                if 'mutpb_max' in s: self.mutpb_max_box.setValue(float(s['mutpb_max']))
+                ctrl = s.get('controller', 'fixed')
+                self.controller_none_radio.setChecked(ctrl == 'fixed')
+                self.controller_adaptive_radio.setChecked(ctrl == 'adaptive')
+                self.controller_ml_radio.setChecked(ctrl == 'ml_bandit')
+                self.controller_rl_radio.setChecked(ctrl == 'rl')
+            except Exception:
+                pass
+            # Apply parameter ranges
+            ranges_by_name = {}
+            for p in cfg.get('parameters', []):
+                try:
+                    ranges_by_name[p['name']] = (float(p['low']), float(p['high']))
+                except Exception:
+                    continue
+            self._apply_ranges_to_ga_table(ranges_by_name)
+            QMessageBox.information(self, "Import", "GA config applied.")
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", str(e))
+    
+    def _extract_cell_text(self, table, row, col):
+        """Return a string representation of the cell's content for export."""
+        try:
+            item = table.item(row, col)
+            if item is not None:
+                return item.text()
+            widget = table.cellWidget(row, col)
+            if widget is None:
+                return ""
+            # Common widget types placed in tables
+            from PyQt5.QtWidgets import QCheckBox, QDoubleSpinBox, QSpinBox, QComboBox, QPushButton
+            if isinstance(widget, QCheckBox):
+                return "True" if widget.isChecked() else "False"
+            if isinstance(widget, (QDoubleSpinBox, QSpinBox)):
+                return str(widget.value())
+            if isinstance(widget, QComboBox):
+                return widget.currentText()
+            if isinstance(widget, QPushButton):
+                return widget.text()
+            # Fallback: try generic text property
+            return getattr(widget, 'text', lambda: "")()
+        except Exception:
+            return ""
+
+    def _qtable_to_dataframe(self, table, selected_only=False):
+        """Convert a QTableWidget to a pandas DataFrame."""
+        try:
+            import pandas as pd
+            # Determine columns and headers
+            num_rows = table.rowCount()
+            num_cols = table.columnCount()
+            headers = []
+            for c in range(num_cols):
+                hdr_item = table.horizontalHeaderItem(c)
+                headers.append(hdr_item.text() if hdr_item is not None else str(c))
+
+            # Determine which rows to export
+            if selected_only and table.selectionModel() and table.selectionModel().hasSelection():
+                rows = sorted({idx.row() for idx in table.selectionModel().selectedIndexes()})
+            else:
+                rows = list(range(num_rows))
+
+            data = []
+            for r in rows:
+                row_vals = []
+                for c in range(num_cols):
+                    row_vals.append(self._extract_cell_text(table, r, c))
+                data.append(row_vals)
+
+            return pd.DataFrame(data, columns=headers)
+        except Exception as e:
+            print(f"Error converting table to DataFrame: {str(e)}")
+            import pandas as pd
+            return pd.DataFrame()
+
+    def _save_dataframe_to_path(self, df, file_path):
+        """Save DataFrame to CSV or Excel based on file extension."""
+        try:
+            import os
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext == ".xlsx":
+                df.to_excel(file_path, index=False)
+            else:
+                # Default to CSV
+                df.to_csv(file_path, index=False)
+            QMessageBox.information(self, "Export", f"Saved to:\n{file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
+    def _export_table_via_dialog(self, table, default_basename="table", selected_only=False, forced_ext=None):
+        """Open a dialog and export the given table to CSV/Excel."""
+        try:
+            default_name = f"{default_basename}.csv"
+            path, selected_filter = QFileDialog.getSaveFileName(
+                self,
+                "Export Table",
+                default_name,
+                "CSV files (*.csv);;Excel files (*.xlsx)"
+            )
+            if not path:
+                return
+            # Ensure proper extension
+            chosen_ext = forced_ext
+            if chosen_ext is None:
+                if selected_filter and "xlsx" in selected_filter.lower():
+                    chosen_ext = ".xlsx"
+                else:
+                    chosen_ext = ".csv"
+            if not path.lower().endswith(chosen_ext):
+                path = path + chosen_ext
+
+            df = self._qtable_to_dataframe(table, selected_only=selected_only)
+            self._save_dataframe_to_path(df, path)
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
+    def _show_table_context_menu(self, table, default_basename, pos):
+        """Show context menu with export options for a table."""
+        try:
+            menu = QMenu(table)
+            act_export_csv = menu.addAction("Export All to CSV")
+            act_export_xlsx = menu.addAction("Export All to Excel")
+            menu.addSeparator()
+            act_export_sel_csv = menu.addAction("Export Selected Rows to CSV")
+            act_export_sel_xlsx = menu.addAction("Export Selected Rows to Excel")
+            menu.addSeparator()
+            act_copy_rows = menu.addAction("Copy Selected Rows")
+
+            has_sel = bool(table.selectionModel() and table.selectionModel().hasSelection())
+            act_export_sel_csv.setEnabled(has_sel)
+            act_export_sel_xlsx.setEnabled(has_sel)
+            act_copy_rows.setEnabled(has_sel)
+
+            act_export_csv.triggered.connect(lambda: self._export_table_via_dialog(table, default_basename, selected_only=False, forced_ext=".csv"))
+            act_export_xlsx.triggered.connect(lambda: self._export_table_via_dialog(table, default_basename, selected_only=False, forced_ext=".xlsx"))
+            act_export_sel_csv.triggered.connect(lambda: self._export_table_via_dialog(table, default_basename + "_selected", selected_only=True, forced_ext=".csv"))
+            act_export_sel_xlsx.triggered.connect(lambda: self._export_table_via_dialog(table, default_basename + "_selected", selected_only=True, forced_ext=".xlsx"))
+            act_copy_rows.triggered.connect(lambda: self._copy_table_selection_to_clipboard(table))
+
+            global_pos = table.viewport().mapToGlobal(pos)
+            menu.exec_(global_pos)
+        except Exception as e:
+            print(f"Context menu error: {str(e)}")
+
+    def _copy_table_selection_to_clipboard(self, table):
+        """Copy selected rows of the table to the clipboard as TSV."""
+        try:
+            df = self._qtable_to_dataframe(table, selected_only=True)
+            if df.empty:
+                return
+            tsv = df.to_csv(index=False, sep='\t')
+            QApplication.clipboard().setText(tsv)
+        except Exception as e:
+            print(f"Clipboard copy error: {str(e)}")
+
+    def _attach_table_export(self, table, default_basename="table"):
+        """Enable right-click export menu on a QTableWidget."""
+        try:
+            table.setContextMenuPolicy(Qt.CustomContextMenu)
+            table.customContextMenuRequested.connect(lambda pos, t=table, name=default_basename: self._show_table_context_menu(t, name, pos))
         except Exception:
             pass
     def create_ga_tab(self):
@@ -97,12 +433,14 @@ class GAOptimizationMixin:
         self.ga_cxpb_box = QDoubleSpinBox()
         self.ga_cxpb_box.setRange(0, 1)
         self.ga_cxpb_box.setValue(0.7)
-        self.ga_cxpb_box.setDecimals(3)
+        self.ga_cxpb_box.setDecimals(4)
+        self.ga_cxpb_box.setSingleStep(0.0001)
 
         self.ga_mutpb_box = QDoubleSpinBox()
         self.ga_mutpb_box.setRange(0, 1)
         self.ga_mutpb_box.setValue(0.2)
-        self.ga_mutpb_box.setDecimals(3)
+        self.ga_mutpb_box.setDecimals(4)
+        self.ga_mutpb_box.setSingleStep(0.0001)
 
         self.ga_tol_box = QDoubleSpinBox()
         self.ga_tol_box.setRange(0, 1e6)
@@ -168,17 +506,17 @@ class GAOptimizationMixin:
         crossover_bounds_layout.setContentsMargins(0, 0, 0, 0)
         
         self.cxpb_min_box = QDoubleSpinBox()
-        self.cxpb_min_box.setRange(0.01, 0.5)
+        self.cxpb_min_box.setRange(0.0, 1.0)
         self.cxpb_min_box.setValue(0.1)
-        self.cxpb_min_box.setDecimals(2)
-        self.cxpb_min_box.setSingleStep(0.05)
+        self.cxpb_min_box.setDecimals(4)
+        self.cxpb_min_box.setSingleStep(0.0001)
         self.cxpb_min_box.setToolTip("Minimum crossover probability")
         
         self.cxpb_max_box = QDoubleSpinBox()
-        self.cxpb_max_box.setRange(0.5, 1.0)
+        self.cxpb_max_box.setRange(0.0, 1.0)
         self.cxpb_max_box.setValue(0.9)
-        self.cxpb_max_box.setDecimals(2)
-        self.cxpb_max_box.setSingleStep(0.05)
+        self.cxpb_max_box.setDecimals(4)
+        self.cxpb_max_box.setSingleStep(0.0001)
         self.cxpb_max_box.setToolTip("Maximum crossover probability")
         
         crossover_bounds_layout.addWidget(QLabel("Min:"))
@@ -186,7 +524,8 @@ class GAOptimizationMixin:
         crossover_bounds_layout.addWidget(QLabel("Max:"))
         crossover_bounds_layout.addWidget(self.cxpb_max_box)
         
-        adaptive_options_layout.addRow("Crossover Bounds:", crossover_bounds_widget)
+        # Show crossover bounds as hard limits (always visible)
+        ga_hyper_layout.addRow("Crossover Bounds:", crossover_bounds_widget)
         
         # Create a widget for mutation bounds
         mutation_bounds_widget = QWidget()
@@ -194,17 +533,17 @@ class GAOptimizationMixin:
         mutation_bounds_layout.setContentsMargins(0, 0, 0, 0)
         
         self.mutpb_min_box = QDoubleSpinBox()
-        self.mutpb_min_box.setRange(0.01, 0.2)
+        self.mutpb_min_box.setRange(0.0, 1.0)
         self.mutpb_min_box.setValue(0.05)
-        self.mutpb_min_box.setDecimals(2)
-        self.mutpb_min_box.setSingleStep(0.01)
+        self.mutpb_min_box.setDecimals(4)
+        self.mutpb_min_box.setSingleStep(0.0001)
         self.mutpb_min_box.setToolTip("Minimum mutation probability")
         
         self.mutpb_max_box = QDoubleSpinBox()
-        self.mutpb_max_box.setRange(0.2, 0.8)
+        self.mutpb_max_box.setRange(0.0, 1.0)
         self.mutpb_max_box.setValue(0.5)
-        self.mutpb_max_box.setDecimals(2)
-        self.mutpb_max_box.setSingleStep(0.05)
+        self.mutpb_max_box.setDecimals(4)
+        self.mutpb_max_box.setSingleStep(0.0001)
         self.mutpb_max_box.setToolTip("Maximum mutation probability")
         
         mutation_bounds_layout.addWidget(QLabel("Min:"))
@@ -212,9 +551,10 @@ class GAOptimizationMixin:
         mutation_bounds_layout.addWidget(QLabel("Max:"))
         mutation_bounds_layout.addWidget(self.mutpb_max_box)
         
-        adaptive_options_layout.addRow("Mutation Bounds:", mutation_bounds_widget)
+        # Show mutation bounds as hard limits (always visible)
+        ga_hyper_layout.addRow("Mutation Bounds:", mutation_bounds_widget)
         
-        # Initially hide adaptive options
+        # Initially hide adaptive-only options (not the hard limits added above)
         self.adaptive_rates_options.setVisible(False)
 
         ga_hyper_layout.addRow("Population Size (initial):", self.ga_pop_size_box)
@@ -352,9 +692,9 @@ class GAOptimizationMixin:
 
         # Seeding method selection
         self.seeding_method_combo = QComboBox()
-        self.seeding_method_combo.addItems(["Random", "Sobol", "Latin Hypercube", "Neural (UCB/EI)"])
+        self.seeding_method_combo.addItems(["Random", "Sobol", "Latin Hypercube", "Neural (UCB/EI)", "Memory (Replay/Jitter)", "Best-of-Pool (Evaluate)"])
         self.seeding_method_combo.setCurrentIndex(0)
-        self.seeding_method_combo.setToolTip("Choose initial population seeding method: Random, Sobol, Latin Hypercube, or Neural surrogate with acquisition (UCB/EI)")
+        self.seeding_method_combo.setToolTip("Choose initial population seeding method: Random, Sobol, Latin Hypercube, Neural (UCB/EI), Memory (Replay/Jitter), or Best-of-Pool (Evaluate)")
         ga_hyper_layout.addRow("Seeding Method:", self.seeding_method_combo)
 
         # Neural seeding options (collapsible)
@@ -462,6 +802,31 @@ class GAOptimizationMixin:
         self.seeding_method_combo.currentTextChanged.connect(_toggle_neural_group)
         _toggle_neural_group()
 
+        # Best-of-Pool options
+        self.best_pool_group = QGroupBox("Best-of-Pool Options")
+        self.best_pool_group.setCheckable(True)
+        self.best_pool_group.setChecked(False)
+        best_form = QFormLayout(self.best_pool_group)
+
+        self.best_pool_mult = QDoubleSpinBox()
+        self.best_pool_mult.setRange(1.0, 50.0)
+        self.best_pool_mult.setSingleStep(0.5)
+        self.best_pool_mult.setValue(5.0)
+        best_form.addRow("Pool size × pop:", self.best_pool_mult)
+
+        self.best_diversity_frac = QDoubleSpinBox()
+        self.best_diversity_frac.setRange(0.0, 1.0)
+        self.best_diversity_frac.setSingleStep(0.05)
+        self.best_diversity_frac.setValue(0.20)
+        best_form.addRow("Diversity fraction:", self.best_diversity_frac)
+
+        def _toggle_best_group():
+            self.best_pool_group.setChecked(self.seeding_method_combo.currentText().lower().startswith("best-of-pool"))
+        self.seeding_method_combo.currentTextChanged.connect(_toggle_best_group)
+        _toggle_best_group()
+
+        ga_hyper_layout.addRow(self.best_pool_group)
+
         # Add GA control buttons (Run/Pause/Resume/Terminate)
         self.run_ga_button = QPushButton("Run GA")
         self.run_ga_button.setFixedWidth(100)
@@ -541,6 +906,9 @@ class GAOptimizationMixin:
             upper_bound_spin.setEnabled(False)  # Disable because fixed is checked
             self.ga_param_table.setCellWidget(row, 4, upper_bound_spin)
 
+        # Attach export context menu to parameters table
+        self._attach_table_export(self.ga_param_table, "ga_parameters")
+
         ga_param_layout.addWidget(self.ga_param_table)
 
         # -------------------- Sub-tab 3: Results --------------------
@@ -588,6 +956,12 @@ class GAOptimizationMixin:
         self.export_benchmark_button.setEnabled(False)  # Initially disabled until data is available
         self.export_benchmark_button.clicked.connect(self.export_ga_benchmark_data)
         button_layout.addWidget(self.export_benchmark_button)
+
+        # Import GA Config - applies saved bounds/settings
+        self.import_ga_config_button = QPushButton("Import GA Config")
+        self.import_ga_config_button.setToolTip("Import a saved GA config (bounds and settings)")
+        self.import_ga_config_button.clicked.connect(self.import_ga_config)
+        button_layout.addWidget(self.import_ga_config_button)
 
         button_layout.addStretch()  # Add stretch to push buttons to the left
         ga_benchmark_layout.addWidget(button_container)
@@ -763,6 +1137,12 @@ class GAOptimizationMixin:
         self.benchmark_stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         summary_layout.addWidget(QLabel("Statistical Summary of All Runs:"))
         summary_layout.addWidget(self.benchmark_stats_table)
+        # Attach export menu and add a visible export button
+        self._attach_table_export(self.benchmark_stats_table, "benchmark_summary_statistics")
+        btn_export_summary = QPushButton("Export Table")
+        btn_export_summary.setToolTip("Export the Summary Statistics table")
+        btn_export_summary.clicked.connect(lambda: self._export_table_via_dialog(self.benchmark_stats_table, "benchmark_summary_statistics"))
+        summary_layout.addWidget(btn_export_summary)
         
         # ---- Subtab 2: All Runs Table ----
         runs_tab = QWidget()
@@ -779,6 +1159,12 @@ class GAOptimizationMixin:
         
         runs_layout.addWidget(QLabel("All Benchmark Runs:"))
         runs_layout.addWidget(self.benchmark_runs_table)
+        # Attach export menu and add a visible export button
+        self._attach_table_export(self.benchmark_runs_table, "benchmark_all_runs")
+        btn_export_runs = QPushButton("Export Table")
+        btn_export_runs.setToolTip("Export the All Runs table")
+        btn_export_runs.clicked.connect(lambda: self._export_table_via_dialog(self.benchmark_runs_table, "benchmark_all_runs"))
+        runs_layout.addWidget(btn_export_runs)
         
         # Create run details text area
         details_tab = QWidget()
@@ -981,6 +1367,12 @@ class GAOptimizationMixin:
         self.rv_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.rv_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         rv_table_layout.addWidget(self.rv_table)
+        # Attach export menu and add a visible export button for the table view
+        self._attach_table_export(self.rv_table, "random_validation_table")
+        rv_tbl_export_btn = QPushButton("Export Table")
+        rv_tbl_export_btn.setToolTip("Export the Random Validation table")
+        rv_tbl_export_btn.clicked.connect(lambda: self._export_table_via_dialog(self.rv_table, "random_validation_table"))
+        rv_table_layout.addWidget(rv_tbl_export_btn)
 
         # Add tabs
         self.rv_tabs.addTab(rv_summary_tab, "Summary")
@@ -1810,8 +2202,12 @@ class GAOptimizationMixin:
             seeding_method=(
                 "random" if self.seeding_method_combo.currentText().lower().startswith("random") else
                 ("sobol" if self.seeding_method_combo.currentText().lower().startswith("sobol") else
-                 ("lhs" if self.seeding_method_combo.currentText().lower().startswith("latin") else "neural"))
+                 ("lhs" if self.seeding_method_combo.currentText().lower().startswith("latin") else
+                  ("neural" if self.seeding_method_combo.currentText().lower().startswith("neural") else
+                   ("memory" if self.seeding_method_combo.currentText().lower().startswith("memory") else "best"))))
             ),
+            best_pool_mult=self.best_pool_mult.value(),
+            best_diversity_frac=self.best_diversity_frac.value(),
             use_neural_seeding=self.seeding_method_combo.currentText().lower().startswith("neural"),
             neural_acq_type=self.neural_acq_combo.currentText().lower(),
             neural_beta_min=self.neural_beta_min.value(),
@@ -1920,7 +2316,7 @@ class GAOptimizationMixin:
 
             run_data = {
                 'run_number': self.current_benchmark_run,
-                'best_fitness': best_fitness,
+                'best_fitness': float(best_fitness) if np.isfinite(best_fitness) else np.nan,
                 'best_solution': list(best_ind),
                 'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', []),
                 'alpha': getattr(self, '_alpha_used_for_run', None),
@@ -1930,8 +2326,13 @@ class GAOptimizationMixin:
             # Add any additional metrics from results
             if isinstance(results, dict):
                 for key, value in results.items():
-                    if isinstance(value, (int, float)) and np.isfinite(value):
-                        run_data[key] = value
+                    # Only keep simple numeric scalars; avoid nested dicts
+                    try:
+                        v = float(value)
+                        if np.isfinite(v):
+                            run_data[key] = v
+                    except Exception:
+                        pass
 
                 # Add benchmark metrics if available
                 if 'benchmark_metrics' in results:
@@ -1969,7 +2370,7 @@ class GAOptimizationMixin:
 
             run_data = {
                 'run_number': 1,
-                'best_fitness': best_fitness,
+                'best_fitness': float(best_fitness) if np.isfinite(best_fitness) else np.nan,
                 'best_solution': list(best_ind),
                 'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', []),
                 'alpha': getattr(self, '_alpha_used_for_run', None),
@@ -2165,6 +2566,7 @@ class GAOptimizationMixin:
         # Create a new worker
         use_ml = self.controller_ml_radio.isChecked()
         use_adaptive = self.controller_adaptive_radio.isChecked()
+        use_rl = self.controller_rl_radio.isChecked()
         # Store alpha used for this run for later reporting
         self._alpha_used_for_run = alpha
         self.ga_worker = GAWorker(
@@ -2183,14 +2585,14 @@ class GAOptimizationMixin:
             alpha=alpha,
             percentage_error_scale=percentage_error_scale,
             track_metrics=True,  # Enable metrics tracking for visualization
-            adaptive_rates=bool(use_adaptive and not use_ml),  # ensure mutual exclusivity
+            adaptive_rates=bool(use_adaptive and not (use_ml or use_rl)),  # ensure mutual exclusivity
             stagnation_limit=self.stagnation_limit_box.value(),  # Get stagnation limit from UI
             cxpb_min=self.cxpb_min_box.value(),  # Get min crossover probability
             cxpb_max=self.cxpb_max_box.value(),  # Get max crossover probability
             mutpb_min=self.mutpb_min_box.value(),  # Get min mutation probability
             mutpb_max=self.mutpb_max_box.value(),  # Get max mutation probability
             # ML/Bandit controller params
-            use_ml_adaptive=bool(use_ml and not use_adaptive),  # ensure mutual exclusivity
+            use_ml_adaptive=bool(use_ml and not (use_adaptive or use_rl)),  # ensure mutual exclusivity
             pop_min=int(max(10, self.ga_pop_min_box.value())),
             pop_max=int(max(self.ga_pop_min_box.value(), self.ga_pop_max_box.value())),
             ml_ucb_c=self.ml_ucb_c_box.value(),
@@ -2199,6 +2601,12 @@ class GAOptimizationMixin:
             ml_diversity_target=self.ml_diversity_target_box.value(),
             ml_historical_weight=self.ml_historical_weight_box.value(),
             ml_current_weight=self.ml_current_weight_box.value(),
+            # RL controller params
+            use_rl_controller=bool(use_rl and not (use_ml or use_adaptive)),
+            rl_alpha=self.rl_alpha_box.value(),
+            rl_gamma=self.rl_gamma_box.value(),
+            rl_epsilon=self.rl_epsilon_box.value(),
+            rl_epsilon_decay=self.rl_decay_box.value(),
             # Surrogate
             use_surrogate=self.surrogate_checkbox.isChecked(),
             surrogate_pool_factor=self.surr_pool_factor_box.value(),
@@ -2208,8 +2616,12 @@ class GAOptimizationMixin:
             seeding_method=(
                 "random" if self.seeding_method_combo.currentText().lower().startswith("random") else
                 ("sobol" if self.seeding_method_combo.currentText().lower().startswith("sobol") else
-                 ("lhs" if self.seeding_method_combo.currentText().lower().startswith("latin") else "neural"))
+                 ("lhs" if self.seeding_method_combo.currentText().lower().startswith("latin") else
+                  ("neural" if self.seeding_method_combo.currentText().lower().startswith("neural") else
+                   ("memory" if self.seeding_method_combo.currentText().lower().startswith("memory") else "best"))))
             ),
+            best_pool_mult=self.best_pool_mult.value(),
+            best_diversity_frac=self.best_diversity_frac.value(),
             use_neural_seeding=self.seeding_method_combo.currentText().lower().startswith("neural"),
             neural_acq_type=self.neural_acq_combo.currentText().lower(),
             neural_beta_min=self.neural_beta_min.value(),
@@ -3048,6 +3460,33 @@ class GAOptimizationMixin:
                             return _p5_p95(vals)
                         return _p5_p95(subset)
 
+                    def _top_fraction_narrow(vals, fitness, frac=0.10, bandwidth=0.05):
+                        """
+                        Very limited band using only the top `frac` fraction of runs by fitness
+                        and taking a narrow central interval around the median with total width
+                        equal to `bandwidth` (e.g., Q47.5–Q52.5 for bandwidth=0.05).
+
+                        Fallbacks to IQR on the full sample if inputs are insufficient.
+                        """
+                        try:
+                            v = _np.asarray(vals)
+                            if fitness is None or len(fitness) != len(v):
+                                if v.size < 5:
+                                    return _iqr_range(v)
+                                ql = float(_np.quantile(v, 0.5 - 0.5 * bandwidth))
+                                qh = float(_np.quantile(v, 0.5 + 0.5 * bandwidth))
+                                return (min(ql, qh), max(ql, qh))
+                            thr = _np.quantile(fitness, frac)
+                            mask = (fitness <= thr)
+                            subset = v[mask]
+                            if subset.size < 5:
+                                return _iqr_range(v)
+                            ql = float(_np.quantile(subset, 0.5 - 0.5 * bandwidth))
+                            qh = float(_np.quantile(subset, 0.5 + 0.5 * bandwidth))
+                            return (min(ql, qh), max(ql, qh))
+                        except Exception:
+                            return _iqr_range(vals)
+
                     def _trimmed_mean_mad(vals):
                         v = _np.asarray(vals)
                         v_sorted = _np.sort(v)
@@ -3071,6 +3510,7 @@ class GAOptimizationMixin:
                         "Tukey (no outliers)": _tukey_whisker,
                         "Shortest 68%": lambda x: _shortest_interval(x, 0.68),
                         "Top 25% P5–P95": lambda x: _top_quantile_p5_p95(x, fitness_series, 0.25),
+                        "Top 10% Narrow Q47.5–Q52.5": lambda x: _top_fraction_narrow(x, fitness_series, 0.10, 0.05),
                         "TrimmedMean ± 1.5*MAD": _trimmed_mean_mad,
                     }
 
@@ -3100,6 +3540,7 @@ class GAOptimizationMixin:
                         "Tukey (no outliers)": "#2ca02c",
                         "Shortest 68%": "#d62728",
                         "Top 25% P5–P95": "#9467bd",
+                        "Top 10% Narrow Q47.5–Q52.5": "#17becf",
                         "TrimmedMean ± 1.5*MAD": "#8c564b",
                     }
 
@@ -3176,35 +3617,18 @@ class GAOptimizationMixin:
                         lay = QVBoxLayout(tab)
                         lay.addWidget(QLabel(f"Recommended ranges per parameter using: {crit_name}"))
                         table = _build_table_for_ranges(rdict)
+                        # Enable export via context menu
+                        try:
+                            self._attach_table_export(table, f"parameter_ranges_{crit_name.replace(' ', '_').lower()}")
+                        except Exception:
+                            pass
                         lay.addWidget(table)
+                        # Add export button using common dialog
+                        export_btn = QPushButton("Export Table")
+                        export_btn.clicked.connect(lambda _, _tbl=table, _crit=crit_name: self._export_table_via_dialog(_tbl, f"parameter_ranges_{_crit.replace(' ', '_').lower()}"))
+                        lay.addWidget(export_btn)
                         plot_widget = _build_range_plot(rdict, f"Ranges ({crit_name})", crit_colors.get(crit_name, '#333333'))
                         lay.addWidget(plot_widget)
-                        # Export button
-                        export_btn = QPushButton("Export Table")
-                        def _export_table(_tbl=table, _crit=crit_name):
-                            try:
-                                from PyQt5.QtWidgets import QFileDialog
-                                path, _ = QFileDialog.getSaveFileName(self, f"Export {_crit} Ranges", f"parameter_ranges_{_crit.replace(' ', '_')}.csv", "CSV files (*.csv)")
-                                if path:
-                                    # Dump table to CSV
-                                    import csv
-                                    with open(path, 'w', newline='') as f:
-                                        writer = csv.writer(f)
-                                        headers = ["Parameter", "Low", "High", "Width", "Center"]
-                                        writer.writerow(headers)
-                                        for r in range(_tbl.rowCount()):
-                                            row = [
-                                                _tbl.item(r, 0).text() if _tbl.item(r, 0) else "",
-                                                _tbl.item(r, 1).text() if _tbl.item(r, 1) else "",
-                                                _tbl.item(r, 2).text() if _tbl.item(r, 2) else "",
-                                                _tbl.item(r, 3).text() if _tbl.item(r, 3) else "",
-                                                _tbl.item(r, 4).text() if _tbl.item(r, 4) else "",
-                                            ]
-                                            writer.writerow(row)
-                            except Exception as _e:
-                                print(f"Error exporting ranges table: {str(_e)}")
-                        export_btn.clicked.connect(_export_table)
-                        lay.addWidget(export_btn)
                         ranges_tabs.addTab(tab, crit_name)
 
                     # Comparison subtab
@@ -3226,6 +3650,11 @@ class GAOptimizationMixin:
                     cmp_plot_container = QWidget()
                     cmp_plot_layout = QVBoxLayout(cmp_plot_container)
                     cmp_table = QTableWidget()
+                    # Enable export via context menu for comparison table
+                    try:
+                        self._attach_table_export(cmp_table, "parameter_ranges_comparison")
+                    except Exception:
+                        pass
                     cmp_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
                     cmp_layout.addWidget(cmp_plot_container)
                     cmp_layout.addWidget(cmp_table)
@@ -3317,26 +3746,7 @@ class GAOptimizationMixin:
 
                     # Export comparison table button
                     cmp_export_btn = QPushButton("Export Comparison Table")
-                    def _export_cmp():
-                        try:
-                            from PyQt5.QtWidgets import QFileDialog
-                            path, _ = QFileDialog.getSaveFileName(self, "Export Ranges Comparison", "parameter_ranges_comparison.csv", "CSV files (*.csv)")
-                            if path:
-                                import csv
-                                # Write current table content
-                                with open(path, 'w', newline='') as f:
-                                    writer = csv.writer(f)
-                                    hdrs = [cmp_table.horizontalHeaderItem(ci).text() for ci in range(cmp_table.columnCount())]
-                                    writer.writerow(hdrs)
-                                    for r in range(cmp_table.rowCount()):
-                                        row = []
-                                        for c in range(cmp_table.columnCount()):
-                                            it = cmp_table.item(r, c)
-                                            row.append(it.text() if it else "")
-                                        writer.writerow(row)
-                        except Exception as _e:
-                            print(f"Error exporting comparison table: {str(_e)}")
-                    cmp_export_btn.clicked.connect(_export_cmp)
+                    cmp_export_btn.clicked.connect(lambda: self._export_table_via_dialog(cmp_table, "parameter_ranges_comparison"))
                     cmp_layout.addWidget(cmp_export_btn)
 
                     ranges_tabs.addTab(cmp_tab, "Compare Criteria")
@@ -3376,6 +3786,11 @@ class GAOptimizationMixin:
                     # Plot + table
                     rec_plot_container = QWidget(); rec_plot_layout = QVBoxLayout(rec_plot_container)
                     rec_table = QTableWidget()
+                    # Enable export via context menu for recommended ranges table
+                    try:
+                        self._attach_table_export(rec_table, "recommended_parameter_ranges")
+                    except Exception:
+                        pass
                     rec_table.setColumnCount(8)
                     rec_table.setHorizontalHeaderLabels(["Parameter", "Low", "High", "Width", "Center", "Consensus", "IoU_mean", "Source"])
                     rec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -3385,9 +3800,31 @@ class GAOptimizationMixin:
                     # Actions
                     rec_btns = QWidget(); rec_btns_layout = QHBoxLayout(rec_btns)
                     rec_apply_btn = QPushButton("Apply Recommendation")
-                    rec_export_btn = QPushButton("Export Recommended Ranges (CSV)")
+                    rec_export_btn = QPushButton("Export Recommended Ranges")
+                    rec_save_cfg_btn = QPushButton("Save as GA Config")
                     rec_btns_layout.addWidget(rec_apply_btn); rec_btns_layout.addStretch(); rec_btns_layout.addWidget(rec_export_btn)
+                    rec_btns_layout.addWidget(rec_save_cfg_btn)
                     rec_layout.addWidget(rec_btns)
+                    # Hook export button to common exporter
+                    rec_export_btn.clicked.connect(lambda: self._export_table_via_dialog(rec_table, "recommended_parameter_ranges"))
+                    # Save as GA Config: saves full GA config JSON with recommended bounds
+                    def _save_recommendation_as_config():
+                        try:
+                            # Build GA config snapshot using current UI and recommended ranges
+                            cfg = self._build_current_ga_config_with_ranges(rec_table)
+                            if not cfg:
+                                QMessageBox.warning(self, "Save Config", "Could not build GA config from current state.")
+                                return
+                            path, _ = QFileDialog.getSaveFileName(self, "Save GA Config", "ga_config.json", "JSON files (*.json)")
+                            if not path:
+                                return
+                            import json
+                            with open(path, 'w', encoding='utf-8') as f:
+                                json.dump(cfg, f, indent=2)
+                            self.status_bar.showMessage(f"GA config saved to {path}")
+                        except Exception as _e:
+                            QMessageBox.critical(self, "Save Config Error", str(_e))
+                    rec_save_cfg_btn.clicked.connect(_save_recommendation_as_config)
 
                     # Interval helpers
                     def _interval_union(_ivals):
@@ -3587,6 +4024,17 @@ class GAOptimizationMixin:
                     _apply_recommendation()
 
                     ranges_tabs.addTab(rec_tab, "Recommendation")
+
+                    # Live-update the recommendation when controls change
+                    try:
+                        rec_rule_combo.currentIndexChanged.connect(lambda *_: _apply_recommendation())
+                        rec_pick_crit_combo.currentIndexChanged.connect(lambda *_: _apply_recommendation())
+                        rec_k_spin.valueChanged.connect(lambda *_: _apply_recommendation())
+                        clamp_bounds_chk.stateChanged.connect(lambda *_: _apply_recommendation())
+                        show_union_chk.stateChanged.connect(lambda *_: _apply_recommendation())
+                        show_intersection_chk.stateChanged.connect(lambda *_: _apply_recommendation())
+                    except Exception:
+                        pass
 
                     # Assemble overall tab
                     param_ranges_layout.addWidget(ranges_tabs)
@@ -5457,6 +5905,12 @@ class GAOptimizationMixin:
             # Add widgets to layout
             self.param_stats_widget.layout().addWidget(title_label)
             self.param_stats_widget.layout().addWidget(detailed_table)
+            # Enable export via context menu and add visible export button
+            self._attach_table_export(detailed_table, "detailed_parameter_statistics")
+            export_btn = QPushButton("Export Table")
+            export_btn.setToolTip("Export the Detailed Parameter Statistics table")
+            export_btn.clicked.connect(lambda: self._export_table_via_dialog(detailed_table, "detailed_parameter_statistics"))
+            self.param_stats_widget.layout().addWidget(export_btn)
             
 
             
