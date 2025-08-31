@@ -10,23 +10,14 @@ from gui.widgets import ModernQTabWidget
 # Check if beam module imports are successful
 BEAM_IMPORTS_SUCCESSFUL = True
 try:
-    from Continues_beam.utils import ForceRegionManager
-    from Continues_beam.ui.results_dashboard import ResultsDashboard
-    from Continues_beam.ui.composite_beam_interface import CompositeBeamInterface
-    from Continues_beam.ui.enhanced_cross_section_visualizer import EnhancedCrossSectionVisualizer
-    from Continues_beam.ui.beam_side_view import BeamSideViewWidget
-    from Continues_beam.ui.force_visualization import ForceVisualizationWidget
-    from Continues_beam.ui.material_database import MaterialDatabase
-    from Continues_beam.beam.solver import solve_beam_vibration
-    from Continues_beam.beam_animation_adapter import BeamAnimationAdapter
-    from Continues_beam.mode_shape_adapter import ModeShapeAdapter
+    from Continues_beam import create_beam_optimization_interface
 except ImportError as e:
     print(f"Beam imports failed: {e}")
     BEAM_IMPORTS_SUCCESSFUL = False
 
 class ContinuousBeamMixin:
     def create_continuous_beam_page(self):
-        """Create the enhanced continuous beam analysis page with composite capabilities."""
+        """Create the continuous beam optimization page."""
         if not BEAM_IMPORTS_SUCCESSFUL:
             # Create placeholder page if imports failed
             beam_page = QWidget()
@@ -38,7 +29,7 @@ class ContinuousBeamMixin:
             center_layout.setAlignment(Qt.AlignCenter)
             
             # Error message
-            error_label = QLabel("Composite Beam Module Not Available")
+            error_label = QLabel("Continuous Beam Module Not Available")
             error_label.setFont(QFont("Segoe UI", 24, QFont.Bold))
             error_label.setAlignment(Qt.AlignCenter)
             error_label.setStyleSheet("color: #D32F2F;")
@@ -52,12 +43,12 @@ class ContinuousBeamMixin:
             
             # Add some helpful information
             help_text = QLabel("""
-            The Composite Beam Analysis module provides:
-            • Multi-layer composite beam modeling
-            • Temperature-dependent material properties
-            • Advanced finite element analysis
-            • Real-time visualization of cross-sections and forces
-            • Professional engineering tools for beam design
+            The Continuous Beam Optimization module provides:
+            • Two optimization modes:
+              - Values-only at user-selected locations
+              - Placement + values
+            • Targets on displacement, velocity, or acceleration
+            • Frequency-domain evaluation and constraints
             """)
             help_text.setFont(QFont("Segoe UI", 10))
             help_text.setAlignment(Qt.AlignCenter)
@@ -68,7 +59,7 @@ class ContinuousBeamMixin:
             self.content_stack.addWidget(beam_page)
             return
         
-        # Create the comprehensive composite beam analysis interface
+        # Create the continuous beam optimization interface
         try:
             beam_page = QWidget()
             main_layout = QVBoxLayout(beam_page)
@@ -79,25 +70,26 @@ class ContinuousBeamMixin:
             header = self.create_beam_header()
             main_layout.addWidget(header)
             
-            # Create the main composite beam interface
+            # Create the main optimization interface
             theme = getattr(self, 'current_theme', 'Dark')
-            self.composite_beam_interface = CompositeBeamInterface(theme=theme)
-            
+            self.beam_optimization_interface = create_beam_optimization_interface()
+            self.beam_optimization_interface.set_theme(theme)
+
             # Connect signals
-            self.composite_beam_interface.analysis_completed.connect(self.on_beam_analysis_completed)
-            
+            self.beam_optimization_interface.analysis_completed.connect(self.on_beam_analysis_completed)
+
             # Store reference for theme updates
-            self.beam_interface = self.composite_beam_interface
-            
+            self.beam_interface = self.beam_optimization_interface
+
             # Add to main layout
-            main_layout.addWidget(self.composite_beam_interface)
+            main_layout.addWidget(self.beam_optimization_interface)
             
             # Add the page to the stack
             self.content_stack.addWidget(beam_page)
-            print("Enhanced composite beam analysis page created successfully")
+            print("Continuous beam optimization page created successfully")
             
         except Exception as e:
-            print(f"Error creating composite beam analysis page: {str(e)}")
+            print(f"Error creating continuous beam page: {str(e)}")
             import traceback
             traceback.print_exc()
             # Create a fallback page
@@ -121,12 +113,12 @@ class ContinuousBeamMixin:
         # Title section
         title_layout = QVBoxLayout()
         
-        title = QLabel("Composite Beam Analysis")
+        title = QLabel("Continuous Beam Optimization")
         title.setFont(QFont("Segoe UI", 18, QFont.Bold))
         title.setStyleSheet("color: white;")
         title_layout.addWidget(title)
         
-        subtitle = QLabel("Advanced multi-layer composite beam modeling with temperature-dependent properties")
+        subtitle = QLabel("Optimize spring/damper placement and values for vibration targets")
         subtitle.setFont(QFont("Segoe UI", 10))
         subtitle.setStyleSheet("color: rgba(255, 255, 255, 0.8);")
         title_layout.addWidget(subtitle)
@@ -162,13 +154,13 @@ class ContinuousBeamMixin:
         error_layout = QVBoxLayout(error_widget)
         error_layout.setAlignment(Qt.AlignCenter)
         
-        error_label = QLabel("Composite Beam Module Error")
+        error_label = QLabel("Continuous Beam Module Error")
         error_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
         error_label.setAlignment(Qt.AlignCenter)
         error_label.setStyleSheet("color: #D32F2F; margin-bottom: 10px;")
         error_layout.addWidget(error_label)
         
-        error_detail = QLabel(f"Error initializing enhanced composite beam module:\n{error_message}")
+        error_detail = QLabel(f"Error initializing continuous beam module:\n{error_message}")
         error_detail.setFont(QFont("Segoe UI", 10))
         error_detail.setAlignment(Qt.AlignCenter)
         error_detail.setWordWrap(True)
@@ -350,16 +342,11 @@ class ContinuousBeamMixin:
                 'rho': lambda: self.density_input.value()
             }]
             
-            # Run analysis
-            results = solve_beam_vibration(
-                width=self.beam_width_input.value(),
-                layers=layers,
-                L=self.beam_length_input.value(),
-                k_spring=0.0,
-                num_elems=self.num_elements_input.value(),
-                t_span=(0, self.time_span_input.value()),
-                num_time_points=self.time_points_input.value()
-            )
+            # Legacy composite solver removed in rewrite; provide placeholder results
+            results = {
+                'natural_frequencies_hz': np.array([]),
+                'tip_displacement': np.array([]),
+            }
             
             # Display basic results
             results_text = f"""
@@ -377,11 +364,17 @@ Material Properties:
 Natural Frequencies:
 """
             
-            freqs = results['natural_frequencies_hz'][:5]
-            for i, freq in enumerate(freqs):
-                results_text += f"- Mode {i+1}: {freq:.2f} Hz\n"
+            if 'natural_frequencies_hz' in results and len(results['natural_frequencies_hz']):
+                freqs = results['natural_frequencies_hz'][:5]
+                for i, freq in enumerate(freqs):
+                    results_text += f"- Mode {i+1}: {freq:.2f} Hz\n"
+            else:
+                results_text += "(natural frequencies unavailable in basic placeholder)\n"
             
-            results_text += f"\nMaximum tip displacement: {np.max(np.abs(results['tip_displacement']))*1000:.2f} mm"
+            if 'tip_displacement' in results and len(results['tip_displacement']):
+                results_text += f"\nMaximum tip displacement: {np.max(np.abs(results['tip_displacement']))*1000:.2f} mm"
+            else:
+                results_text += "\nTip displacement unavailable in basic placeholder"
             
             self.basic_results_text.setPlainText(results_text)
             

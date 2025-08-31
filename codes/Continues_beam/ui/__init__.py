@@ -1,3 +1,7 @@
+from .interface import BeamOptimizationInterface
+
+__all__ = ['BeamOptimizationInterface']
+
 """
 Composite Beam Analysis UI Components
 

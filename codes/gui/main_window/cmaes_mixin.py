@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+from workers.CMAESWorker import CMAESWorker
 
 class CMAESOptimizationMixin:
     def create_cmaes_tab(self):
@@ -35,10 +36,48 @@ class CMAESOptimizationMixin:
         self.cmaes_alpha_box.setSingleStep(0.01)
         self.cmaes_alpha_box.setValue(0.01)
 
+        # Controller Mode (parity)
+        self.cmaes_controller_group = QGroupBox("Controller Mode")
+        ctrl_layout = QHBoxLayout(self.cmaes_controller_group)
+        self.cmaes_controller_fixed_radio = QRadioButton("Fixed")
+        self.cmaes_controller_ml_radio = QRadioButton("ML Bandit")
+        self.cmaes_controller_rl_radio = QRadioButton("RL Controller")
+        self.cmaes_controller_fixed_radio.setChecked(True)
+        ctrl_layout.addWidget(self.cmaes_controller_fixed_radio)
+        ctrl_layout.addWidget(self.cmaes_controller_ml_radio)
+        ctrl_layout.addWidget(self.cmaes_controller_rl_radio)
+
+        # ML options
+        self.cmaes_ml_group = QGroupBox("ML Bandit Options")
+        ml_layout = QFormLayout(self.cmaes_ml_group)
+        self.cmaes_ml_ucb_c = QDoubleSpinBox(); self.cmaes_ml_ucb_c.setRange(0.1, 3.0); self.cmaes_ml_ucb_c.setDecimals(2); self.cmaes_ml_ucb_c.setSingleStep(0.05); self.cmaes_ml_ucb_c.setValue(0.60)
+        self.cmaes_sigma_scale = QDoubleSpinBox(); self.cmaes_sigma_scale.setRange(1e-6, 10.0); self.cmaes_sigma_scale.setDecimals(6); self.cmaes_sigma_scale.setSingleStep(0.01); self.cmaes_sigma_scale.setValue(1.0)
+        ml_layout.addRow("ML UCB c:", self.cmaes_ml_ucb_c)
+        ml_layout.addRow("Base Sigma Scale:", self.cmaes_sigma_scale)
+
+        # RL options
+        self.cmaes_rl_group = QGroupBox("RL Options")
+        rl_layout = QFormLayout(self.cmaes_rl_group)
+        self.cmaes_rl_alpha = QDoubleSpinBox(); self.cmaes_rl_alpha.setRange(0.0, 1.0); self.cmaes_rl_alpha.setDecimals(3); self.cmaes_rl_alpha.setValue(0.1)
+        self.cmaes_rl_gamma = QDoubleSpinBox(); self.cmaes_rl_gamma.setRange(0.0, 1.0); self.cmaes_rl_gamma.setDecimals(3); self.cmaes_rl_gamma.setValue(0.9)
+        self.cmaes_rl_epsilon = QDoubleSpinBox(); self.cmaes_rl_epsilon.setRange(0.0, 1.0); self.cmaes_rl_epsilon.setDecimals(3); self.cmaes_rl_epsilon.setValue(0.2)
+        self.cmaes_rl_decay = QDoubleSpinBox(); self.cmaes_rl_decay.setRange(0.0, 1.0); self.cmaes_rl_decay.setDecimals(3); self.cmaes_rl_decay.setValue(0.95)
+        rl_layout.addRow("RL α (learning rate):", self.cmaes_rl_alpha)
+        rl_layout.addRow("RL γ (discount):", self.cmaes_rl_gamma)
+        rl_layout.addRow("RL ε (explore):", self.cmaes_rl_epsilon)
+        rl_layout.addRow("RL ε decay:", self.cmaes_rl_decay)
+        self.cmaes_ml_group.setVisible(False)
+        self.cmaes_rl_group.setVisible(False)
+        self.cmaes_controller_ml_radio.toggled.connect(lambda _: self.cmaes_ml_group.setVisible(self.cmaes_controller_ml_radio.isChecked()))
+        self.cmaes_controller_rl_radio.toggled.connect(lambda _: self.cmaes_rl_group.setVisible(self.cmaes_controller_rl_radio.isChecked()))
+
         cmaes_hyper_layout.addRow("Initial Sigma:", self.cmaes_sigma_box)
         cmaes_hyper_layout.addRow("Max Iterations:", self.cmaes_max_iter_box)
         cmaes_hyper_layout.addRow("Tolerance (tol):", self.cmaes_tol_box)
         cmaes_hyper_layout.addRow("Sparsity Penalty (alpha):", self.cmaes_alpha_box)
+        cmaes_hyper_layout.addRow(self.cmaes_controller_group)
+        cmaes_hyper_layout.addRow(self.cmaes_ml_group)
+        cmaes_hyper_layout.addRow(self.cmaes_rl_group)
 
         # Add a small Run CMA-ES button in the hyperparameters sub-tab
         self.hyper_run_cmaes_button = QPushButton("Run CMA-ES")
@@ -140,8 +179,70 @@ class CMAESOptimizationMixin:
 
     def run_cmaes(self):
         """Run the CMA-ES optimization"""
-        # Implementation already exists at line 2840
-        pass
+        try:
+            if hasattr(self, 'cmaes_worker') and self.cmaes_worker.isRunning():
+                QMessageBox.warning(self, "Process Running", "CMA-ES is already running.")
+                return
+            # Gather parameter data
+            cma_parameter_data = []
+            row_count = self.cmaes_param_table.rowCount()
+            for row in range(row_count):
+                name = self.cmaes_param_table.item(row, 0).text()
+                fixed = self.cmaes_param_table.cellWidget(row, 1).isChecked()
+                if fixed:
+                    val = self.cmaes_param_table.cellWidget(row, 2).value()
+                    cma_parameter_data.append((name, val, val, True))
+                else:
+                    low = self.cmaes_param_table.cellWidget(row, 3).value()
+                    high = self.cmaes_param_table.cellWidget(row, 4).value()
+                    cma_parameter_data.append((name, low, high, False))
+
+            main_params = self.get_main_system_params()
+            target_values, weights = self.get_target_values_weights()
+            omega_start_val = self.omega_start_box.value()
+            omega_end_val = self.omega_end_box.value()
+            omega_points_val = self.omega_points_box.value()
+
+            use_ml = self.cmaes_controller_ml_radio.isChecked()
+            use_rl = self.cmaes_controller_rl_radio.isChecked()
+
+            self.cmaes_results_text.clear()
+            self.cmaes_results_text.append("Starting CMA-ES optimization...")
+
+            self.cmaes_worker = CMAESWorker(
+                main_params=main_params,
+                target_values_dict=target_values,
+                weights_dict=weights,
+                omega_start=omega_start_val,
+                omega_end=omega_end_val,
+                omega_points=omega_points_val,
+                cma_initial_sigma=self.cmaes_sigma_box.value(),
+                cma_max_iter=self.cmaes_max_iter_box.value(),
+                cma_tol=self.cmaes_tol_box.value(),
+                cma_parameter_data=cma_parameter_data,
+                alpha=self.cmaes_alpha_box.value(),
+                track_metrics=True,
+                use_ml_adaptive=bool(use_ml and not use_rl),
+                ml_ucb_c=self.cmaes_ml_ucb_c.value() if use_ml else 0.6,
+                use_rl_controller=bool(use_rl and not use_ml),
+                rl_alpha=self.cmaes_rl_alpha.value() if use_rl else 0.1,
+                rl_gamma=self.cmaes_rl_gamma.value() if use_rl else 0.9,
+                rl_epsilon=self.cmaes_rl_epsilon.value() if use_rl else 0.2,
+                rl_epsilon_decay=self.cmaes_rl_decay.value() if use_rl else 0.95,
+                sigma_scale=self.cmaes_sigma_scale.value()
+            )
+            self.cmaes_worker.update.connect(lambda msg: self.cmaes_results_text.append(msg))
+            self.cmaes_worker.error.connect(lambda err: QMessageBox.critical(self, "CMA-ES Error", err))
+            self.cmaes_worker.finished.connect(self.handle_cmaes_finished)
+            self.cmaes_worker.progress.connect(lambda p: None)
+            try:
+                self.cmaes_worker.benchmark_data.connect(lambda m: None)
+                self.cmaes_worker.generation_metrics.connect(lambda m: None)
+            except Exception:
+                pass
+            self.cmaes_worker.start()
+        except Exception as e:
+            QMessageBox.critical(self, "CMA-ES Error", str(e))
 
     def handle_cmaes_finished(self, results, best_candidate, parameter_names, best_fitness):
         """Handle the completion of CMA-ES optimization"""

@@ -85,8 +85,64 @@ class DEOptimizationMixin:
         self.de_num_runs_spinbox.setToolTip("Number of DE runs (1 = single run)")
         de_params_layout.addRow("Benchmark Runs:", self.de_num_runs_spinbox)
 
-        # Add the parameters group to the layout
+        # Controller Mode (parity with GA/PSO)
+        controller_group = QGroupBox("Controller Mode")
+        ctrl_layout = QHBoxLayout(controller_group)
+        self.de_controller_fixed_radio = QRadioButton("Fixed")
+        self.de_controller_adaptive_radio = QRadioButton("Adaptive")
+        self.de_controller_ml_radio = QRadioButton("ML Bandit")
+        self.de_controller_rl_radio = QRadioButton("RL Controller")
+        self.de_controller_fixed_radio.setChecked(True)
+        ctrl_layout.addWidget(self.de_controller_fixed_radio)
+        ctrl_layout.addWidget(self.de_controller_adaptive_radio)
+        ctrl_layout.addWidget(self.de_controller_ml_radio)
+        ctrl_layout.addWidget(self.de_controller_rl_radio)
+
+        # ML options
+        self.de_ml_group = QGroupBox("ML Bandit Options")
+        ml_layout = QFormLayout(self.de_ml_group)
+        self.de_ml_ucb_c = QDoubleSpinBox(); self.de_ml_ucb_c.setRange(0.1, 3.0); self.de_ml_ucb_c.setDecimals(2); self.de_ml_ucb_c.setSingleStep(0.05); self.de_ml_ucb_c.setValue(0.60)
+        self.de_ml_div_w = QDoubleSpinBox(); self.de_ml_div_w.setRange(0.0, 1.0); self.de_ml_div_w.setDecimals(3); self.de_ml_div_w.setSingleStep(0.005); self.de_ml_div_w.setValue(0.02)
+        self.de_ml_div_target = QDoubleSpinBox(); self.de_ml_div_target.setRange(0.0, 1.0); self.de_ml_div_target.setDecimals(2); self.de_ml_div_target.setSingleStep(0.05); self.de_ml_div_target.setValue(0.20)
+        self.de_ml_pop_min = QSpinBox(); self.de_ml_pop_min.setRange(10, 100000); self.de_ml_pop_min.setValue(max(10, int(0.5 * self.de_pop_size_spinbox.value())))
+        self.de_ml_pop_max = QSpinBox(); self.de_ml_pop_max.setRange(10, 100000); self.de_ml_pop_max.setValue(int(2.0 * self.de_pop_size_spinbox.value()))
+        self.de_ml_pop_adapt = QCheckBox(); self.de_ml_pop_adapt.setChecked(True)
+        ml_layout.addRow("ML UCB c:", self.de_ml_ucb_c)
+        ml_layout.addRow("ML Diversity Weight:", self.de_ml_div_w)
+        ml_layout.addRow("ML Diversity Target:", self.de_ml_div_target)
+        ml_layout.addRow("Min Pop Size:", self.de_ml_pop_min)
+        ml_layout.addRow("Max Pop Size:", self.de_ml_pop_max)
+        ml_layout.addRow("Allow Pop Adaptation:", self.de_ml_pop_adapt)
+        def _sync_pop_bounds(val):
+            try:
+                if not self.de_ml_pop_min.hasFocus():
+                    self.de_ml_pop_min.setValue(max(10, int(0.5 * val)))
+                if not self.de_ml_pop_max.hasFocus():
+                    self.de_ml_pop_max.setValue(int(2.0 * val))
+            except Exception:
+                pass
+        self.de_pop_size_spinbox.valueChanged.connect(_sync_pop_bounds)
+
+        # RL options
+        self.de_rl_group = QGroupBox("RL Options")
+        rl_layout = QFormLayout(self.de_rl_group)
+        self.de_rl_alpha = QDoubleSpinBox(); self.de_rl_alpha.setRange(0.0, 1.0); self.de_rl_alpha.setDecimals(3); self.de_rl_alpha.setValue(0.1)
+        self.de_rl_gamma = QDoubleSpinBox(); self.de_rl_gamma.setRange(0.0, 1.0); self.de_rl_gamma.setDecimals(3); self.de_rl_gamma.setValue(0.9)
+        self.de_rl_epsilon = QDoubleSpinBox(); self.de_rl_epsilon.setRange(0.0, 1.0); self.de_rl_epsilon.setDecimals(3); self.de_rl_epsilon.setValue(0.2)
+        self.de_rl_decay = QDoubleSpinBox(); self.de_rl_decay.setRange(0.0, 1.0); self.de_rl_decay.setDecimals(3); self.de_rl_decay.setValue(0.95)
+        rl_layout.addRow("RL b1 (learning rate):", self.de_rl_alpha)
+        rl_layout.addRow("RL b3 (discount):", self.de_rl_gamma)
+        rl_layout.addRow("RL b5 (explore):", self.de_rl_epsilon)
+        rl_layout.addRow("RL b5 decay:", self.de_rl_decay)
+        self.de_ml_group.setVisible(False)
+        self.de_rl_group.setVisible(False)
+        self.de_controller_ml_radio.toggled.connect(lambda _: self.de_ml_group.setVisible(self.de_controller_ml_radio.isChecked()))
+        self.de_controller_rl_radio.toggled.connect(lambda _: self.de_rl_group.setVisible(self.de_controller_rl_radio.isChecked()))
+        # Add the parameters & controller groups to the layout
         settings_layout.addWidget(de_params_group)
+        settings_layout.addWidget(controller_group)
+        settings_layout.addWidget(self.de_ml_group)
+        settings_layout.addWidget(self.de_rl_group)
         
         # Add a small Run DE button in the settings sub-tab
         self.hyper_run_de_button = QPushButton("Run DE")
@@ -450,6 +506,10 @@ class DEOptimizationMixin:
                     self.run_de_button.setEnabled(False)
 
                 # Create and start worker thread with correct parameters
+                # Controller mode selection
+                use_ml = self.de_controller_ml_radio.isChecked()
+                use_rl = self.de_controller_rl_radio.isChecked()
+
                 self.de_worker = DEWorker(
                     main_params=main_params,
                     target_values_dict=target_values,
@@ -466,13 +526,33 @@ class DEOptimizationMixin:
                     strategy=de_params['strategy'],
                     adaptive_method=de_params['adaptive'],
                     record_statistics=True,
-                    num_runs=de_params['num_runs']
+                    num_runs=de_params['num_runs'],
+                    # Metrics & controllers
+                    track_metrics=True,
+                    use_ml_adaptive=bool(use_ml and not use_rl),
+                    pop_min=int(max(10, self.de_ml_pop_min.value())) if use_ml else None,
+                    pop_max=int(max(self.de_ml_pop_min.value(), self.de_ml_pop_max.value())) if use_ml else None,
+                    ml_ucb_c=self.de_ml_ucb_c.value() if use_ml else 0.6,
+                    ml_adapt_population=self.de_ml_pop_adapt.isChecked() if use_ml else True,
+                    ml_diversity_weight=self.de_ml_div_w.value() if use_ml else 0.02,
+                    ml_diversity_target=self.de_ml_div_target.value() if use_ml else 0.2,
+                    use_rl_controller=bool(use_rl and not use_ml),
+                    rl_alpha=self.de_rl_alpha.value() if use_rl else 0.1,
+                    rl_gamma=self.de_rl_gamma.value() if use_rl else 0.9,
+                    rl_epsilon=self.de_rl_epsilon.value() if use_rl else 0.2,
+                    rl_epsilon_decay=self.de_rl_decay.value() if use_rl else 0.95
                 )
                 self.de_worker.progress.connect(self.handle_de_progress)
                 self.de_worker.multi_run_progress.connect(self.handle_de_multi_run_progress)
                 self.de_worker.finished.connect(self.handle_de_finished)
                 self.de_worker.error.connect(self.handle_de_error)
                 self.de_worker.update.connect(self.handle_de_update)
+                # metrics signals optional
+                try:
+                    self.de_worker.benchmark_data.connect(lambda m: None)
+                    self.de_worker.generation_metrics.connect(lambda m: None)
+                except Exception:
+                    pass
                 
                 # Show the DE tab with Results subtab
                 self.de_sub_tabs.setCurrentIndex(2)  # Switch to Results tab
@@ -602,6 +682,20 @@ class DEOptimizationMixin:
                 
             # Create the final visualization
             self.create_de_final_visualization(statistics, parameter_names)
+
+            # If metrics exist, show compact summary akin to GA/PSO
+            try:
+                metrics = results.get('benchmark_metrics', {}) if isinstance(results, dict) else {}
+                if isinstance(metrics, dict) and metrics:
+                    self.de_results_text.append("\nDE Metrics Summary:")
+                    if metrics.get('best_fitness_per_gen'):
+                        self.de_results_text.append(f"  Best fitness (final): {metrics['best_fitness_per_gen'][-1]:.6f}")
+                    if metrics.get('mean_fitness_history'):
+                        self.de_results_text.append(f"  Mean fitness (final): {metrics['mean_fitness_history'][-1]:.6f}")
+                    if metrics.get('std_fitness_history'):
+                        self.de_results_text.append(f"  Std fitness (final): {metrics['std_fitness_history'][-1]:.6f}")
+            except Exception:
+                pass
 
             # Switch to appropriate tab to show final results
             if getattr(self, 'total_de_runs', 1) > 1:

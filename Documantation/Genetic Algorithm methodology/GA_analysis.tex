@@ -83,7 +83,7 @@
 \maketitle
 
 \begin{abstract}
-\softwareName{} (\softwareVersion{}) is an open-source, first-of-its-kind playground for the design of \glspl{dva} that unifies classical and modern optimization under one reproducible, extensible framework. The platform integrates a rigorous mechanical model (fully coupled 2DOF--3DOF), an \gls{frf}-based fitness pipeline, and a suite of optimizers (\gls{ga}, \gls{pso}, \gls{sa}, \gls{cmaes}, \gls{rl}, and \gls{de}). Beyond providing many algorithms, \softwareName{} contributes three methodological advances tailored to vibration absorber design: (i) adaptive operator control for \gls{ga} via ML-bandit and \gls{rl} controllers that tune crossover, mutation, and population size online; (ii) surrogate-assisted screening using a \gls{knn} predictor to reduce expensive \gls{frf} evaluations; and (iii) advanced population seeding (random, Sobol, Latin hypercube, and a NeuralSeeder with \gls{ucb}/\gls{ei} acquisition) for improved exploration. The system instruments each run with detailed metrics and provides statistical post-analysis across repeated runs to recommend robust parameter ranges for every DVA variable. We document the mathematical formulation, software architecture, algorithmic controllers, benchmarking protocol, and statistical synthesis pipeline, and we release the full implementation to accelerate research and practice in vibration control.
+\softwareName{} (\softwareVersion{}) is an open-source, first-of-its-kind playground for the design of \glspl{dva} that unifies classical and modern optimization under one reproducible, extensible framework. The platform integrates a rigorous mechanical model (fully coupled 2DOF--3DOF), an \gls{frf}-based fitness pipeline, and a suite of optimizers (\gls{ga}, \gls{pso}, \gls{sa}, \gls{cmaes}, \gls{rl}, and \gls{de}). Beyond providing many algorithms, \softwareName{} contributes three methodological advances tailored to vibration absorber design: (i) adaptive operator control for \gls{ga} and \gls{pso} via ML-bandit and \gls{rl} controllers that tune parameters online; (ii) surrogate-assisted screening using a \gls{knn} predictor to reduce expensive \gls{frf} evaluations; and (iii) advanced population seeding (random, Sobol, Latin hypercube, and a NeuralSeeder with \gls{ucb}/\gls{ei} acquisition) for improved exploration. The system instruments each run with detailed metrics and provides statistical post-analysis across repeated runs to recommend robust parameter ranges for every DVA variable. We document the mathematical formulation, software architecture, algorithmic controllers, benchmarking protocol, and statistical synthesis pipeline, and we release the full implementation to accelerate research and practice in vibration control.
 \end{abstract}
 
 \noindent\textbf{Keywords:} Dynamic vibration absorber, frequency response function, genetic algorithm, CMA-ES, PSO, simulated annealing, differential evolution, reinforcement learning, surrogate modeling, seeding, robustness, reproducibility, open-source.
@@ -119,7 +119,7 @@ This thesis presents \softwareName{}, a comprehensive optimization framework and
 
 \subsection{Thesis roadmap}
 \label{subsec:roadmap}
-We begin with the DVA configuration and parameter spaces, followed by the mechanical model and its \gls{frf}-based evaluation. We then detail the optimization problem, the traditional \gls{ga} baseline, and the advanced features. Subsequent sections describe software architecture, the algorithm suite and configuration playground, benchmarking and robustness analysis, statistical range synthesis, and the overall results, before concluding with reproducibility notes and future work.
+We begin with the DVA configuration and parameter spaces, followed by the mechanical model and its \gls{frf}-based evaluation. We then detail the optimization problem, the traditional \gls{ga} baseline, the enhanced \gls{pso} methodology, and the advanced features. Subsequent sections describe software architecture, the algorithm suite and configuration playground, benchmarking and robustness analysis, statistical range synthesis, and the overall results, before concluding with reproducibility notes and future work.
 
 
 \section{Software architecture and optimization playground}
@@ -138,7 +138,7 @@ We begin with the DVA configuration and parameter spaces, followed by the mechan
     \item \textbf{Mechanical core}: builds the mass, damping, stiffness, and force operators and computes \gls{frf}s per Sec.~\ref{subsubsec:chosen_performance_criteria_combined}.
     \item \textbf{Fitness pipeline}: evaluates Eq.~\eqref{Eq.objective_function_detailed} using modal, inter-modal, and global criteria with user-defined weights.
     \item \textbf{Algorithm suite}: \gls{ga}, \gls{pso}, \gls{sa}, \gls{cmaes}, \gls{rl}, and \gls{de}, with consistent bounds, fixed-parameter handling, and termination.
-    \item \textbf{Controllers}: ML-bandit and \gls{rl} for adaptive \gls{ga} operator control (Sec.~\ref{Eq.ucb}--\ref{Eq.bandit_reward}).
+    \item \textbf{Controllers}: ML-bandit and \gls{rl} for adaptive \gls{ga} and \gls{pso} operator control (Sec.~\ref{Eq.ucb}--\ref{Eq.bandit_reward}).
     \item \textbf{Seeding}: Random, Sobol, LHS, and NeuralSeeder (\gls{ucb}/\gls{ei}) as in Sec.~\ref{Eq.harmonic.solution.2dof3dof} onward.
     \item \textbf{Surrogate screening}: \gls{knn}-based pre-filter with novelty (Sec.~\ref{sec:benchmarking}).
     \item \textbf{Instrumentation}: per-generation and system \gls{kpi}s (Sec.~\ref{sec:benchmarking}).
@@ -758,6 +758,624 @@ Area_i \approx \frac{h}{3} \left[|X_i(\omega_0)| + 4\sum_{k=1}^{n/2} |X_i(\omega
 where $h$ is the frequency step size and $n$ is the number of frequency points.
 
 
+\section{Input Parameters}
+\label{sec:input-parameters}
+
+This section presents the comprehensive input parameter configuration used in the \softwareName{} optimization framework. The parameters are organized into several categories that define the mechanical system characteristics, optimization objectives, algorithm settings, and design constraints.
+
+\subsection{Main System Parameters}
+
+The main system configuration defines the fundamental characteristics of the 2DOF primary structure and its base excitations. Table~\ref{Tab:main_system_parameters} presents the dimensionless parameters that characterize the primary system dynamics.
+
+\begin{table}[h!]
+\centering
+\caption{Main System Configuration Parameters}
+\label{Tab:main_system_parameters}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Description} \\
+\midrule
+$\mu$ & 1.0 & Mass ratio ($M_2/M_1$) \\
+$\Lambda_1$ & 1.0 & Primary stiffness ratio ($K_1/K_1$) \\
+$\Lambda_2$ & 1.0 & Secondary stiffness ratio ($K_2/K_1$) \\
+$\Lambda_3$ & 0.5 & Tertiary stiffness ratio ($K_3/K_1$) \\
+$\Lambda_4$ & 0.5 & Quaternary stiffness ratio ($K_4/K_1$) \\
+$\Lambda_5$ & 0.5 & Quinary stiffness ratio ($K_5/K_1$) \\
+$\mathcal{N}_1$ & 0.75 & Primary damping ratio ($C_1/C_1$) \\
+$\mathcal{N}_2$ & 0.75 & Secondary damping ratio ($C_2/C_1$) \\
+$\mathcal{N}_3$ & 0.75 & Tertiary damping ratio ($C_3/C_1$) \\
+$\mathcal{N}_4$ & 0.75 & Quaternary damping ratio ($C_4/C_1$) \\
+$\mathcal{N}_5$ & 0.75 & Quinary damping ratio ($C_5/C_1$) \\
+$a_{low}$ & 0.05 & Lower base excitation amplitude \\
+$a_{up}$ & 0.05 & Upper base excitation amplitude \\
+$f_1$ & 100.0 & External force amplitude on mass 1 \\
+$f_2$ & 100.0 & External force amplitude on mass 2 \\
+$\omega_{dc}$ & 100.0 & Decoupled natural frequency (rad/s) \\
+$\zeta_{dc}$ & 0.01 & Decoupled damping ratio \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Dynamic Vibration Absorber Initial Configuration}
+
+The DVA system is initially configured with all coupling parameters set to zero, representing an uncoupled state. Table~\ref{Tab:dva_initial_config} shows the initial DVA parameter values.
+
+\begin{table}[h!]
+\centering
+\caption{Initial DVA Configuration (All Parameters Set to Zero)}
+\label{Tab:dva_initial_config}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Parameter Group} & \textbf{Count} & \textbf{Initial Value} \\
+\midrule
+$\beta_i$ (Mass coupling) & 15 & 0.0 \\
+$\lambda_i$ (Stiffness coupling) & 15 & 0.0 \\
+$\mu_i$ (DVA masses) & 3 & 0.0 \\
+$\nu_i$ (Damping coupling) & 15 & 0.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This initial configuration represents a baseline state where the primary 2DOF system operates without any DVA coupling, providing a reference point for optimization performance assessment.
+
+\subsection{Target Performance Specifications}
+
+The optimization targets focus on achieving specific frequency response characteristics for each mass in the system. Table~\ref{Tab:target_specifications} presents the target specifications for mass 1, which is the primary focus of the optimization.
+
+\begin{table}[h!]
+\centering
+\caption{Target Performance Specifications for Mass 1}
+\label{Tab:target_specifications}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Performance Criterion} & \textbf{Target Value} & \textbf{Weight} \\
+\midrule
+Peak Position 2 & 100.0 rad/s & 0.5 \\
+Peak Position 3 & 250.0 rad/s & 0.5 \\
+All other criteria & 0.0 & 0.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The target configuration emphasizes achieving specific resonant frequencies at 100 rad/s and 250 rad/s for mass 1, with equal weighting for both targets. All other performance criteria (peak values, bandwidths, slopes, and area under curve) are set to zero weight, indicating they are not considered in this optimization scenario.
+
+\subsection{Frequency Analysis Configuration}
+
+The frequency response analysis is configured to cover a comprehensive range of excitation frequencies. Table~\ref{Tab:frequency_config} presents the frequency analysis parameters.
+
+\begin{table}[h!]
+\centering
+\caption{Frequency Response Analysis Configuration}
+\label{Tab:frequency_config}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Description} \\
+\midrule
+$\omega_{start}$ & 0.0 rad/s & Starting frequency \\
+$\omega_{end}$ & 350.0 rad/s & Ending frequency \\
+$\omega_{points}$ & 350 & Number of frequency points \\
+Plot figure & True & Enable response plotting \\
+Show peaks & False & Disable peak marking \\
+Show slopes & False & Disable slope marking \\
+Interpolation method & None & No interpolation \\
+Interpolation points & 1000 & Reserved for future use \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The frequency range from 0 to 350 rad/s encompasses the target frequencies (100 and 250 rad/s) with sufficient resolution for accurate peak detection and analysis.
+
+\subsection{Genetic Algorithm Optimization Settings}
+
+The genetic algorithm is configured with comprehensive parameters for population management, genetic operators, and convergence criteria. Table~\ref{Tab:ga_settings} presents the main GA configuration parameters.
+
+\begin{table}[h!]
+\centering
+\caption{Genetic Algorithm Configuration Parameters}
+\label{Tab:ga_settings}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Parameter Category} & \textbf{Parameter} & \textbf{Value} \\
+\midrule
+\multirow{3}{*}{Population} & Size & 150 \\
+& Minimum & 100 \\
+& Maximum & 200 \\
+\midrule
+\multirow{2}{*}{Evolution} & Generations & 150 \\
+& Tolerance & 0.1 \\
+\midrule
+\multirow{2}{*}{Genetic Operators} & Crossover probability & 0.7 \\
+& Mutation probability & 0.2 \\
+\midrule
+\multirow{2}{*}{Objective Function} & Sparsity weight ($\alpha$) & 0.02 \\
+& Error scale ($\gamma$) & 1000.0 \\
+\midrule
+Benchmarking & Number of runs & 10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Advanced Algorithm Features}
+
+The configuration includes several advanced features that can be enabled or disabled based on optimization requirements. Table~\ref{Tab:advanced_features} summarizes the status of these features.
+
+\begin{table}[h!]
+\centering
+\caption{Advanced Algorithm Features Configuration}
+\label{Tab:advanced_features}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Feature} & \textbf{Status} & \textbf{Description} \\
+\midrule
+Adaptive Rates & Disabled & Fixed genetic operator probabilities \\
+ML-Bandit Controller & Disabled & Machine learning parameter adaptation \\
+RL Controller & Disabled & Reinforcement learning control \\
+Surrogate Screening & Disabled & KNN-based fitness prediction \\
+Neural Seeding & Disabled & Neural network-based population initialization \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Parameter Bounds and Constraints}
+
+The optimization problem includes 48 design parameters with comprehensive bounds and constraints. Table~\ref{Tab:parameter_bounds} presents the parameter bounds configuration.
+
+\begin{table}[h!]
+\centering
+\caption{Design Parameter Bounds and Constraints}
+\label{Tab:parameter_bounds}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Parameter Group} & \textbf{Count} & \textbf{Bounds} & \textbf{Fixed Parameters} \\
+\midrule
+$\beta_i$ (Mass coupling) & 15 & [0.0, 1.0] & None \\
+$\lambda_i$ (Stiffness coupling) & 15 & [0.0, 1.0] & None \\
+$\mu_i$ (DVA masses) & 3 & [0.0, 1.0] & None \\
+$\nu_i$ (Damping coupling) & 14 & [0.0, 1.0] & $\nu_{15} = 0.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All parameters are bounded between 0.0 and 1.0 in dimensionless form, with only one parameter ($\nu_{15}$) fixed at 0.0. This configuration provides a total of 47 free parameters for optimization.
+
+\subsection{Omega Sensitivity Analysis Configuration}
+
+The system includes configuration for frequency sensitivity analysis, which can be used to assess the robustness of optimized solutions. Table~\ref{Tab:omega_sensitivity} presents these settings.
+
+\begin{table}[h!]
+\centering
+\caption{Omega Sensitivity Analysis Configuration}
+\label{Tab:omega_sensitivity}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Description} \\
+\midrule
+Initial points & 100 & Starting number of evaluation points \\
+Maximum points & 2000 & Maximum allowed evaluation points \\
+Step size & 1000 & Points added per iteration \\
+Threshold & 0.01 & Convergence threshold \\
+Maximum iterations & 200 & Maximum optimization iterations \\
+Target mass & Mass 1 & Primary mass for sensitivity analysis \\
+Plot results & True & Enable sensitivity plotting \\
+Use optimal & True & Use optimal parameters as reference \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Configuration Summary and Implications}
+
+The input parameter configuration defines a comprehensive optimization problem with the following key characteristics:
+
+\begin{enumerate}
+    \item \textbf{System Complexity}: 2DOF primary system with 3 DVA masses, totaling 5 degrees of freedom
+    \item \textbf{Design Space}: 47 free parameters with normalized bounds [0, 1]
+    \item \textbf{Optimization Focus}: Frequency response targeting at 100 and 250 rad/s for mass 1
+    \item \textbf{Algorithm Configuration}: Traditional GA with population size 150 and 150 generations
+    \item \textbf{Advanced Features}: All advanced controllers and surrogates disabled for baseline comparison
+    \item \textbf{Benchmarking}: 10 independent runs for statistical analysis
+\end{enumerate}
+
+This configuration provides a robust foundation for evaluating the performance of different optimization strategies and serves as a baseline for comparing advanced features such as adaptive controllers, surrogate models, and intelligent seeding methods.
+
+\section{Particle Swarm Optimization Methodology}
+\label{sec:pso_methodology}
+
+\subsection{Introduction to Particle Swarm Optimization}
+
+Particle Swarm Optimization (PSO) is a population-based stochastic optimization technique inspired by the social behavior of bird flocking or fish schooling. In PSO, a swarm of particles moves through the search space, guided by their own best known position and the swarm's best known position. This methodology has been successfully applied to various engineering optimization problems, including the design of Dynamic Vibration Absorbers (DVAs).
+
+\subsection{Mathematical Foundation of PSO}
+
+\subsubsection{Basic PSO Algorithm}
+
+The fundamental PSO algorithm operates on a swarm of $N$ particles, where each particle $i$ at iteration $t$ has:
+\begin{itemize}
+    \item A position vector $\mathbf{x}_i(t) \in \mathbb{R}^P$ representing a potential solution
+    \item A velocity vector $\mathbf{v}_i(t) \in \mathbb{R}^P$ determining the particle's movement direction and speed
+    \item A personal best position $\mathbf{p}_i(t)$ representing the best position this particle has encountered
+    \item A neighborhood best position $\mathbf{g}_i(t)$ representing the best position in the particle's neighborhood
+\end{itemize}
+
+The position and velocity update equations form the core of the PSO algorithm:
+
+\begin{align}
+\mathbf{v}_i(t+1) &= w \cdot \mathbf{v}_i(t) + c_1 \cdot r_1 \cdot (\mathbf{p}_i(t) - \mathbf{x}_i(t)) + c_2 \cdot r_2 \cdot (\mathbf{g}_i(t) - \mathbf{x}_i(t)) \label{eq:pso_velocity_update} \\
+\mathbf{x}_i(t+1) &= \mathbf{x}_i(t) + \mathbf{v}_i(t+1) \label{eq:pso_position_update}
+\end{align}
+
+where:
+\begin{itemize}
+    \item $w$ is the inertia weight controlling the influence of previous velocity
+    \item $c_1$ is the cognitive coefficient controlling attraction to personal best
+    \item $c_2$ is the social coefficient controlling attraction to neighborhood best
+    \item $r_1, r_2 \sim \text{Uniform}(0,1)$ are random numbers for stochasticity
+\end{itemize}
+
+\subsubsection{Constriction Factor for Stability}
+
+To ensure convergence and prevent velocity explosion, the constriction factor approach is implemented:
+
+\begin{equation}
+\chi = \frac{2}{|2 - \phi - \sqrt{\phi^2 - 4\phi}|} \label{eq:constriction_factor}
+\end{equation}
+
+where $\phi = c_1 + c_2$. When $\phi > 4$, the constriction factor ensures guaranteed convergence. The velocity update becomes:
+
+\begin{equation}
+\mathbf{v}_i(t+1) = \chi \cdot [w \cdot \mathbf{v}_i(t) + c_1 \cdot r_1 \cdot (\mathbf{p}_i(t) - \mathbf{x}_i(t)) + c_2 \cdot r_2 \cdot (\mathbf{g}_i(t) - \mathbf{x}_i(t))] \label{eq:pso_constricted_velocity}
+\end{equation}
+
+\subsection{Advanced PSO Features in DeVana}
+
+The DeVana implementation extends the basic PSO with numerous advanced features specifically designed for DVA optimization problems.
+
+\subsubsection{Adaptive Parameter Control}
+
+\paragraph{Adaptive Inertia Weight}
+The inertia weight is adaptively adjusted based on multiple factors to balance exploration and exploitation:
+
+\begin{equation}
+w(t) = w_{\text{linear}}(t) + w_{\text{nonlinear}}(t) + w_{\text{fitness}}(t) + w_{\text{diversity}}(t) \label{eq:adaptive_inertia}
+\end{equation}
+
+where each component addresses different aspects:
+
+\textbf{Linear Time-Varying Component:}
+\begin{equation}
+w_{\text{linear}}(t) = w_{\max} - (w_{\max} - w_{\min}) \cdot \frac{t}{T-1} \label{eq:linear_inertia}
+\end{equation}
+
+\textbf{Nonlinear Time-Varying Component:}
+\begin{equation}
+w_{\text{nonlinear}}(t) = w_{\max} - (w_{\max} - w_{\min}) \cdot \left(\frac{t}{T-1}\right)^n \label{eq:nonlinear_inertia}
+\end{equation}
+where $n = 1.2$ provides faster initial decrease.
+
+\textbf{Fitness-Based Component:}
+\begin{equation}
+w_{\text{fitness}}(t) = 0.5 \cdot \left(1 - \frac{f_{\text{best}}(t)}{f_{\text{avg}}(t)}\right) \label{eq:fitness_inertia}
+\end{equation}
+
+\textbf{Diversity-Based Component:}
+\begin{equation}
+w_{\text{diversity}}(t) = w_{\min} + (1 - \min(1, \frac{D(t)}{D_{\text{threshold}}})) \cdot (w_{\max} - w_{\min}) \cdot 0.5 \label{eq:diversity_inertia}
+\end{equation}
+
+\paragraph{Adaptive Acceleration Coefficients}
+The cognitive and social coefficients are adaptively adjusted:
+
+\begin{align}
+c_1(t) &= c_{1,\max} - (c_{1,\max} - c_{1,\min}) \cdot \frac{t}{T-1} + \Delta c_1^{\text{diversity}}(t) \label{eq:adaptive_c1} \\
+c_2(t) &= c_{2,\min} + (c_{2,\max} - c_{2,\min}) \cdot \frac{t}{T-1} + \Delta c_2^{\text{diversity}}(t) \label{eq:adaptive_c2}
+\end{align}
+
+where the diversity-based adjustments are:
+\begin{align}
+\Delta c_1^{\text{diversity}}(t) &= \begin{cases}
+(c_{1,\max} - c_{1,\min}) \cdot (1 - \frac{D(t)}{D_{\text{threshold}}}) \cdot 0.5 & \text{if } D(t) < D_{\text{threshold}} \\
+0 & \text{otherwise}
+\end{cases} \label{eq:diversity_c1} \\
+\Delta c_2^{\text{diversity}}(t) &= \begin{cases}
+-(c_{2,\max} - c_{2,\min}) \cdot (1 - \frac{D(t)}{D_{\text{threshold}}}) \cdot 0.5 & \text{if } D(t) < D_{\text{threshold}} \\
+0 & \text{otherwise}
+\end{cases} \label{eq:diversity_c2}
+\end{align}
+
+\subsubsection{Neighborhood Topologies}
+
+The implementation supports multiple neighborhood topologies that affect information flow through the swarm:
+
+\paragraph{Global Topology}
+All particles are connected to each other, providing fastest convergence but potential for local optima trapping.
+
+\paragraph{Ring Topology}
+Each particle is connected to its immediate neighbors:
+\begin{equation}
+\mathcal{N}_i^{\text{ring}} = \{i-1, i, i+1\} \pmod{N} \label{eq:ring_neighborhood}
+\end{equation}
+
+\paragraph{Von Neumann Topology}
+Grid-like neighborhood structure with 4 neighbors per particle:
+\begin{equation}
+\mathcal{N}_i^{\text{von}} = \{i, \text{north}(i), \text{south}(i), \text{east}(i), \text{west}(i)\} \label{eq:von_neumann_neighborhood}
+\end{equation}
+
+\paragraph{Random Topology}
+Random connections that change periodically:
+\begin{equation}
+\mathcal{N}_i^{\text{random}} = \{i\} \cup \text{RandomSample}(\{1,\ldots,N\} \setminus \{i\}, k) \label{eq:random_neighborhood}
+\end{equation}
+
+\subsubsection{Diversity Maintenance}
+
+\paragraph{Swarm Diversity Calculation}
+Diversity is measured as the normalized average distance to the swarm centroid:
+
+\begin{equation}
+D(t) = \frac{1}{N \cdot \sqrt{P}} \sum_{i=1}^{N} \sqrt{\sum_{j=1}^{P} \left(\frac{x_{i,j}(t) - \bar{x}_j(t)}{\text{range}_j}\right)^2} \label{eq:diversity_measure}
+\end{equation}
+
+where $\bar{x}_j(t)$ is the centroid of dimension $j$ and $\text{range}_j$ is the parameter range.
+
+\paragraph{Mutation for Diversity Enhancement}
+When diversity drops below threshold, Gaussian mutation is applied:
+
+\begin{equation}
+x_{i,j}^{\text{mutated}}(t) = x_{i,j}(t) + \mathcal{N}(0, \sigma_j^2) \label{eq:pso_mutation}
+\end{equation}
+
+where $\sigma_j = 0.1 \cdot \text{range}_j$ is the mutation strength.
+
+\subsubsection{Boundary Handling Strategies}
+
+\paragraph{Absorbing Boundaries}
+Particles hitting boundaries are stopped:
+\begin{equation}
+x_{i,j}(t+1) = \begin{cases}
+x_j^{\min} & \text{if } x_{i,j}(t+1) < x_j^{\min} \\
+x_j^{\max} & \text{if } x_{i,j}(t+1) > x_j^{\max} \\
+x_{i,j}(t+1) & \text{otherwise}
+\end{cases} \label{eq:absorbing_boundaries}
+\end{equation}
+
+\paragraph{Reflecting Boundaries}
+Particles bounce off boundaries:
+\begin{equation}
+x_{i,j}(t+1) = \begin{cases}
+x_j^{\min} + |x_j^{\min} - x_{i,j}(t+1)| & \text{if } x_{i,j}(t+1) < x_j^{\min} \\
+x_j^{\max} - |x_{i,j}(t+1) - x_j^{\max}| & \text{if } x_{i,j}(t+1) > x_j^{\max} \\
+x_{i,j}(t+1) & \text{otherwise}
+\end{cases} \label{eq:reflecting_boundaries}
+\end{equation}
+
+\paragraph{Invisible Boundaries}
+Particles move freely but receive penalty in fitness evaluation:
+\begin{equation}
+\text{Penalty} = \sum_{j=1}^{P} \begin{cases}
+\left(\frac{x_j^{\min} - x_{i,j}}{x_j^{\max} - x_j^{\min}}\right)^2 & \text{if } x_{i,j} < x_j^{\min} \\
+\left(\frac{x_{i,j} - x_j^{\max}}{x_j^{\max} - x_j^{\min}}\right)^2 & \text{if } x_{i,j} > x_j^{\max} \\
+0 & \text{otherwise}
+\end{cases} \label{eq:invisible_boundaries}
+\end{equation}
+
+\subsubsection{Velocity Clamping}
+
+To prevent velocity explosion, velocities are clamped to a maximum value:
+
+\begin{equation}
+v_{i,j}(t+1) = \max(-v_{j}^{\max}, \min(v_{j}^{\max}, v_{i,j}(t+1))) \label{eq:velocity_clamping}
+\end{equation}
+
+where $v_{j}^{\max} = 0.1 \cdot (x_j^{\max} - x_j^{\min})$ is the maximum velocity for dimension $j$.
+
+\subsubsection{Stagnation Detection and Recovery}
+
+\paragraph{Personal Stagnation}
+Each particle tracks iterations without improvement:
+\begin{equation}
+s_i(t+1) = \begin{cases}
+0 & \text{if } f(\mathbf{x}_i(t+1)) < f(\mathbf{p}_i(t)) \\
+s_i(t) + 1 & \text{otherwise}
+\end{cases} \label{eq:personal_stagnation}
+\end{equation}
+
+\paragraph{Reinitialization Strategy}
+Stagnant particles are reinitialized around the global best:
+\begin{equation}
+x_{i,j}^{\text{new}} = x_{j}^{\text{gb}} + \mathcal{U}(-\text{radius}_j, \text{radius}_j) \label{eq:reinitialization}
+\end{equation}
+
+where $\text{radius}_j = 0.1 \cdot (x_j^{\max} - x_j^{\min})$ and $x_{j}^{\text{gb}}$ is the global best position.
+
+\subsubsection{Quasi-Random Initialization}
+
+For better search space coverage, Sobol sequences are used for initialization:
+
+\begin{equation}
+x_{i,j}(0) = x_j^{\min} + z_{i,j} \cdot (x_j^{\max} - x_j^{\min}) \label{eq:sobol_initialization}
+\end{equation}
+
+where $z_{i,j}$ are Sobol sequence values in $[0,1]$.
+
+\subsection{Enhanced PSO Algorithm with Advanced Features}
+
+\begin{algorithm}[H]
+\caption{Enhanced PSO Algorithm for DVA Optimization}
+\begin{algorithmic}[1]
+\REQUIRE Parameter bounds $[x_j^{\min}, x_j^{\max}]$, fixed parameters, swarm size $N$, max iterations $T$, tolerance $\tau$
+\STATE Initialize swarm using Sobol sequences or random initialization
+\STATE Set up neighborhood topology (Global/Ring/Von Neumann/Random)
+\STATE Initialize personal and global best positions
+\FOR{$t = 1$ to $T$}
+    \STATE Update adaptive parameters: $w(t)$, $c_1(t)$, $c_2(t)$
+    \STATE Calculate swarm diversity $D(t)$
+    \FOR{each particle $i$}
+        \STATE Update velocity using Eq.~\eqref{eq:pso_constricted_velocity}
+        \STATE Apply velocity clamping using Eq.~\eqref{eq:velocity_clamping}
+        \STATE Update position using Eq.~\eqref{eq:pso_position_update}
+        \STATE Handle boundary violations using selected strategy
+        \IF{$D(t) < D_{\text{threshold}}$}
+            \STATE Apply mutation using Eq.~\eqref{eq:pso_mutation}
+        \ENDIF
+        \STATE Evaluate fitness $f(\mathbf{x}_i(t+1))$
+        \STATE Update personal best if improved
+        \STATE Update stagnation counter using Eq.~\eqref{eq:personal_stagnation}
+        \IF{$s_i(t+1) \geq s_{\text{limit}}$}
+            \STATE Reinitialize particle around global best using Eq.~\eqref{eq:reinitialization}
+        \ENDIF
+    \ENDFOR
+    \STATE Update neighborhood best positions
+    \STATE Update global best position
+    \IF{$f(\mathbf{x}^{\text{gb}}) \leq \tau$}
+        \STATE \textbf{break} (convergence reached)
+    \ENDIF
+    \IF{early stopping conditions met}
+        \STATE \textbf{break} (early stopping)
+    \ENDIF
+\ENDFOR
+\STATE \textbf{return} global best position and fitness
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Machine Learning and Reinforcement Learning Controllers}
+
+\subsubsection{ML-Bandit Controller}
+
+The ML-bandit controller adapts PSO parameters using Upper Confidence Bound (UCB) selection:
+
+\begin{equation}
+a_t = \arg\max_{a \in \mathcal{A}} \left[ \hat{R}_t(a) + c \sqrt{\frac{\ln t}{N_t(a)}} \right] \label{eq:ml_bandit_selection}
+\end{equation}
+
+where $\mathcal{A}$ is the action space of parameter adjustments, $\hat{R}_t(a)$ is the average reward for action $a$, and $N_t(a)$ is the number of times action $a$ has been selected.
+
+\paragraph{Reward Function}
+The reward balances improvement, speed, and diversity:
+
+\begin{equation}
+R_t = \frac{\max\{0, f_{t-1}^{\star} - f_t^{\star}\}}{\max\{\epsilon, T_t\}} \cdot \frac{1}{\max\{1, E_t\}} - w_{\text{div}} \cdot |CV_t - CV^{\text{target}}| \label{eq:ml_bandit_reward}
+\end{equation}
+
+where $CV_t = \frac{\sigma_t}{|\mu_t| + \epsilon}$ is the coefficient of variation.
+
+\subsubsection{Reinforcement Learning Controller}
+
+The RL controller uses Q-learning with $\epsilon$-greedy policy:
+
+\begin{equation}
+Q(s_t, a_t) \leftarrow Q(s_t, a_t) + \alpha [R_t + \gamma \max_{a'} Q(s_{t+1}, a') - Q(s_t, a_t)] \label{eq:rl_q_update}
+\end{equation}
+
+where $\alpha$ is the learning rate, $\gamma$ is the discount factor, and $\epsilon$ decays over time.
+
+\subsection{Fitness Evaluation and Objective Function}
+
+The PSO fitness function is identical to the GA objective function (Eq.~\eqref{Eq.objective_function_detailed}):
+
+\begin{equation}
+f(\mathbf{x}) = f_{\text{primary}}(\mathbf{x}) + f_{\text{sparsity}}(\mathbf{x}) + f_{\text{error}}(\mathbf{x}) \label{eq:pso_fitness}
+\end{equation}
+
+where:
+\begin{align}
+f_{\text{primary}}(\mathbf{x}) &= |C_s(\mathbf{x}) - 1.0| \label{eq:pso_primary} \\
+f_{\text{sparsity}}(\mathbf{x}) &= \alpha \sum_{k=1}^{P} |x_k| \label{eq:pso_sparsity} \\
+f_{\text{error}}(\mathbf{x}) &= \frac{1}{\gamma} \sum_{i,j} |PD_{ij}(\mathbf{x})| \label{eq:pso_error}
+\end{align}
+
+\subsection{Software Implementation Architecture}
+
+\subsubsection{PSOWorker Class Structure}
+
+The PSOWorker class implements the enhanced PSO algorithm as a QThread for background execution:
+
+\begin{itemize}
+    \item \textbf{Initialization}: Sets up swarm, neighborhoods, and adaptive parameters
+    \item \textbf{Main Loop}: Implements the core PSO algorithm with all advanced features
+    \item \textbf{Evaluation}: Integrates with the FRF analysis pipeline
+    \item \textbf{Signaling}: Communicates progress and results to the GUI
+    \item \textbf{Metrics Collection}: Tracks detailed performance metrics
+\end{itemize}
+
+\subsubsection{Key Methods and Features}
+
+\textbf{Adaptive Parameter Methods:}
+\begin{itemize}
+    \item \texttt{adaptive\_inertia\_weight()}: Implements Eq.~\eqref{eq:adaptive_inertia}
+    \item \texttt{adaptive\_acceleration\_coefficients()}: Implements Eqs.~\eqref{eq:adaptive_c1}--\eqref{eq:adaptive_c2}
+    \item \texttt{calculate\_diversity()}: Implements Eq.~\eqref{eq:diversity_measure}
+\end{itemize}
+
+\textbf{Topology and Neighborhood Methods:}
+\begin{itemize}
+    \item \texttt{create\_neighborhoods()}: Implements various topology types
+    \item \texttt{update\_neighborhoods()}: Handles dynamic topology updates
+\end{itemize}
+
+\textbf{Boundary and Constraint Handling:}
+\begin{itemize}
+    \item \texttt{handle\_boundary\_violation()}: Implements Eqs.~\eqref{eq:absorbing_boundaries}--\eqref{eq:invisible_boundaries}
+    \item \texttt{apply\_mutation()}: Implements Eq.~\eqref{eq:pso_mutation}
+\end{itemize}
+
+\subsubsection{GUI Integration}
+
+The PSO implementation integrates seamlessly with the DeVana GUI through:
+
+\begin{itemize}
+    \item \textbf{Configuration Interface}: Comprehensive parameter setup in the PSO tab
+    \item \textbf{Real-time Monitoring}: Progress bars, convergence plots, and status updates
+    \item \textbf{Results Visualization}: Fitness evolution, parameter convergence, and performance analysis
+    \item \textbf{Benchmarking Support}: Statistical analysis and comparison with other algorithms
+\end{itemize}
+
+\subsection{Performance Analysis and Benchmarking}
+
+\subsubsection{Convergence Analysis}
+
+The algorithm tracks multiple convergence metrics:
+
+\begin{align}
+\text{Best Fitness Evolution:} \quad & f_t^{\star} = \min_{i} f(\mathbf{x}_i(t)) \label{eq:best_fitness_evolution} \\
+\text{Average Fitness Evolution:} \quad & \bar{f}_t = \frac{1}{N} \sum_{i=1}^{N} f(\mathbf{x}_i(t)) \label{eq:avg_fitness_evolution} \\
+\text{Diversity Evolution:} \quad & D_t = \text{Diversity}(\{\mathbf{x}_i(t)\}_{i=1}^{N}) \label{eq:diversity_evolution}
+\end{align}
+
+\subsubsection{Computational Efficiency}
+
+The computational complexity per iteration is:
+\begin{equation}
+O(N \cdot P + N \cdot C_{\text{FRF}}) \label{eq:pso_complexity}
+\end{equation}
+
+where $C_{\text{FRF}}$ is the cost of one FRF evaluation.
+
+\subsubsection{Comparison with Other Algorithms}
+
+PSO offers several advantages for DVA optimization:
+
+\begin{itemize}
+    \item \textbf{Continuous Optimization}: Natural fit for real-valued parameter spaces
+    \item \textbf{Adaptive Behavior}: Self-tuning parameters reduce manual configuration
+    \item \textbf{Diversity Maintenance}: Built-in mechanisms prevent premature convergence
+    \item \textbf{Parallel Evaluation}: Particle evaluations can be parallelized
+\end{itemize}
+
+\subsection{Advanced Features Summary}
+
+The enhanced PSO implementation in DeVana includes:
+
+\begin{enumerate}
+    \item \textbf{Adaptive Parameters}: Dynamic adjustment of inertia weight and acceleration coefficients
+    \item \textbf{Multiple Topologies}: Global, Ring, Von Neumann, and Random neighborhood structures
+    \item \textbf{Diversity Maintenance}: Swarm diversity monitoring and enhancement through mutation
+    \item \textbf{Boundary Handling}: Multiple strategies for constraint satisfaction
+    \item \textbf{Stagnation Recovery}: Detection and reinitialization of stagnant particles
+    \item \textbf{Quasi-Random Initialization}: Sobol sequences for better space coverage
+    \item \textbf{ML/RL Controllers}: Advanced parameter adaptation using machine learning
+    \item \textbf{Comprehensive Metrics}: Detailed performance tracking and analysis
+\end{enumerate}
+
 \section{Traditional Genetic Algorithm Methodology}
 
     \subsection{Algorithmic Framework}
@@ -817,7 +1435,7 @@ where $h$ is the frequency step size and $n$ is the number of frequency points.
 
 \section{Advanced Genetic Algorithm Methodology}
     \subsection{Overview of Advanced Features}
-    DeVana extends the baseline GA with controllers and samplers that adapt online: (i) \textbf{adaptive operator control} via an ML bandit or a lightweight RL agent that tunes crossover $\text{cxpb}$, mutation $\text{mutpb}$, and population size $N$ generation-by-generation; (ii) \textbf{advanced seeding} with Sobol/LHS low-discrepancy designs and a \textbf{NeuralSeeder} that learns promising regions using UCB or EI; and (iii) \textbf{surrogate-assisted screening} that pre-filters offspring using a KNN surrogate with novelty-based exploration. All mechanisms respect fixed parameters and bounds.
+    DeVana extends the baseline GA with controllers and samplers that adapt online: (i) \textbf{adaptive operator control} via an ML bandit or a lightweight RL agent that tunes crossover $\text{cxpb}$, mutation $\text{mutpb}$, and population size $N$ generation-by-generation; (ii) \textbf{advanced seeding} with Sobol/LHS low-discrepancy designs and a \textbf{NeuralSeeder} that learns promising regions using UCB or EI; and (iii) \textbf{surrogate-assisted screening} that pre-filters offspring using a KNN surrogate with novelty-based exploration. All mechanisms respect fixed parameters and bounds. Similar advanced features are also implemented for the PSO algorithm (see Sec.~\ref{sec:pso_methodology}).
 
     \subsection{Machine Learning Bandit Controller for Parameter Adaptation}
     The controller defines a discrete action space $\mathcal{A}=\{(\delta_{\text{cx}},\delta_{\\mu},\pi)\}$ with relative changes to $\text{cxpb}$ and $\text{mutpb}$ and a multiplier $\pi$ for population size. At generation $t$, it selects
@@ -1221,6 +1839,904 @@ The GUI adds a \emph{Parameter Ranges} benchmarking tab with one subtab per crit
 
 \vspace{0.5em}
 \noindent\textbf{Engineering outcome.} The final ranges provide defensible, transparent envelopes for each DVA parameter, reflecting both central tendency and high-performance concentration while remaining robust to outliers and distributional irregularities.
+
+
+\section{Design Using Statistical Analysis: A Comprehensive Post-Optimization Framework}
+\label{sec:design-statistical-analysis}
+
+\subsection{Motivation and Problem Statement}
+
+Even when all optimization runs achieve successful convergence to the target fitness threshold, the resulting parameter vectors exhibit significant variability across different runs. This variability arises from multiple sources: (i) the stochastic nature of evolutionary algorithms, (ii) the existence of multiple local optima in the high-dimensional DVA parameter space, (iii) the influence of different seeding strategies and adaptive controllers, and (iv) the inherent trade-offs between different performance criteria. Consequently, a single "optimal" solution may not represent the most robust or practical design choice for real-world implementation.
+
+The statistical analysis framework addresses this challenge by providing systematic methods to extract meaningful parameter ranges from multiple optimization runs. These ranges serve as design envelopes that balance performance requirements with manufacturing tolerances, operational robustness, and practical implementation constraints. The framework enables engineers to make informed decisions about parameter selection based on statistical evidence rather than relying on a single point estimate.
+
+\subsection{Design Philosophy and Methodology}
+
+The design process follows a hierarchical approach that integrates statistical rigor with engineering practicality:
+
+\begin{enumerate}
+    \item \textbf{Data-Driven Design}: Leverage the statistical distribution of optimized parameters across multiple runs to identify robust design regions
+    \item \textbf{Risk-Aware Selection}: Consider both central tendency and variability to balance performance with manufacturing feasibility
+    \item \textbf{Multi-Criteria Decision Making}: Integrate different statistical criteria to capture various aspects of parameter behavior
+    \item \textbf{Validation and Verification}: Ensure selected ranges maintain performance across different operating conditions
+\end{enumerate}
+
+\subsection{Statistical Criteria for Design Decision Making}
+
+\subsubsection{Performance-Based Design Criteria}
+
+\textbf{Elite Performance Concentration (Top-$q$ Analysis):}
+For parameters that show strong correlation with fitness performance, the Top-$q$ criterion identifies regions where high-performing solutions concentrate:
+
+\begin{equation}
+\mathcal{R}_{\text{elite}}^{(j)} = [L_{\text{Top-$q$}}^{(j)}, U_{\text{Top-$q$}}^{(j)}]
+\end{equation}
+
+where:
+\begin{align}
+L_{\text{Top-$q$}}^{(j)} &= Q_{x_j \in \mathcal{X}^{q}_{p_j}}(0.05) \\
+U_{\text{Top-$q$}}^{(j)} &= Q_{x_j \in \mathcal{X}^{q}_{p_j}}(0.95)
+\end{align}
+
+This criterion is particularly valuable for:
+\begin{itemize}
+    \item Critical parameters that directly influence system performance
+    \item Design scenarios where performance optimization is the primary objective
+    \item Cases where manufacturing precision can accommodate tighter tolerances
+\end{itemize}
+
+\textbf{Design Algorithm for Elite Performance Selection:}
+\begin{algorithm}[H]
+\caption{Elite Performance Parameter Selection}
+\begin{algorithmic}[1]
+\REQUIRE Parameter-fitness pairs $\{(x_j^{(r)}, f^{(r)})\}_{r=1}^R$ for parameter $p_j$; elite fraction $q$ (default: 0.25)
+\STATE Compute fitness threshold $\tau = Q_{\{f^{(r)}\}}(q)$
+\STATE Identify elite runs: $\mathcal{I}_{\text{elite}} = \{r : f^{(r)} \leq \tau\}$
+\STATE Extract elite parameter values: $\mathcal{X}_{\text{elite}}^{(j)} = \{x_j^{(r)} : r \in \mathcal{I}_{\text{elite}}\}$
+\STATE Compute elite range: $[L_{\text{elite}}, U_{\text{elite}}] = [Q_{\mathcal{X}_{\text{elite}}^{(j)}}(0.05), Q_{\mathcal{X}_{\text{elite}}^{(j)}}(0.95)]$
+\STATE \textbf{return} Elite range $[L_{\text{elite}}, U_{\text{elite}}]$ and elite sample size $|\mathcal{I}_{\text{elite}}|$
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Robustness-Based Design Criteria}
+
+\textbf{High-Density Interval Design (HDI):}
+The HDI criterion identifies the most compact region containing a specified fraction of solutions, making it ideal for robust design:
+
+\begin{equation}
+\mathcal{R}_{\text{HDI}}^{(j)} = [L_{\text{HDI}}^{(j)}, U_{\text{HDI}}^{(j)}]
+\end{equation}
+
+where $[L_{\text{HDI}}^{(j)}, U_{\text{HDI}}^{(j)}]$ is the shortest interval containing $\alpha \times 100\%$ of the data.
+
+\textbf{Design Algorithm for HDI Selection:}
+\begin{algorithm}[H]
+\caption{High-Density Interval Parameter Selection}
+\begin{algorithmic}[1]
+\REQUIRE Parameter sample $\mathcal{X}^{(j)} = \{x_j^{(r)}\}_{r=1}^R$; coverage fraction $\alpha$ (default: 0.68)
+\STATE Sort values: $v_1 \leq v_2 \leq \ldots \leq v_R$
+\STATE Compute window size: $k = \lfloor \alpha R \rceil$
+\STATE Find shortest window: $(s^*, w^*) = \arg\min_{1 \leq s \leq R-k+1} (v_{s+k-1} - v_s)$
+\STATE \textbf{return} HDI range $[v_{s^*}, v_{s^*+k-1}]$ and width $w^*$
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Manufacturing-Friendly Design Criteria}
+
+\textbf{Interquartile Range Design (IQR):}
+The IQR provides a robust, outlier-resistant range suitable for manufacturing:
+
+\begin{equation}
+\mathcal{R}_{\text{IQR}}^{(j)} = [Q_{x_j}(0.25), Q_{x_j}(0.75)]
+\end{equation}
+
+This criterion is preferred when:
+\begin{itemize}
+    \item Manufacturing tolerances are moderate
+    \item Outlier resistance is important
+    \item A balanced compromise between performance and robustness is needed
+\end{itemize}
+
+\textbf{Trimmed Mean Design (TMAD):}
+For highly variable parameters, the TMAD criterion provides additional robustness:
+
+\begin{equation}
+\mathcal{R}_{\text{TMAD}}^{(j)} = [\tilde{\mu} - 1.5\sigma_{\text{rob}}, \tilde{\mu} + 1.5\sigma_{\text{rob}}]
+\end{equation}
+
+where:
+\begin{align}
+\tilde{\mu} &= \text{trimmed mean (central 80\%)} \\
+\sigma_{\text{rob}} &= 1.4826 \times \text{MAD}
+\end{align}
+
+\subsection{Multi-Criteria Design Decision Framework}
+
+\subsubsection{Consensus-Based Design Selection}
+
+When multiple criteria agree on a parameter range, it indicates high confidence in the design choice. The consensus score quantifies this agreement:
+
+\begin{equation}
+S_{\text{cons}}^{(j)} = \frac{\max\{0, U_{\cap}^{(j)} - L_{\cap}^{(j)}\}}{\max\{\epsilon, U_{\cup}^{(j)} - L_{\cup}^{(j)}\}}
+\end{equation}
+
+where:
+\begin{align}
+[L_{\cap}^{(j)}, U_{\cap}^{(j)}] &= \bigcap_{c \in \mathcal{C}} [L_c^{(j)}, U_c^{(j)}] \\
+[L_{\cup}^{(j)}, U_{\cup}^{(j)}] &= \bigcup_{c \in \mathcal{C}} [L_c^{(j)}, U_c^{(j)}]
+\end{align}
+
+\textbf{Consensus-Based Design Algorithm:}
+\begin{algorithm}[H]
+\caption{Consensus-Based Parameter Range Selection}
+\begin{algorithmic}[1]
+\REQUIRE Intervals $[L_c^{(j)}, U_c^{(j)}]$ for all criteria $c \in \mathcal{C}$; consensus threshold $\tau_{\text{cons}}$ (default: 0.3)
+\STATE Compute intersection: $[L_{\cap}, U_{\cap}] = [\max_c L_c^{(j)}, \min_c U_c^{(j)}]$
+\STATE Compute union: $[L_{\cup}, U_{\cup}] = [\min_c L_c^{(j)}, \max_c U_c^{(j)}]$
+\STATE Calculate consensus score: $S_{\text{cons}} = \frac{\max\{0, U_{\cap} - L_{\cap}\}}{\max\{\epsilon, U_{\cup} - L_{\cup}\}}$
+\IF{$S_{\text{cons}} \geq \tau_{\text{cons}}$}
+    \STATE \textbf{return} Consensus range $[L_{\cap}, U_{\cap}]$ and score $S_{\text{cons}}$
+\ELSE
+    \STATE \textbf{return} Majority intersection or most robust criterion
+\ENDIF
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Performance-Robustness Trade-off Analysis}
+
+For each parameter, we can construct a performance-robustness trade-off curve:
+
+\begin{equation}
+\text{Performance Score} = \frac{1}{|\mathcal{I}_{\text{elite}}|} \sum_{r \in \mathcal{I}_{\text{elite}}} \mathbb{I}[x_j^{(r)} \in \mathcal{R}^{(j)}]
+\end{equation}
+
+\begin{equation}
+\text{Robustness Score} = 1 - \frac{W^{(j)}}{\max_{c \in \mathcal{C}} W_c^{(j)}}
+\end{equation}
+
+where $W^{(j)}$ is the width of the selected range for parameter $p_j$.
+
+\subsection{Design Guidelines and Decision Trees}
+
+\subsubsection{Parameter Classification and Design Strategy}
+
+Based on the statistical analysis, parameters can be classified into different categories requiring distinct design approaches:
+
+\textbf{Category 1: High-Performance Critical Parameters}
+\begin{itemize}
+    \item \textbf{Characteristics}: Strong correlation with fitness, low variability in elite solutions
+    \item \textbf{Design Strategy}: Use Top-$q$ criterion with tight tolerances
+    \item \textbf{Manufacturing Requirements}: High precision, strict quality control
+    \item \textbf{Validation Approach}: Performance testing under multiple operating conditions
+\end{itemize}
+
+\textbf{Category 2: Robust Design Parameters}
+\begin{itemize}
+    \item \textbf{Characteristics}: Moderate correlation with fitness, high consensus among criteria
+    \item \textbf{Design Strategy}: Use consensus-based selection or HDI criterion
+    \item \textbf{Manufacturing Requirements}: Standard precision, cost-effective production
+    \item \textbf{Validation Approach}: Statistical process control and tolerance analysis
+\end{itemize}
+
+\textbf{Category 3: Flexible Design Parameters}
+\begin{itemize}
+    \item \textbf{Characteristics}: Weak correlation with fitness, high variability across runs
+    \item \textbf{Design Strategy}: Use IQR or TMAD criterion with broader tolerances
+    \item \textbf{Manufacturing Requirements}: Standard manufacturing processes
+    \item \textbf{Validation Approach}: Functional testing and operational verification
+\end{itemize}
+
+\subsubsection{Decision Tree for Parameter Range Selection}
+
+\begin{algorithm}[H]
+\caption{Parameter Range Selection Decision Tree}
+\begin{algorithmic}[1]
+\REQUIRE Parameter $p_j$ with sample $\mathcal{X}^{(j)}$ and fitness correlation $\rho_j$
+\STATE Compute all statistical criteria intervals
+\STATE Calculate consensus score $S_{\text{cons}}^{(j)}$
+\IF{$\rho_j > 0.7$ (high performance correlation)}
+    \IF{$|\mathcal{I}_{\text{elite}}| \geq 10$ (sufficient elite samples)}
+        \STATE Select Top-$q$ range
+        \STATE \textbf{return} Elite performance range
+    \ELSE
+        \STATE Fall back to HDI criterion
+        \STATE \textbf{return} HDI range
+    \ENDIF
+\ELSIF{$S_{\text{cons}}^{(j)} > 0.5$ (high consensus)}
+    \STATE Select consensus intersection
+    \STATE \textbf{return} Consensus range
+\ELSIF{$\text{CV}^{(j)} < 0.3$ (low variability)}
+    \STATE Select IQR range
+    \STATE \textbf{return} IQR range
+\ELSE
+    \STATE Select TMAD range for robustness
+    \STATE \textbf{return} TMAD range
+\ENDIF
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Design Validation and Verification}
+
+\subsubsection{Monte Carlo Validation}
+
+To validate the selected parameter ranges, we perform Monte Carlo simulation:
+
+\begin{equation}
+\text{Validation Score} = \frac{1}{N_{\text{MC}}} \sum_{i=1}^{N_{\text{MC}}} \mathbb{I}[f(\mathbf{x}^{(i)}) \leq f_{\text{target}}]
+\end{equation}
+
+where $\mathbf{x}^{(i)}$ are randomly sampled from the selected parameter ranges.
+
+\textbf{Monte Carlo Validation Algorithm:}
+\begin{algorithm}[H]
+\caption{Parameter Range Validation via Monte Carlo}
+\begin{algorithmic}[1]
+\REQUIRE Selected ranges $[L_j, U_j]$ for all parameters; target fitness $f_{\text{target}}$; validation samples $N_{\text{MC}}$
+\STATE Initialize success counter: $N_{\text{success}} = 0$
+\FOR{$i = 1$ to $N_{\text{MC}}$}
+    \STATE Sample parameter vector: $x_j^{(i)} \sim \text{Uniform}(L_j, U_j)$ for all $j$
+    \STATE Evaluate fitness: $f^{(i)} = f(\mathbf{x}^{(i)})$
+    \IF{$f^{(i)} \leq f_{\text{target}}$}
+        \STATE $N_{\text{success}} \leftarrow N_{\text{success}} + 1$
+    \ENDIF
+\ENDFOR
+\STATE Compute validation score: $V = \frac{N_{\text{success}}}{N_{\text{MC}}}$
+\STATE \textbf{return} Validation score $V$ and confidence interval
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Sensitivity Analysis for Design Robustness}
+
+We assess the sensitivity of the design to parameter variations:
+
+\begin{equation}
+S_j = \frac{\partial f}{\partial x_j} \approx \frac{f(\mathbf{x} + \Delta x_j \mathbf{e}_j) - f(\mathbf{x})}{\Delta x_j}
+\end{equation}
+
+where $\mathbf{e}_j$ is the unit vector in the $j$-th direction.
+
+\subsection{Engineering Implementation Guidelines}
+
+\subsubsection{Manufacturing Tolerance Specification}
+
+Based on the statistical ranges, manufacturing tolerances can be specified as:
+
+\begin{equation}
+\text{Tolerance}_j = \frac{U_j - L_j}{2} \times \text{Safety Factor}
+\end{equation}
+
+where the safety factor accounts for manufacturing variability and operational uncertainties.
+
+\subsubsection{Quality Control Procedures}
+
+\textbf{Statistical Process Control (SPC):}
+\begin{itemize}
+    \item Monitor parameter values during manufacturing using control charts
+    \item Set control limits based on the selected statistical ranges
+    \item Implement corrective actions when parameters drift outside acceptable ranges
+\end{itemize}
+
+\textbf{Acceptance Testing:}
+\begin{itemize}
+    \item Test manufactured DVAs using the same fitness evaluation as optimization
+    \item Accept components within the specified parameter ranges
+    \item Document performance characteristics for continuous improvement
+\end{itemize}
+
+\subsection{Advanced Design Techniques}
+
+\subsubsection{Multi-Objective Design Optimization}
+
+For complex design scenarios, we can extend the framework to handle multiple objectives:
+
+\begin{equation}
+\text{Design Score} = w_1 \times \text{Performance Score} + w_2 \times \text{Robustness Score} + w_3 \times \text{Cost Score}
+\end{equation}
+
+where weights $w_i$ reflect the relative importance of each objective.
+
+\subsubsection{Adaptive Design Refinement}
+
+The design process can be iterative, using feedback from manufacturing and testing:
+
+\begin{algorithm}[H]
+\caption{Adaptive Design Refinement}
+\begin{algorithmic}[1]
+\REQUIRE Initial parameter ranges; manufacturing feedback; performance data
+\STATE Collect manufacturing data and performance measurements
+\STATE Analyze correlation between parameter variations and performance
+\STATE Adjust parameter ranges based on empirical evidence
+\STATE Re-run validation and update design specifications
+\STATE \textbf{return} Refined parameter ranges
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Case Study: Complete DVA Design Workflow}
+
+\subsubsection{Step-by-Step Design Process}
+
+\textbf{Step 1: Optimization Execution}
+\begin{enumerate}
+    \item Execute multiple optimization runs with different seeds and strategies
+    \item Collect parameter vectors and fitness values from all runs
+    \item Validate convergence and solution quality
+\end{enumerate}
+
+\textbf{Step 2: Statistical Analysis}
+\begin{enumerate}
+    \item Compute all statistical criteria for each parameter
+    \item Analyze parameter-fitness correlations
+    \item Identify parameter categories and design strategies
+\end{enumerate}
+
+\textbf{Step 3: Range Selection}
+\begin{enumerate}
+    \item Apply decision tree for each parameter
+    \item Consider manufacturing constraints and cost implications
+    \item Select final parameter ranges
+\end{enumerate}
+
+\textbf{Step 4: Validation and Verification}
+\begin{enumerate}
+    \item Perform Monte Carlo validation
+    \item Conduct sensitivity analysis
+    \item Verify performance under different operating conditions
+\end{enumerate}
+
+\textbf{Step 5: Manufacturing Specification}
+\begin{enumerate}
+    \item Define manufacturing tolerances
+    \item Establish quality control procedures
+    \item Document design specifications
+\end{enumerate}
+
+\subsubsection{Design Documentation and Traceability}
+
+The design process should be fully documented to ensure traceability and reproducibility:
+
+\begin{itemize}
+    \item \textbf{Optimization Records}: Complete configuration and results from all runs
+    \item \textbf{Statistical Analysis}: Detailed computation of all criteria and metrics
+    \item \textbf{Decision Rationale}: Justification for selected parameter ranges
+    \item \textbf{Validation Results}: Monte Carlo and sensitivity analysis outcomes
+    \item \textbf{Manufacturing Specifications}: Tolerances, quality control procedures
+\end{itemize}
+
+\subsection{Software Implementation and User Interface}
+
+The statistical analysis framework is implemented in the \softwareName{} GUI with the following features:
+
+\subsubsection{Parameter Ranges Tab}
+\begin{itemize}
+    \item Individual tabs for each statistical criterion (IQR, P5--P95, Tukey, HDI, Top-$q$, TMAD)
+    \item Interactive tables showing ranges, widths, and centers for all parameters
+    \item Export functionality for design documentation
+\end{itemize}
+
+\subsubsection{Compare Criteria Tab}
+\begin{itemize}
+    \item Side-by-side comparison of different criteria
+    \item Consensus analysis and agreement metrics
+    \item Visual overlays showing interval relationships
+\end{itemize}
+
+\subsubsection{Design Recommendations Tab}
+\begin{itemize}
+    \item Automated parameter classification and strategy selection
+    \item Decision tree implementation with user override options
+    \item Manufacturing tolerance calculations
+    \item Validation score computation
+\end{itemize}
+
+\section{DeVana: The First Comprehensive DVA Design Playground}
+\label{sec:devana-software}
+
+\subsection{Introduction to DeVana: A Revolutionary Design Platform}
+
+\softwareName{} (\softwareVersion{}) represents the first-of-its-kind comprehensive software platform specifically designed for Dynamic Vibration Absorber (DVA) optimization and statistical-based design. Unlike existing optimization tools that focus on generic problems or require extensive customization, \softwareName{} provides a specialized, integrated environment that unifies mechanical modeling, advanced optimization algorithms, statistical analysis, and design synthesis under a single, user-friendly interface.
+
+The platform's revolutionary approach addresses a critical gap in the vibration control engineering community: the lack of a dedicated, reproducible, and extensible framework for DVA design that combines classical optimization methods with modern statistical analysis techniques. \softwareName{} serves as both a research tool for advancing the state-of-the-art in vibration control and a practical engineering platform for real-world DVA design projects.
+
+\subsection{Core Design Philosophy and Architecture}
+
+\subsubsection{Unified Optimization Playground}
+
+\softwareName{} implements a unique "optimization playground" concept where designers can experiment with different optimization strategies on identical mechanical problems. This playground approach enables:
+
+\begin{itemize}
+    \item \textbf{Algorithm Comparison}: Direct comparison of \gls{ga}, \gls{pso}, \gls{sa}, \gls{cmaes}, \gls{rl}, and \gls{de} on the same DVA configuration
+    \item \textbf{Reproducible Research}: Versioned configurations and deterministic seeds ensure reproducible results across different research groups
+    \item \textbf{Extensible Framework}: Clean interfaces allow easy addition of new optimizers, surrogates, and performance metrics
+    \item \textbf{Statistical Synthesis}: Built-in statistical analysis tools for extracting robust parameter ranges from multiple optimization runs
+\end{itemize}
+
+\subsubsection{Modular Software Architecture}
+
+The software follows a modular, layered architecture that separates concerns and promotes maintainability:
+
+\begin{enumerate}
+    \item \textbf{Mechanical Core Layer}: Implements the 2DOF-3DOF system dynamics, FRF computation, and performance evaluation
+    \item \textbf{Optimization Layer}: Houses the algorithm suite with consistent interfaces and instrumentation
+    \item \textbf{Controller Layer}: Manages adaptive controllers (ML-bandit, RL) for online parameter tuning
+    \item \textbf{Surrogate Layer}: Provides KNN-based screening and NeuralSeeder capabilities
+    \item \textbf{Statistical Analysis Layer}: Implements the comprehensive range synthesis framework
+    \item \textbf{GUI Layer}: Offers intuitive user interface with real-time visualization and control
+\end{enumerate}
+
+\subsection{Comprehensive Algorithm Suite}
+
+\subsubsection{Traditional Optimization Methods}
+
+\softwareName{} includes well-established optimization algorithms, each carefully adapted for DVA design:
+
+\textbf{Genetic Algorithm (GA):}
+\begin{itemize}
+    \item Real-valued representation tailored to DVA parameter vectors
+    \item Blend crossover (BLX-α) with adaptive mutation rates
+    \item Tournament selection with configurable pressure
+    \item Generational replacement with elitism
+\end{itemize}
+
+\textbf{Particle Swarm Optimization (PSO):}
+\begin{itemize}
+    \item Velocity and position updates with inertia weight adaptation
+    \item Global and local best memory mechanisms
+    \item Boundary handling through reflection and clamping
+    \item Configurable swarm topology and communication
+\end{itemize}
+
+\textbf{Simulated Annealing (SA):}
+\begin{itemize}
+    \item Metropolis acceptance criterion with temperature scheduling
+    \item Gaussian perturbation with adaptive step sizes
+    \item Restart mechanisms for escaping local optima
+    \item Multi-start capability for global exploration
+\end{itemize}
+
+\textbf{Differential Evolution (DE):}
+\begin{itemize}
+    \item Multiple mutation strategies (DE/rand/1, DE/best/1, DE/current-to-best/1)
+    \item Adaptive crossover and mutation rates
+    \item Population diversity maintenance
+    \item Constraint handling through projection
+\end{itemize}
+
+\subsubsection{Advanced Optimization Methods}
+
+\textbf{Covariance Matrix Adaptation Evolution Strategy (CMA-ES):}
+\begin{itemize}
+    \item Self-adaptive step size and covariance matrix updates
+    \item Weighted recombination of selected individuals
+    \item Rank-based selection with elitism
+    \item Automatic parameter adaptation for different problem scales
+\end{itemize}
+
+\textbf{Reinforcement Learning (RL) Controller:}
+\begin{itemize}
+    \item Q-learning agent with ε-greedy exploration
+    \item State space encoding of optimization progress
+    \item Action space for crossover, mutation, and population adaptation
+    \item Reward shaping for balanced exploration-exploitation
+\end{itemize}
+
+\subsection{Adaptive Control and Learning Mechanisms}
+
+\subsubsection{Machine Learning Bandit Controller}
+
+The ML-bandit controller represents a novel approach to online optimization parameter adaptation:
+
+\begin{equation}
+a_t = \arg\max_{a \in \mathcal{A}} \left[ \hat{R}_t(a) + c \sqrt{\frac{\ln t}{N_t(a)}} \right]
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $\hat{R}_t(a)$: Empirical average reward for action $a$ at time $t$
+    \item $N_t(a)$: Number of times action $a$ has been selected
+    \item $c$: Exploration constant balancing exploitation vs. exploration
+\end{itemize}
+
+\textbf{Action Space Definition:}
+\begin{align}
+\mathcal{A} &= \{(\delta_{\text{cx}}, \delta_{\mu}, \pi) : \delta_{\text{cx}}, \delta_{\mu} \in \{-0.2, -0.1, 0, 0.1, 0.2\}, \\
+&\quad \pi \in \{0.8, 0.9, 1.0, 1.1, 1.2\}\}
+\end{align}
+
+\textbf{Reward Function:}
+\begin{equation}
+R_t = \frac{\max\{0, f_{t-1}^* - f_t^*\}}{\max\{\epsilon, T_t\}} \cdot \frac{1}{\max\{1, E_t\}} - w_{\text{div}} |\text{CV}_t - \text{CV}^{\text{target}}|
+\end{equation}
+
+\subsubsection{Reinforcement Learning Controller}
+
+The RL controller implements a compact Q-learning agent:
+
+\begin{equation}
+Q(s, a) \leftarrow Q(s, a) + \alpha [R + \gamma \max_{a'} Q(s', a') - Q(s, a)]
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $\alpha$: Learning rate (default: 0.1)
+    \item $\gamma$: Discount factor (default: 0.9)
+    \item $\epsilon$: Exploration rate with exponential decay
+\end{itemize}
+
+\subsection{Advanced Seeding and Surrogate Methods}
+
+\subsubsection{Quasi-Monte Carlo Seeding}
+
+\softwareName{} implements sophisticated seeding strategies for improved initial population quality:
+
+\textbf{Sobol Sequence:}
+\begin{itemize}
+    \item Low-discrepancy sequence for uniform space coverage
+    \item Deterministic generation ensuring reproducibility
+    \item Superior uniformity compared to random sampling
+\end{itemize}
+
+\textbf{Latin Hypercube Sampling (LHS):}
+\begin{itemize}
+    \item Stratified sampling ensuring each dimension is uniformly covered
+    \item Reduced variance in initial population distribution
+    \item Configurable sample size and dimension handling
+\end{itemize}
+
+\subsubsection{Neural Network-Based Seeding (NeuralSeeder)}
+
+The NeuralSeeder represents a breakthrough in intelligent population initialization:
+
+\begin{equation}
+\text{UCB}(\mathbf{x}) = \mu(\mathbf{x}) - \beta \sigma(\mathbf{x})
+\end{equation}
+
+\begin{equation}
+\text{EI}(\mathbf{x}) = \mathbb{E}[\max\{0, f^* - Y(\mathbf{x})\}]
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $\mu(\mathbf{x})$: Predicted mean from neural ensemble
+    \item $\sigma(\mathbf{x})$: Predicted uncertainty
+    \item $\beta$: Exploration-exploitation balance parameter
+    \item $f^*$: Current best fitness value
+\end{itemize}
+
+\textbf{Neural Ensemble Architecture:}
+\begin{itemize}
+    \item Multi-layer perceptron with configurable hidden layers
+    \item Dropout regularization for uncertainty quantification
+    \item Ensemble of multiple models for robust predictions
+    \item Gradient-based refinement for high-quality proposals
+\end{itemize}
+
+\subsubsection{Surrogate-Assisted Screening}
+
+The KNN-based surrogate reduces computational cost while maintaining solution quality:
+
+\begin{equation}
+\hat{f}(\tilde{\mathbf{x}}) = \frac{1}{k} \sum_{(\mathbf{x}^{(n)}, y^{(n)}) \in \mathcal{N}_k(\tilde{\mathbf{x}})} y^{(n)}
+\end{equation}
+
+where $\mathcal{N}_k(\tilde{\mathbf{x}})$ represents the $k$ nearest neighbors in normalized parameter space.
+
+\textbf{Novelty-Based Exploration:}
+\begin{equation}
+\mathcal{N}(\tilde{\mathbf{x}}) = \min_{\mathbf{x}^{(n)} \in \mathcal{D}} \|\tilde{\mathbf{z}} - \mathbf{z}^{(n)}\|_2
+\end{equation}
+
+\subsection{Statistical Analysis and Design Synthesis}
+
+\subsubsection{Comprehensive Range Synthesis Framework}
+
+\softwareName{} implements the complete statistical analysis framework described in Section~\ref{sec:statistical-ranges}, providing:
+
+\textbf{Six Statistical Criteria:}
+\begin{enumerate}
+    \item \textbf{IQR}: Interquartile range for robust, outlier-resistant ranges
+    \item \textbf{P5--P95}: 5th to 95th percentile for broad coverage
+    \item \textbf{Tukey}: Classical outlier trimming using 1.5×IQR rule
+    \item \textbf{HDI}: Highest density interval for skewed distributions
+    \item \textbf{Top-$q$}: Elite performance concentration analysis
+    \item \textbf{TMAD}: Trimmed mean with median absolute deviation
+\end{enumerate}
+
+\textbf{Consensus Analysis:}
+\begin{equation}
+S_{\text{cons}}^{(j)} = \frac{\max\{0, U_{\cap}^{(j)} - L_{\cap}^{(j)}\}}{\max\{\epsilon, U_{\cup}^{(j)} - L_{\cup}^{(j)}\}}
+\end{equation}
+
+\subsubsection{Design Decision Support}
+
+The software provides automated design decision support through:
+
+\textbf{Parameter Classification:}
+\begin{itemize}
+    \item Automatic correlation analysis between parameters and fitness
+    \item Classification into performance-critical, robust, and flexible parameters
+    \item Recommended design strategies for each parameter category
+\end{itemize}
+
+\textbf{Manufacturing Tolerance Calculation:}
+\begin{equation}
+\text{Tolerance}_j = \frac{U_j - L_j}{2} \times \text{Safety Factor}
+\end{equation}
+
+\subsection{User Interface and Design Workflow}
+
+\subsubsection{Intuitive GUI Design}
+
+The \softwareName{} GUI provides an intuitive, workflow-oriented interface:
+
+\textbf{Main Configuration Panel:}
+\begin{itemize}
+    \item System parameter configuration with bounds and fixed parameter handling
+    \item Optimization algorithm selection with parameter tuning
+    \item Objective function weighting and target specification
+    \item Seeding strategy configuration
+\end{itemize}
+
+\textbf{Real-Time Monitoring:}
+\begin{itemize}
+    \item Live convergence plots with multiple metrics
+    \item Population diversity visualization
+    \item Resource usage monitoring (CPU, memory, I/O)
+    \item Controller action history and adaptation tracking
+\end{itemize}
+
+\textbf{Results Analysis:}
+\begin{itemize}
+    \item Interactive parameter range visualization
+    \item Statistical criteria comparison tools
+    \item Export functionality for design documentation
+    \item Benchmark results aggregation and comparison
+\end{itemize}
+
+\subsubsection{Design Workflow Integration}
+
+\softwareName{} supports the complete DVA design workflow:
+
+\textbf{Step 1: System Configuration}
+\begin{enumerate}
+    \item Define mechanical system parameters and bounds
+    \item Specify target performance criteria and weights
+    \item Configure optimization algorithm and parameters
+    \item Select seeding and surrogate strategies
+\end{enumerate}
+
+\textbf{Step 2: Optimization Execution}
+\begin{enumerate}
+    \item Execute multiple runs with different configurations
+    \item Monitor convergence and performance in real-time
+    \item Collect and aggregate results from all runs
+    \item Validate solution quality and convergence
+\end{enumerate}
+
+\textbf{Step 3: Statistical Analysis}
+\begin{enumerate}
+    \item Compute all statistical criteria automatically
+    \item Analyze parameter-fitness correlations
+    \item Generate parameter classification and recommendations
+    \item Perform consensus analysis across criteria
+\end{enumerate}
+
+\textbf{Step 4: Design Synthesis}
+\begin{enumerate}
+    \item Select final parameter ranges using decision tree
+    \item Calculate manufacturing tolerances
+    \item Generate design documentation and specifications
+    \item Export results for implementation
+\end{enumerate}
+
+\subsection{Codebase Architecture and Implementation}
+
+\subsubsection{Core Implementation Details}
+
+\softwareName{} is implemented in Python 3.8+ with the following key components:
+
+\textbf{Mechanical Modeling (\texttt{codes/Continues\_beam/}):}
+\begin{itemize}
+    \item \texttt{beam/fem.py}: Finite element implementation of 2DOF-3DOF system
+    \item \texttt{beam/solver.py}: Frequency response function computation
+    \item \texttt{beam/properties.py}: Material and geometric property handling
+\end{itemize}
+
+\textbf{Optimization Algorithms (\texttt{codes/workers/}):}
+\begin{itemize}
+    \item \texttt{GAWorker.py}: Comprehensive genetic algorithm implementation
+    \item \texttt{PSOWorker.py}: Particle swarm optimization
+    \item \texttt{SAWorker.py}: Simulated annealing
+    \item \texttt{CMAESWorker.py}: CMA-ES implementation
+    \item \texttt{DEWorker.py}: Differential evolution
+\end{itemize}
+
+\textbf{GUI Framework (\texttt{codes/gui/}):}
+\begin{itemize}
+    \item \texttt{main\_window/}: Main application interface
+    \item \texttt{ga\_mixin.py}: Genetic algorithm specific functionality
+    \item \texttt{plotwindow.py}: Visualization and plotting capabilities
+\end{itemize}
+
+\subsubsection{Key Software Features}
+
+\textbf{Modularity and Extensibility:}
+\begin{itemize}
+    \item Clean separation of concerns between layers
+    \item Plugin architecture for new optimizers and surrogates
+    \item Consistent interfaces across all components
+    \item Comprehensive error handling and logging
+\end{itemize}
+
+\textbf{Performance and Scalability:}
+\begin{itemize}
+    \item Multi-threaded optimization execution
+    \item Efficient numerical computations using NumPy/SciPy
+    \item Memory-efficient data structures for large-scale problems
+    \item Parallel processing support for multiple runs
+\end{itemize}
+
+\textbf{Reproducibility and Documentation:}
+\begin{itemize}
+    \item Versioned configurations with hash-based identification
+    \item Deterministic random number generation
+    \item Comprehensive logging and metrics collection
+    \item Export capabilities for all results and configurations
+\end{itemize}
+
+\subsection{Comparison with Existing Tools}
+
+\subsubsection{Unique Features of DeVana}
+
+\softwareName{} distinguishes itself from existing optimization and engineering software through several unique features:
+
+\textbf{Specialized DVA Design:}
+\begin{itemize}
+    \item First software specifically designed for DVA optimization
+    \item Built-in mechanical models for 2DOF-3DOF systems
+    \item Specialized fitness functions for vibration control objectives
+    \item Domain-specific parameter handling and constraints
+\end{itemize}
+
+\textbf{Statistical Design Framework:}
+\begin{itemize}
+    \item Integrated statistical analysis for parameter range synthesis
+    \item Multiple criteria for robust design decision making
+    \item Automated design recommendations and tolerance calculation
+    \item Consensus analysis for confidence assessment
+\end{itemize}
+
+\textbf{Advanced Optimization Playground:}
+\begin{itemize}
+    \item Unified interface for multiple optimization algorithms
+    \item Adaptive controllers for online parameter tuning
+    \item Surrogate-assisted methods for computational efficiency
+    \item Comprehensive benchmarking and comparison tools
+\end{itemize}
+
+\subsubsection{Advantages Over Generic Optimization Tools}
+
+Compared to generic optimization software (e.g., MATLAB Optimization Toolbox, Python scipy.optimize):
+
+\begin{itemize}
+    \item \textbf{Domain Expertise}: Built-in knowledge of DVA design requirements
+    \item \textbf{Specialized Algorithms}: Optimized implementations for vibration control problems
+    \item \textbf{Integrated Workflow}: Complete design process from optimization to manufacturing
+    \item \textbf{Statistical Analysis}: Built-in tools for robust design synthesis
+    \item \textbf{Reproducibility}: Versioned configurations and deterministic execution
+\end{itemize}
+
+\subsection{Research and Educational Applications}
+
+\subsubsection{Research Contributions}
+
+\softwareName{} serves as a platform for advancing research in:
+
+\textbf{Vibration Control:}
+\begin{itemize}
+    \item Novel DVA configurations and optimization strategies
+    \item Adaptive control algorithms for dynamic systems
+    \item Multi-objective optimization in mechanical design
+    \item Robust design methodologies for uncertain systems
+\end{itemize}
+
+\textbf{Optimization Algorithms:}
+\begin{itemize}
+    \item Adaptive parameter control in evolutionary algorithms
+    \item Surrogate-assisted optimization for expensive functions
+    \item Reinforcement learning in optimization contexts
+    \item Statistical analysis of optimization results
+\end{itemize}
+
+\subsubsection{Educational Value}
+
+The platform provides educational benefits through:
+
+\textbf{Hands-on Learning:}
+\begin{itemize}
+    \item Interactive exploration of optimization algorithms
+    \item Real-time visualization of convergence behavior
+    \item Comparison of different optimization strategies
+    \item Understanding of statistical design principles
+\end{itemize}
+
+\textbf{Research Training:}
+\begin{itemize}
+    \item Reproducible experimental setup
+    \item Benchmarking and comparison methodologies
+    \item Statistical analysis and interpretation
+    \item Documentation and reporting practices
+\end{itemize}
+
+\subsection{Future Development and Extensibility}
+
+\subsubsection{Planned Enhancements}
+
+The \softwareName{} development roadmap includes:
+
+\textbf{Algorithm Extensions:}
+\begin{itemize}
+    \item Additional optimization algorithms (NSGA-II, MOEA/D)
+    \item Advanced surrogate models (Gaussian processes, neural networks)
+    \item Multi-objective optimization capabilities
+    \item Constraint handling methods
+\end{itemize}
+
+\textbf{Mechanical Modeling:}
+\begin{itemize}
+    \item Support for more complex DVA configurations
+    \item Nonlinear system modeling capabilities
+    \item Multi-physics coupling (structural, thermal, fluid)
+    \item Real-time system identification
+\end{itemize}
+
+\textbf{User Interface:}
+\begin{itemize}
+    \item Web-based interface for remote access
+    \item Mobile application for monitoring and control
+    \item Advanced visualization and virtual reality integration
+    \item Collaborative design features
+\end{itemize}
+
+\subsubsection{Community and Open Source}
+
+\softwareName{} is developed as an open-source project to:
+
+\begin{itemize}
+    \item Foster collaboration in the vibration control community
+    \item Enable reproducible research and fair comparisons
+    \item Provide educational resources for students and researchers
+    \item Accelerate innovation in DVA design methodologies
+\end{itemize}
+
+\subsection{Conclusion and Impact}
+
+\softwareName{} represents a paradigm shift in DVA design, providing the first comprehensive platform that unifies optimization, statistical analysis, and design synthesis. The software's unique combination of specialized algorithms, adaptive controllers, and statistical design framework enables engineers and researchers to:
+
+\begin{enumerate}
+    \item \textbf{Explore Design Space}: Systematically investigate DVA configurations using multiple optimization strategies
+    \item \textbf{Make Informed Decisions}: Use statistical evidence to select robust parameter ranges
+    \item \textbf{Ensure Reproducibility}: Maintain versioned configurations and deterministic execution
+    \item \textbf{Accelerate Innovation}: Focus on design rather than algorithm implementation
+    \item \textbf{Enable Collaboration}: Share configurations and results across research groups
+\end{enumerate}
+
+The platform's impact extends beyond individual DVA design projects to advance the entire field of vibration control engineering. By providing a standardized, reproducible framework for DVA optimization and design, \softwareName{} enables fair comparisons between different approaches, accelerates research progress, and facilitates the transfer of academic innovations to industrial applications.
+
+As the first software of its kind, \softwareName{} establishes a new standard for DVA design methodology and serves as a foundation for future developments in vibration control optimization. The platform's open-source nature ensures that the benefits of this research are widely accessible to the engineering community, promoting collaboration and accelerating the advancement of vibration control technology.
+
+\subsection{Conclusion and Best Practices}
+
+The statistical analysis framework provides a systematic approach to DVA design that balances performance optimization with practical implementation constraints. Key best practices include:
+
+\begin{enumerate}
+    \item \textbf{Multiple Optimization Runs}: Always perform multiple runs to capture solution variability
+    \item \textbf{Statistical Rigor}: Use appropriate criteria based on parameter characteristics
+    \item \textbf{Engineering Judgment}: Combine statistical analysis with domain expertise
+    \item \textbf{Validation and Verification}: Always validate selected ranges before implementation
+    \item \textbf{Documentation}: Maintain complete records for traceability and continuous improvement
+\end{enumerate}
+
+This framework enables engineers to make informed design decisions based on statistical evidence while considering practical manufacturing and operational constraints. The result is a robust, manufacturable DVA design that achieves the desired performance objectives with acceptable variability and cost.
 
 
 

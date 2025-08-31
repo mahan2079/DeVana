@@ -11,7 +11,9 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+import platform
+import psutil
 
 # Local imports
 from modules.FRF import frf
@@ -88,6 +90,8 @@ class DEWorker(QThread):
     update = pyqtSignal(str)
     progress = pyqtSignal(int, float, float)  # generation, best_fitness, diversity
     multi_run_progress = pyqtSignal(int, int)  # current_run, total_runs
+    benchmark_data = pyqtSignal(dict)
+    generation_metrics = pyqtSignal(dict)
 
     def __init__(self, 
                  main_params,
@@ -114,7 +118,21 @@ class DEWorker(QThread):
                  record_statistics=True,
                  constraint_handling="penalty",
                  diversity_preservation=False,
-                 num_runs=1):        # Number of independent runs
+                 num_runs=1,
+                 # GA/PSO parity: metrics and controllers
+                 track_metrics=True,
+                 use_ml_adaptive=False,
+                 pop_min=None,
+                 pop_max=None,
+                 ml_ucb_c=0.6,
+                 ml_adapt_population=True,
+                 ml_diversity_weight=0.02,
+                 ml_diversity_target=0.2,
+                 use_rl_controller=False,
+                 rl_alpha=0.1,
+                 rl_gamma=0.9,
+                 rl_epsilon=0.2,
+                 rl_epsilon_decay=0.95):        # Number of independent runs
         super().__init__()
         
         # Initialize base parameters
@@ -166,8 +184,85 @@ class DEWorker(QThread):
         self.should_stop = False
         self.pool = None
 
+        # Metrics and controllers (GA/PSO parity)
+        self.track_metrics = bool(track_metrics)
+        self.use_ml_adaptive = bool(use_ml_adaptive)
+        self.ml_ucb_c = float(ml_ucb_c)
+        self.ml_adapt_population = bool(ml_adapt_population)
+        self.ml_diversity_weight = float(ml_diversity_weight)
+        self.ml_diversity_target = float(ml_diversity_target)
+        self.use_rl_controller = bool(use_rl_controller)
+        self.rl_alpha = float(rl_alpha)
+        self.rl_gamma = float(rl_gamma)
+        self.rl_epsilon = float(rl_epsilon)
+        self.rl_epsilon_decay = float(rl_epsilon_decay)
+        # Guardrails for dynamic population (if used)
+        self.pop_min = pop_min if pop_min is not None else max(10, int(0.5 * self.de_pop_size))
+        self.pop_max = pop_max if pop_max is not None else int(2.0 * self.de_pop_size)
+        
+        # Metrics store
+        self.metrics = {
+            'start_time': None,
+            'end_time': None,
+            'total_duration': None,
+            'cpu_usage': [],
+            'memory_usage': [],
+            'system_info': {},
+            'generation_times': [],
+            'time_per_generation_breakdown': [],
+            'evaluation_times': [],
+            'mutation_times': [],
+            'crossover_times': [],
+            'selection_times': [],
+            'fitness_history': [],
+            'mean_fitness_history': [],
+            'std_fitness_history': [],
+            'best_fitness_per_gen': [],
+            'best_individual_per_gen': [],
+            'convergence_rate': [],
+            'evaluation_count': 0,
+            'pop_size_history': [],
+            'rates_history': [],  # Track F/CR per gen
+            'controller': 'fixed',
+            'cpu_per_core': [],
+            'memory_details': [],
+            'thread_count': [],
+            'timestamp': time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        self.metrics_timer = QTimer()
+        self.metrics_timer.setSingleShot(False)
+        self.metrics_timer_interval = 500
+        # Watchdog timer
+        self._watchdog = QTimer()
+        self._watchdog.setSingleShot(True)
+        self._watchdog.timeout.connect(self._handle_timeout)
+
     def run(self):
         try:
+            # Controller descriptor for metrics
+            try:
+                if self.use_rl_controller:
+                    self.metrics['controller'] = 'rl'
+                elif self.use_ml_adaptive:
+                    self.metrics['controller'] = 'ml_bandit'
+                elif self.adaptive_method != AdaptiveMethod.NONE:
+                    self.metrics['controller'] = 'adaptive'
+                else:
+                    self.metrics['controller'] = 'fixed'
+                self.update.emit(f"DEBUG: DE controller is set to: {self.metrics['controller']}")
+                if self.use_ml_adaptive:
+                    self.update.emit(f"DEBUG: ML params: UCB c={self.ml_ucb_c:.2f}, pop_adapt={self.ml_adapt_population}, div_weight={self.ml_diversity_weight:.3f}, div_target={self.ml_diversity_target:.2f}")
+                if self.use_rl_controller:
+                    self.update.emit(f"DEBUG: RL params: alpha={self.rl_alpha:.3f}, gamma={self.rl_gamma:.3f}, epsilon={self.rl_epsilon:.3f}, decay={self.rl_epsilon_decay:.3f}")
+            except Exception:
+                pass
+
+            if self.track_metrics:
+                self._start_metrics_tracking()
+            try:
+                self._watchdog.start(600000)  # 10 minutes
+            except Exception:
+                pass
             if self.num_runs > 1:
                 self._run_multiple()
             else:
@@ -177,6 +272,12 @@ class DEWorker(QThread):
             if self.pool:
                 self.pool.close()
                 self.pool.join()
+        finally:
+            try:
+                if self._watchdog.isActive():
+                    self._watchdog.stop()
+            except Exception:
+                pass
 
     def _run_multiple(self):
         """Execute multiple independent runs of the DE algorithm"""
@@ -271,6 +372,99 @@ class DEWorker(QThread):
         if self.record_statistics:
             self._record_statistics(0, population, fitnesses, global_best, best_fitness, start_time)
         
+        # Optional ML bandit setup for F/CR/pop
+        if self.use_ml_adaptive:
+            deltas = [-0.25, -0.1, 0.0, 0.1, 0.25]
+            pop_multipliers = [0.5, 0.75, 1.0, 1.25, 1.5]
+            ml_actions = [(dF, dCR, pm) for dF in deltas for dCR in deltas for pm in pop_multipliers]
+            ml_counts = [0 for _ in ml_actions]
+            ml_sums = [0.0 for _ in ml_actions]
+            ml_t = 0
+            def ml_select(cur_F, cur_CR, cur_pop):
+                nonlocal ml_t
+                ml_t += 1
+                scores = []
+                for i in range(len(ml_actions)):
+                    if ml_counts[i] == 0:
+                        scores.append((float('inf'), i))
+                    else:
+                        avg = ml_sums[i] / ml_counts[i]
+                        bonus = self.ml_ucb_c * np.sqrt(np.log(max(ml_t, 1)) / ml_counts[i])
+                        scores.append((avg + bonus, i))
+                scores.sort(key=lambda t: t[0], reverse=True)
+                _, idx = scores[0]
+                dF, dCR, pm = ml_actions[idx]
+                new_F = max(0.05, min(1.0, cur_F * (1.0 + dF)))
+                new_CR = max(0.0, min(1.0, cur_CR * (1.0 + dCR)))
+                new_pop = int(min(self.pop_max, max(self.pop_min, round(cur_pop * pm))))
+                return idx, new_F, new_CR, new_pop
+            def ml_update(idx, reward):
+                ml_counts[idx] += 1
+                ml_sums[idx] += float(reward)
+            def resize_population(pop_list, new_size, parameter_bounds, fixed_parameters):
+                # Shrink: keep best individuals
+                if new_size < len(pop_list):
+                    # sort by current fitnesses
+                    idx_sorted = np.argsort(fitnesses)
+                    selected = [pop_list[i] for i in idx_sorted[:new_size]]
+                    return selected
+                # Grow: add random individuals around global best
+                extra = new_size - len(pop_list)
+                for _ in range(extra):
+                    ind = []
+                    for j in range(num_params):
+                        lo, hi = parameter_bounds[j]
+                        if j in fixed_parameters:
+                            ind.append(fixed_parameters[j])
+                        else:
+                            center = global_best[j]
+                            radius = (hi - lo) * 0.1
+                            ind.append(random.uniform(max(lo, center - radius), min(hi, center + radius)))
+                    pop_list.append(ind)
+                return pop_list
+
+        # Optional RL controller setup for F/CR/pop
+        if self.use_rl_controller:
+            deltas = [-0.25, -0.1, -0.05, 0.0, 0.05, 0.1, 0.25]
+            pop_multipliers = [0.5, 0.75, 1.0, 1.25, 1.5]
+            rl_actions = [(dF, dCR, pm) for dF in deltas for dCR in deltas for pm in pop_multipliers]
+            rl_q = {0: [0.0 for _ in rl_actions], 1: [0.0 for _ in rl_actions]}
+            rl_state = 0
+            def rl_select(cur_F, cur_CR, cur_pop):
+                if random.random() < self.rl_epsilon:
+                    idx = random.randrange(len(rl_actions))
+                else:
+                    values = rl_q[rl_state]
+                    best_idx = int(np.argmax(values)) if values else 0
+                    idx = best_idx
+                dF, dCR, pm = rl_actions[idx]
+                new_F = max(0.05, min(1.0, cur_F * (1.0 + dF)))
+                new_CR = max(0.0, min(1.0, cur_CR * (1.0 + dCR)))
+                new_pop = int(min(self.pop_max, max(self.pop_min, round(cur_pop * pm))))
+                return idx, new_F, new_CR, new_pop
+            def rl_update(state, action_idx, reward, next_state):
+                q_old = rl_q[state][action_idx]
+                q_next = max(rl_q[next_state]) if rl_q[next_state] else 0.0
+                rl_q[state][action_idx] = q_old + self.rl_alpha * (reward + self.rl_gamma * q_next - q_old)
+            def rl_resize_population(pop_list, new_size, parameter_bounds, fixed_parameters):
+                # Shrink: keep best by fitness
+                if new_size < len(pop_list):
+                    idx_sorted = np.argsort(fitnesses)
+                    return [pop_list[i] for i in idx_sorted[:new_size]]
+                extra = new_size - len(pop_list)
+                for _ in range(extra):
+                    ind = []
+                    for j in range(num_params):
+                        lo, hi = parameter_bounds[j]
+                        if j in fixed_parameters:
+                            ind.append(fixed_parameters[j])
+                        else:
+                            center = global_best[j]
+                            radius = (hi - lo) * 0.1
+                            ind.append(random.uniform(max(lo, center - radius), min(hi, center + radius)))
+                    pop_list.append(ind)
+                return pop_list
+
         # DE main loop
         no_improvement_count = 0
         convergence_gen = self.de_num_generations
@@ -286,19 +480,48 @@ class DEWorker(QThread):
             if self.adaptive_method != AdaptiveMethod.NONE:
                 self._adapt_control_parameters(gen, population, fitnesses)
             
+            # Optionally apply ML/RL controller to adjust F/CR and population size
+            if self.use_ml_adaptive or self.use_rl_controller:
+                # Compute diversity and mean fitness for reward shaping
+                cur_mean_fit = float(np.mean(fitnesses)) if fitnesses else float('inf')
+                diversity_val = self._calculate_diversity(population)
+                if self.use_ml_adaptive:
+                    ml_idx, newF, newCR, newPop = ml_select(self.de_F, self.de_CR, len(population))
+                    self.de_F, self.de_CR = newF, newCR
+                    if self.ml_adapt_population and newPop != len(population):
+                        population = resize_population(population, newPop, parameter_bounds, fixed_parameters)
+                        # Recompute fitnesses for new individuals
+                        if len(fitnesses) != len(population):
+                            fitnesses = [self.evaluate_individual(ind) for ind in population]
+                elif self.use_rl_controller:
+                    rl_idx, newF, newCR, newPop = rl_select(self.de_F, self.de_CR, len(population))
+                    self.de_F, self.de_CR = newF, newCR
+                    if newPop != len(population):
+                        population = rl_resize_population(population, newPop, parameter_bounds, fixed_parameters)
+                        if len(fitnesses) != len(population):
+                            fitnesses = [self.evaluate_individual(ind) for ind in population]
+
             # Create new generation
             new_population = []
             new_fitnesses = []
             successful_mutations = 0
             
+            mut_time_acc = 0.0
+            cross_time_acc = 0.0
+            eval_time_acc = 0.0
+
             for i in range(self.de_pop_size):
                 target = population[i]
                 
                 # Apply DE strategy to create donor vector
+                _t0 = time.time()
                 trial = self._apply_de_strategy(i, population, global_best, fitnesses, parameter_bounds, fixed_parameters, num_params)
+                mut_time_acc += (time.time() - _t0)
                 
                 # Evaluate trial vector
+                _t1 = time.time()
                 trial_fitness = self.evaluate_individual(trial)
+                eval_time_acc += (time.time() - _t1)
                 
                 # Selection: if trial is better, it replaces target
                 if trial_fitness < fitnesses[i]:
@@ -331,6 +554,17 @@ class DEWorker(QThread):
             if self.record_statistics:
                 self._record_statistics(gen, population, fitnesses, global_best, best_fitness, gen_start_time, success_rate)
             
+            # Record metrics for this generation
+            if self.track_metrics:
+                self.metrics['evaluation_times'].append(float(eval_time_acc))
+                # We approximate crossover_time as 0 since our crossover is inside strategy; attribute to mutation
+                self.metrics['mutation_times'].append(float(mut_time_acc))
+                self.metrics['crossover_times'].append(0.0)
+                # Selection occurs inline; rough estimate
+                self.metrics['selection_times'].append(0.0)
+                self.metrics['rates_history'].append({'generation': gen, 'F': self.de_F, 'CR': self.de_CR})
+                self.metrics['pop_size_history'].append(len(population))
+
             # Report progress
             diversity = self._calculate_diversity(population)
             self.update.emit(f"  Generation {gen}: Best={best_fitness:.6f}, Mean={np.mean(fitnesses):.6f}, Div={diversity:.6f}, SR={success_rate:.2f}")
@@ -341,6 +575,70 @@ class DEWorker(QThread):
                 convergence_gen = gen
                 break
         
+            # Metrics bookkeeping at end of generation
+            if self.track_metrics:
+                gen_time = time.time() - gen_start_time
+                self.metrics['generation_times'].append(gen_time)
+                self.metrics['time_per_generation_breakdown'].append({
+                    'total': gen_time,
+                    'mutation': float(mut_time_acc),
+                    'evaluation': float(eval_time_acc)
+                })
+                fits = fitnesses[:]
+                self.metrics['fitness_history'].append(fits)
+                mean = float(np.mean(fits)) if fits else float('inf')
+                std = float(np.std(fits)) if fits else 0.0
+                self.metrics['mean_fitness_history'].append(mean)
+                self.metrics['std_fitness_history'].append(std)
+                self.metrics['best_fitness_per_gen'].append(best_fitness)
+                self.metrics['best_individual_per_gen'].append(list(global_best))
+                if len(self.metrics['best_fitness_per_gen']) > 1:
+                    prev_best = self.metrics['best_fitness_per_gen'][-2]
+                    cur_best = self.metrics['best_fitness_per_gen'][-1]
+                    self.metrics['convergence_rate'].append(max(0.0, prev_best - cur_best))
+
+                # Controller reward logging
+                if self.use_ml_adaptive or self.use_rl_controller:
+                    last_best = self.metrics['best_fitness_per_gen'][-2] if len(self.metrics['best_fitness_per_gen']) > 1 else None
+                    imp = (last_best - best_fitness) if (last_best is not None and last_best > best_fitness) else 0.0
+                    cv = (std / (abs(mean) + 1e-12)) if mean == mean else 0.0
+                    effort = max(1.0, len(fitnesses))
+                    reward = (imp / max(gen_time, 1e-6)) / effort - self.ml_diversity_weight * abs(cv - self.ml_diversity_target)
+                    if self.use_ml_adaptive:
+                        try:
+                            ml_update(ml_idx, reward)
+                        except Exception:
+                            pass
+                        self.metrics.setdefault('ml_controller_history', []).append({
+                            'generation': gen,
+                            'F': self.de_F,
+                            'CR': self.de_CR,
+                            'pop': len(population),
+                            'best_fitness': best_fitness,
+                            'mean_fitness': mean,
+                            'std_fitness': std,
+                            'reward': reward
+                        })
+                    elif self.use_rl_controller:
+                        try:
+                            next_state = 1 if imp > 0 else 0
+                            rl_update(rl_state, rl_idx, reward, next_state)
+                            rl_state = next_state
+                            self.rl_epsilon *= self.rl_epsilon_decay
+                        except Exception:
+                            pass
+                        self.metrics.setdefault('rl_controller_history', []).append({
+                            'generation': gen,
+                            'F': self.de_F,
+                            'CR': self.de_CR,
+                            'pop': len(population),
+                            'best_fitness': best_fitness,
+                            'mean_fitness': mean,
+                            'std_fitness': std,
+                            'reward': reward,
+                            'epsilon': self.rl_epsilon
+                        })
+
         # Cleanup
         if self.pool:
             self.pool.close()
@@ -351,6 +649,16 @@ class DEWorker(QThread):
         else:
             # Emit results for single run
             results_dict = self._evaluate_solution(global_best)
+            if self.track_metrics:
+                self._stop_metrics_tracking()
+                if not self.metrics.get('system_info'):
+                    self.metrics['system_info'] = self._get_system_info()
+                self.metrics['total_duration'] = time.time() - start_time
+                results_dict['benchmark_metrics'] = self.metrics
+                try:
+                    self.benchmark_data.emit(self.metrics)
+                except Exception:
+                    pass
             self.finished.emit(results_dict, global_best, parameter_names, best_fitness, self.statistics)
 
     def _create_multi_run_plots(self, parameter_names):
@@ -416,6 +724,112 @@ class DEWorker(QThread):
             
         except Exception as e:
             self.error.emit(f"Error creating multi-run plots: {str(e)}")
+
+    def _handle_timeout(self):
+        try:
+            self.should_stop = True
+            self.update.emit("DE optimization timed out. The operation was taking too long.")
+        except Exception:
+            pass
+
+    def _get_system_info(self):
+        try:
+            system_info = {
+                'platform': platform.system(),
+                'platform_release': platform.release(),
+                'platform_version': platform.version(),
+                'architecture': platform.machine(),
+                'processor': platform.processor(),
+                'physical_cores': psutil.cpu_count(logical=False),
+                'total_cores': psutil.cpu_count(logical=True),
+                'total_memory': round(psutil.virtual_memory().total / (1024.0 ** 3), 2),
+                'python_version': platform.python_version(),
+            }
+            try:
+                cpu_freq = psutil.cpu_freq()
+                if cpu_freq:
+                    system_info['cpu_max_freq'] = cpu_freq.max
+                    system_info['cpu_min_freq'] = cpu_freq.min
+                    system_info['cpu_current_freq'] = cpu_freq.current
+            except Exception:
+                pass
+            return system_info
+        except Exception as e:
+            try:
+                self.update.emit(f"Warning: Could not collect complete system info: {str(e)}")
+            except Exception:
+                pass
+            return {'error': str(e)}
+
+    def _update_resource_metrics(self):
+        if not self.track_metrics:
+            return
+        try:
+            cpu_percent = psutil.cpu_percent(interval=None)
+            process = psutil.Process(os.getpid())
+            memory_info = process.memory_info()
+            memory_usage_mb = memory_info.rss / (1024 * 1024)
+
+            self.metrics['cpu_usage'].append(cpu_percent)
+            self.metrics['memory_usage'].append(memory_usage_mb)
+
+            per_core = psutil.cpu_percent(interval=None, percpu=True)
+            self.metrics['cpu_per_core'].append(per_core)
+
+            mem_details = {
+                'rss': memory_info.rss / (1024 * 1024),
+                'vms': memory_info.vms / (1024 * 1024),
+                'shared': getattr(memory_info, 'shared', 0) / (1024 * 1024),
+                'system_total': psutil.virtual_memory().total / (1024 * 1024),
+                'system_available': psutil.virtual_memory().available / (1024 * 1024),
+                'system_percent': psutil.virtual_memory().percent,
+            }
+            self.metrics['memory_details'].append(mem_details)
+            self.metrics['thread_count'].append(process.num_threads())
+
+            current_metrics = {
+                'cpu': cpu_percent,
+                'cpu_per_core': per_core,
+                'memory': memory_usage_mb,
+                'memory_details': mem_details,
+                'thread_count': process.num_threads(),
+                'time': time.time() - self.metrics['start_time'] if self.metrics.get('start_time') else 0
+            }
+            self.generation_metrics.emit(current_metrics)
+        except Exception as e:
+            try:
+                self.update.emit(f"Warning: Failed to update resource metrics: {str(e)}")
+            except Exception:
+                pass
+
+    def _start_metrics_tracking(self):
+        if not self.track_metrics:
+            return
+        self.metrics['start_time'] = time.time()
+        if not self.metrics.get('system_info'):
+            self.metrics['system_info'] = self._get_system_info()
+        self.metrics_timer.timeout.connect(self._update_resource_metrics)
+        self.metrics_timer.start(self.metrics_timer_interval)
+        try:
+            self.update.emit(f"Started metrics tracking with interval: {self.metrics_timer_interval}ms")
+        except Exception:
+            pass
+
+    def _stop_metrics_tracking(self):
+        if not self.track_metrics:
+            return
+        try:
+            self.metrics_timer.stop()
+        except Exception:
+            pass
+        self.metrics['end_time'] = time.time()
+        if self.metrics.get('start_time'):
+            self.metrics['total_duration'] = self.metrics['end_time'] - self.metrics['start_time']
+        try:
+            if not self.metrics.get('cpu_usage'):
+                self._update_resource_metrics()
+        except Exception:
+            pass
 
     def _evaluate_solution(self, solution):
         """Evaluate a solution and return the results dictionary"""

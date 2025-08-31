@@ -196,6 +196,7 @@ from PyQt5.QtGui import QIcon, QPalette, QColor, QFont
 # Import a custom function 'frf' from the modules.FRF module.
 # This is likely a user-defined module for a specific purpose (e.g., Frequency Response Function).
 from modules.FRF import frf
+from .MemorySeeder import MemorySeeder
 
 # Import the random module for generating random numbers (used in algorithms like genetic algorithms).
 import random
@@ -381,7 +382,7 @@ class GAWorker(QThread):
         surrogate_k=5,              # Number of nearest neighbors for surrogate
         surrogate_explore_frac=0.15,# Fraction of pool for exploration (not exploitation)
         # Seeding method for initial population and injections
-        seeding_method="random",    # Method for seeding ("random", "sobol", "lhs", "neural")
+        seeding_method="random",    # Method for seeding ("random", "sobol", "lhs", "neural", "memory", "best")
         seeding_seed=None,          # Random seed for reproducibility
         # Neural seeding options
         use_neural_seeding=False,   # Enable neural network-based seeding
@@ -403,7 +404,10 @@ class GAWorker(QThread):
         # Optional: adaptive epsilon linkage for neural seeding
         neural_adapt_epsilon=False, # Enable adaptive epsilon for neural seeding
         neural_eps_min=0.05,        # Minimum epsilon value
-        neural_eps_max=0.30         # Maximum epsilon value
+        neural_eps_max=0.30,        # Maximum epsilon value
+        # Best-of-Pool seeding options
+        best_pool_mult=5.0,         # Candidate pool multiplier relative to population
+        best_diversity_frac=0.20    # Diversity stride fraction for selection
     ):
         # ------------------------------------------------------------------------
         # Genetic Algorithm Worker Initialization
@@ -550,7 +554,13 @@ class GAWorker(QThread):
         self.ga_mutpb = ga_mutpb                # Initial chance of random changes (like mutations in DNA)
         self.ga_tol = ga_tol                    # How close we need to get to the target (like acceptable error margin)
         self.ga_parameter_data = ga_parameter_data  # What we can change (like adjustable car parts)
-        self.alpha = alpha                      # How big of steps to take (like how much to adjust the engine)
+        # Sanitize alpha to avoid NaNs propagating into sparsity penalty
+        try:
+            self.alpha = float(alpha)
+        except Exception:
+            self.alpha = 0.0
+        if not np.isfinite(self.alpha):
+            self.alpha = 0.0
         self.percentage_error_scale = percentage_error_scale if percentage_error_scale is not None else 1000.0  # Scaling factor for percentage error in fitness calculation
         self.track_metrics = track_metrics      # Whether to track computational metrics
         
@@ -596,12 +606,15 @@ class GAWorker(QThread):
         # Seeding configuration
         # Seeding config (allow legacy seeding_method but also a boolean flag)
         self.seeding_method = (seeding_method or "random").lower()
-        if self.seeding_method not in ("random", "sobol", "lhs", "neural"):
+        if self.seeding_method not in ("random", "sobol", "lhs", "neural", "memory", "best"):
             self.seeding_method = "random"
         if use_neural_seeding:
             self.seeding_method = "neural"
         self.seeding_seed = seeding_seed if (seeding_seed is None or isinstance(seeding_seed, (int, np.integer))) else None
         self._qmc_engine = None
+        # Best-of-Pool config
+        self.best_pool_mult = float(best_pool_mult)
+        self.best_diversity_frac = float(best_diversity_frac)
 
         # Neural seeding settings
         self.use_neural_seeding = (self.seeding_method == "neural")
@@ -1163,7 +1176,24 @@ class GAWorker(QThread):
                     # Calculate how complex our solution is
                     # We sum up all parameter values and multiply by a weight (self.alpha)
                     # This penalizes solutions that use too many parameters
-                    sparsity_penalty = self.alpha * sum(abs(param) for param in individual)
+                    # Guard against NaNs in alpha and parameter values
+                    try:
+                        if not np.isfinite(self.alpha):
+                            alpha_eff = 0.0
+                        else:
+                            alpha_eff = float(self.alpha)
+                    except Exception:
+                        alpha_eff = 0.0
+                    # Replace any non-finite parameter contributions with zero
+                    penalty_sum = 0.0
+                    for param in individual:
+                        try:
+                            v = float(param)
+                            if np.isfinite(v):
+                                penalty_sum += abs(v)
+                        except Exception:
+                            continue
+                    sparsity_penalty = alpha_eff * penalty_sum
                     
                     # Calculate sum of percentage differences
                     # percent_diff is defined as the value in the nested dictionary structure:
@@ -1177,13 +1207,18 @@ class GAWorker(QThread):
                             for criterion, percent_diff in pdiffs.items():
                                 # percent_diff is the value for this criterion under this mass_key
                                 # Use absolute value to prevent positive and negative errors from cancelling
-                                percentage_error_sum += abs(percent_diff)
+                                try:
+                                    v = float(percent_diff)
+                                    if np.isfinite(v):
+                                        percentage_error_sum += abs(v)
+                                except Exception:
+                                    continue
                     
                     # Store the fitness components in the individual's attributes
                     # This allows us to access them later for detailed reporting
                     individual.primary_objective = primary_objective
                     individual.sparsity_penalty = sparsity_penalty
-                    individual.percentage_error = percentage_error_sum/100
+                    individual.percentage_error = percentage_error_sum/100.0
                     
                     # Combine all three components to get final score:
                     # 1. Primary objective: Distance from target value of 1.0
@@ -1349,7 +1384,47 @@ class GAWorker(QThread):
 
                 # Use QMC engine to generate low-discrepancy samples and scale them to parameter bounds
                 try:
-                    # Generate 'count' samples in [0,1)^d, where d is the number of parameters
+                    # If using memory seeding directly, short-circuit to it
+                    if self.seeding_method == "memory" and 'memory_seeder' in locals() and memory_seeder is not None:
+                        seeds = memory_seeder.propose(count)
+                        return [creator.Individual([float(row[i]) for i in range(len(parameter_bounds))]) for row in seeds]
+                    # Best-of-Pool: sample a large pool then evaluate and choose the best pop
+                    if self.seeding_method == "best":
+                        pool_n = int(max(count, math.ceil(getattr(self, 'best_pool_mult', 5.0) * count)))
+                        pool = []
+                        # draw QMC
+                        m = int(np.ceil(np.log2(max(1, pool_n))))
+                        samples = self._qmc_engine.random_base2(m=m)[:pool_n]
+                        lows = np.array([b[0] for b in parameter_bounds], dtype=float)
+                        highs = np.array([b[1] for b in parameter_bounds], dtype=float)
+                        span = (highs - lows)
+                        span[span == 0.0] = 0.0
+                        scaled = lows + samples * span
+                        for idx, val in fixed_parameters.items():
+                            scaled[:, idx] = val
+                        for row in scaled:
+                            pool.append(creator.Individual([float(row[i]) for i in range(len(parameter_bounds))]))
+                        # Evaluate pool
+                        fits = list(map(toolbox.evaluate, pool))
+                        for ind, fit in zip(pool, fits):
+                            ind.fitness.values = fit
+                        pool_sorted = sorted(pool, key=lambda ind: ind.fitness.values[0])
+                        # diversity stride selection
+                        k = max(1, count)
+                        step = max(1, int(1.0 / max(1e-6, getattr(self, 'best_diversity_frac', 0.2))))
+                        out = []
+                        i = 0
+                        while len(out) < k and i < len(pool_sorted):
+                            out.append(pool_sorted[i])
+                            i += step
+                        j = 0
+                        while len(out) < k and j < len(pool_sorted):
+                            cand = pool_sorted[j]
+                            if cand not in out:
+                                out.append(cand)
+                            j += 1
+                        return out[:k]
+                    # Generate 'count' samples in [0,1)^d, where d is the number of parameters (default QMC path)
                     samples = self._qmc_engine.random(count)  # shape: (count, num_parameters)
                     # Extract lower and upper bounds for each parameter
                     lows = np.array([b[0] for b in parameter_bounds], dtype=float)
@@ -1431,7 +1506,7 @@ class GAWorker(QThread):
             neural_seeder = None
 
             # 2. Decide which seeding strategy to use.
-            #    If neural seeding is enabled, prepare all the necessary data and instantiate the neural seeder.
+            #    If neural or memory seeding is enabled, prepare required data and instantiate.
             if self.use_neural_seeding:
                 # --- Neural Seeder Preparation ---
 
@@ -1492,11 +1567,57 @@ class GAWorker(QThread):
                     self.update.emit("Seeding method: Sobol low-discrepancy sequence")
                 elif self.seeding_method == "lhs":
                     self.update.emit("Seeding method: Latin Hypercube Sampling (LHS)")
+                elif self.seeding_method == "memory":
+                    try:
+                        lows = np.array([b[0] for b in parameter_bounds], dtype=float)
+                        highs = np.array([b[1] for b in parameter_bounds], dtype=float)
+                        fixed_mask = np.zeros(len(parameter_bounds), dtype=bool)
+                        fixed_values = np.zeros(len(parameter_bounds), dtype=float)
+                        for i in range(len(parameter_bounds)):
+                            if i in fixed_parameters:
+                                fixed_mask[i] = True
+                                fixed_values[i] = float(fixed_parameters[i])
+                            else:
+                                fixed_values[i] = float((lows[i] + highs[i]) * 0.5)
+                        # Create memory seeder with a persistent file near project root
+                        mem_file = os.path.join(os.getcwd(), 'seeding_memory.json')
+                        memory_seeder = MemorySeeder(
+                            lows=lows,
+                            highs=highs,
+                            fixed_mask=fixed_mask,
+                            fixed_values=fixed_values,
+                            max_size=2000,
+                            top_k=100,
+                            sigma_scale=0.05,
+                            exploration_frac=0.2,
+                            replay_frac=0.2,
+                            file_path=mem_file,
+                            seed=int(self.seeding_seed) if isinstance(self.seeding_seed, (int, np.integer)) else None,
+                        )
+                        self.update.emit("Seeding method: Memory (replay + jitter + explore)")
+                    except Exception as _:
+                        memory_seeder = None
 
             # 3. Generate the initial population using the selected seeding strategy.
             #    - The function 'generate_seed_individuals' encapsulates the logic for both neural and classical seeding.
             #    - The population size is determined by self.ga_pop_size.
             population = generate_seed_individuals(self.ga_pop_size)
+            # If memory seeding active, mix in memory proposals to improve initial pool
+            try:
+                if self.seeding_method == "memory" and memory_seeder is not None and len(population) > 0:
+                    need = max(0, self.ga_pop_size - len(population))
+                    mem_extra = memory_seeder.propose(need if need > 0 else len(population))
+                    if mem_extra:
+                        # Replace worst by memory suggestions for stronger start
+                        # Convert to individuals
+                        mem_inds = [creator.Individual(list(x)) for x in mem_extra]
+                        # Keep size consistent
+                        if need > 0:
+                            population.extend(mem_inds[:need])
+                        else:
+                            population = mem_inds[:len(population)]
+            except Exception:
+                pass
 
             # 4. Record the initial population size for metrics tracking, if enabled.
             #    - This helps track how the population size evolves over generations.
@@ -1510,6 +1631,14 @@ class GAWorker(QThread):
             fitnesses = list(map(toolbox.evaluate, population))
             for ind, fit in zip(population, fitnesses):
                 ind.fitness.values = fit  # Assign the computed fitness to the individual
+
+            # Seed surrogate dataset with initial evaluations so screening can engage
+            if self.use_surrogate:
+                try:
+                    self._surrogate_X.extend([list(ind) for ind in population])
+                    self._surrogate_y.extend([float(f[0]) for f in fitnesses])
+                except Exception:
+                    pass
 
             # 6. If neural seeding was used, feed the evaluated data back to the neural seeder for training.
             #    - This allows the neural seeder to learn from the initial population and improve future suggestions.
@@ -1541,6 +1670,14 @@ class GAWorker(QThread):
                     # Silently ignore any errors in neural seeder data feeding.
                     # This ensures that a failure in the neural seeder does not crash the optimization.
                     pass
+            # Feed memory with initial evaluations
+            try:
+                if self.seeding_method == "memory" and memory_seeder is not None:
+                    X_data = [list(ind) for ind in population]
+                    y_data = [float(ind.fitness.values[0]) for ind in population]
+                    memory_seeder.add_data(X_data, y_data)
+            except Exception:
+                pass
 
             # --- Summary of Key Concepts ---
             # - This block demonstrates conditional logic for feature toggling (neural vs. classical seeding).
@@ -1577,23 +1714,11 @@ class GAWorker(QThread):
                 # Each action is a tuple: (delta_cxpb, delta_mutpb, pop_multiplier)
                 # Make the action space for deltas and population multipliers much more extensive and comprehensive
                 # - deltas: even finer granularity and much wider range for crossover/mutation probability changes
-                deltas = [
-                    -1.0, -0.9, -0.8, -0.7, -0.6, -0.55, -0.5, -0.45, -0.4, -0.35, -0.3, -0.28, -0.26, -0.25, -0.22, -0.2, -0.18, -0.16, -0.15, -0.13, -0.12, -0.11, -0.1, -0.09, -0.08, -0.07, -0.06, -0.05, -0.04, -0.03, -0.025, -0.02, -0.015, -0.01,
-                    0.0,
-                    0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.15, 0.16, 0.18, 0.2, 0.22, 0.25, 0.26, 0.28, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8, 0.9, 1.0
-                ]  # Much more granular and wider range of possible relative changes for cxpb/mutpb
+                # Keep the action space compact to ensure fast controller decisions each generation
+                deltas = [-0.30, -0.15, 0.0, 0.15, 0.30]
 
                 # - pop_multipliers: much broader and finer set of possible population size multipliers, including more small and large values
-                pop_multipliers = [
-                    0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09,
-                    0.1, 0.12, 0.14, 0.16, 0.18, 0.2, 0.22, 0.24, 0.26, 0.28, 0.3, 0.32, 0.34, 0.36, 0.38, 0.4,
-                    0.42, 0.44, 0.46, 0.48, 0.5, 0.52, 0.54, 0.56, 0.58, 0.6, 0.62, 0.64, 0.66, 0.68, 0.7,
-                    0.72, 0.74, 0.76, 0.78, 0.8, 0.82, 0.84, 0.86, 0.88, 0.9, 0.92, 0.94, 0.96, 0.98,
-                    1.0,
-                    1.02, 1.04, 1.06, 1.08, 1.1, 1.12, 1.14, 1.16, 1.18, 1.2, 1.22, 1.24, 1.26, 1.28, 1.3,
-                    1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.95, 2.0,
-                    2.2, 2.4, 2.6, 2.8, 3.0, 3.5, 4.0, 5.0, 7.5, 10.0
-                ]  # Much more comprehensive and fine-grained set of multipliers for population size
+                pop_multipliers = [0.75, 1.0, 1.25]
 
                 # Create the full action space as a Cartesian product of deltas and multipliers
                 ml_actions = [(dcx, dmu, pm) for dcx in deltas for dmu in deltas for pm in pop_multipliers]
@@ -1727,6 +1852,8 @@ class GAWorker(QThread):
                     #   - new_pop = current_pop * pm
                     new_cx = min(self.cxpb_max, max(self.cxpb_min, current_cx * (1.0 + dcx)))
                     new_mu = min(self.mutpb_max, max(self.mutpb_min, current_mu * (1.0 + dmu)))
+                    new_cx = min(self.cxpb_max, max(self.cxpb_min, current_cx * (1.0 + dcx)))
+                    new_mu = min(self.mutpb_max, max(self.mutpb_min, current_mu * (1.0 + dmu)))
                     new_pop = int(min(self.pop_max, max(self.pop_min, round(current_pop * pm))))
 
                     # --- Return the Selected Action and New Hyperparameter Values ---
@@ -1850,6 +1977,12 @@ class GAWorker(QThread):
                                 fits_new = list(map(toolbox.evaluate, need_eval))
                                 for ind, fit in zip(need_eval, fits_new):
                                     ind.fitness.values = fit
+                                if self.use_surrogate:
+                                    try:
+                                        self._surrogate_X.extend([list(ind) for ind in need_eval])
+                                        self._surrogate_y.extend([float(f[0]) for f in fits_new])
+                                    except Exception:
+                                        pass
                         else:
                             # --- Fallback: Use default seeding method if neural seeding is not available ---
                             new_inds = generate_seed_individuals(extra)
@@ -1871,24 +2004,12 @@ class GAWorker(QThread):
                 # --- Define the action space for the RL agent ---
                 # deltas: Much finer granularity and wider range for crossover/mutation probability changes
                 #   - For example, a delta of 0.1 means "increase by 10%", -0.25 means "decrease by 25%", etc.
-                deltas = [
-                    -1.0, -0.9, -0.8, -0.7, -0.6, -0.55, -0.5, -0.45, -0.4, -0.35, -0.3, -0.28, -0.26, -0.25, -0.22, -0.2, -0.18, -0.16, -0.15, -0.13, -0.12, -0.11, -0.1, -0.09, -0.08, -0.07, -0.06, -0.05, -0.04, -0.03, -0.025, -0.02, -0.015, -0.01,
-                    0.0,
-                    0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.15, 0.16, 0.18, 0.2, 0.22, 0.25, 0.26, 0.28, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8, 0.9, 1.0
-                ]  # Much more granular and wider range of possible relative changes for cxpb/mutpb
+                # Keep RL action space compact for responsiveness
+                deltas = [-0.30, -0.15, 0.0, 0.15, 0.30]
 
                 # pop_multipliers: Much broader and finer set of possible population size multipliers, including more small and large values
                 #   - For example, 0.5 means "halve the population", 1.5 means "increase by 50%", etc.
-                pop_multipliers = [
-                    0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09,
-                    0.1, 0.12, 0.14, 0.16, 0.18, 0.2, 0.22, 0.24, 0.26, 0.28, 0.3, 0.32, 0.34, 0.36, 0.38, 0.4,
-                    0.42, 0.44, 0.46, 0.48, 0.5, 0.52, 0.54, 0.56, 0.58, 0.6, 0.62, 0.64, 0.66, 0.68, 0.7,
-                    0.72, 0.74, 0.76, 0.78, 0.8, 0.82, 0.84, 0.86, 0.88, 0.9, 0.92, 0.94, 0.96, 0.98,
-                    1.0,
-                    1.02, 1.04, 1.06, 1.08, 1.1, 1.12, 1.14, 1.16, 1.18, 1.2, 1.22, 1.24, 1.26, 1.28, 1.3,
-                    1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.95, 2.0,
-                    2.2, 2.4, 2.6, 2.8, 3.0, 3.5, 4.0, 5.0, 7.5, 10.0
-                ]  # Much more comprehensive and fine-grained set of multipliers for population size
+                pop_multipliers = [0.75, 1.0, 1.25]
 
                 # rl_actions: All possible combinations of (crossover delta, mutation delta, pop multiplier).
                 #   - This forms the discrete action space for the RL agent.
@@ -2005,6 +2126,12 @@ class GAWorker(QThread):
                                 fits_new = list(map(toolbox.evaluate, need_eval))
                                 for ind, fit in zip(need_eval, fits_new):
                                     ind.fitness.values = fit
+                                if self.use_surrogate:
+                                    try:
+                                        self._surrogate_X.extend([list(ind) for ind in need_eval])
+                                        self._surrogate_y.extend([float(f[0]) for f in fits_new])
+                                    except Exception:
+                                        pass
                         else:
                             # --- Fallback: Use default seeding method if neural seeding is not available ---
                             new_inds = generate_seed_individuals(extra)
@@ -2087,8 +2214,8 @@ class GAWorker(QThread):
                                 self.metrics['evaluation_times'].append(time.time() - eval_start)
                             evals_this_gen += len(need_eval)
                     # Set the current rates for this generation
-                    current_cxpb = self.current_cxpb
-                    current_mutpb = self.current_mutpb
+                    current_cxpb = min(self.cxpb_max, max(self.cxpb_min, self.current_cxpb))
+                    current_mutpb = min(self.mutpb_max, max(self.mutpb_min, self.current_mutpb))
                     # Log the chosen rates and population size
                     self.update.emit("  Rates type: RL-Controller")
                     self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
@@ -2120,8 +2247,8 @@ class GAWorker(QThread):
                                 self.metrics['evaluation_times'].append(time.time() - eval_start)
                             evals_this_gen += len(need_eval)
                     # Set the current rates for this generation
-                    current_cxpb = self.current_cxpb
-                    current_mutpb = self.current_mutpb
+                    current_cxpb = min(self.cxpb_max, max(self.cxpb_min, self.current_cxpb))
+                    current_mutpb = min(self.mutpb_max, max(self.mutpb_min, self.current_mutpb))
                     # Log the chosen rates and population size
                     self.update.emit("  Rates type: ML-Bandit")
                     self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
@@ -2131,8 +2258,8 @@ class GAWorker(QThread):
                 # --- Legacy/Heuristic: Use fixed or legacy adaptive rates
                 else:
                     # If adaptive rates are enabled, use the current adaptive values; otherwise, use fixed defaults.
-                    current_cxpb = self.current_cxpb if self.adaptive_rates else self.ga_cxpb
-                    current_mutpb = self.current_mutpb if self.adaptive_rates else self.ga_mutpb
+                    current_cxpb = (min(self.cxpb_max, max(self.cxpb_min, self.current_cxpb)) if self.adaptive_rates else min(self.cxpb_max, max(self.cxpb_min, self.ga_cxpb)))
+                    current_mutpb = (min(self.mutpb_max, max(self.mutpb_min, self.current_mutpb)) if self.adaptive_rates else min(self.mutpb_max, max(self.mutpb_min, self.ga_mutpb)))
                     self.update.emit(f"  Rates type: {'Adaptive' if self.adaptive_rates else 'Fixed'}")
                     self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
                     self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
@@ -2305,6 +2432,13 @@ class GAWorker(QThread):
                         if self.track_metrics:
                             self.metrics['evaluation_times'].append(time.time() - evaluation_start)
                         evals_this_gen += len(chosen)
+                        # Update surrogate dataset with evaluated chosen
+                        if self.use_surrogate:
+                            try:
+                                self._surrogate_X.extend([list(ind) for ind in chosen])
+                                self._surrogate_y.extend([float(ind.fitness.values[0]) for ind in chosen])
+                            except Exception:
+                                pass
 
                         # Replace offspring invalids by chosen (truncate if needed)
                         # Ensure all offspring are valid by filling from chosen first, then best others
@@ -2325,14 +2459,21 @@ class GAWorker(QThread):
                     else:
                         # Fallback: evaluate all invalids
                         self.update.emit(f"  Evaluating {len(invalid_ind)} individuals...")
-                        fitnesses = map(toolbox.evaluate, invalid_ind)
+                        fitnesses = list(map(toolbox.evaluate, invalid_ind))
                         for ind, fit in zip(invalid_ind, fitnesses):
                             ind.fitness.values = fit
                         # Count evaluations once per individual
                         evals_this_gen += len(invalid_ind)
+                        # Update surrogate dataset
+                        if self.use_surrogate:
+                            try:
+                                self._surrogate_X.extend([list(ind) for ind in invalid_ind])
+                                self._surrogate_y.extend([float(f[0]) for f in fitnesses])
+                            except Exception:
+                                pass
 
                 # After evaluation, update NeuralSeeder with fresh data and optionally reseed on stagnation
-                if self.use_neural_seeding and 'invalid_ind' in locals():
+                if (self.use_neural_seeding or self.seeding_method == "memory") and 'invalid_ind' in locals():
                     try:
                         if neural_seeder is not None:
                             # add data
@@ -2363,6 +2504,11 @@ class GAWorker(QThread):
                                     'epsilon': self.current_epsilon if self.neural_adapt_epsilon else self.neural_epsilon,
                                     'acq': self.neural_acq_type
                                 })
+                        # Update memory seeder as well
+                        if self.seeding_method == "memory" and 'memory_seeder' in locals() and memory_seeder is not None:
+                            X_batch = [list(ind) for ind in population]
+                            y_batch = [float(ind.fitness.values[0]) for ind in population]
+                            memory_seeder.add_data(X_batch, y_batch)
                     except Exception:
                         pass
                 
