@@ -1,96 +1,104 @@
-import numpy as np
-from typing import List, Tuple, Dict, Callable
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import Dict, List, Tuple
+
+import numpy as np
+
 from .model import BeamModel, TargetSpecification
 
 
-def _bounded_random(lower: float, upper: float, size: int) -> np.ndarray:
-    return lower + (upper - lower) * np.random.rand(size)
+@dataclass
+class Bounds:
+    k_min: float = 0.0
+    k_max: float = 1e7
+    c_min: float = 0.0
+    c_max: float = 1e5
 
 
-def _clip_array(values: np.ndarray, lower: float, upper: float) -> np.ndarray:
-    return np.minimum(np.maximum(values, lower), upper)
+def _clip(v: np.ndarray, lo: float, hi: float) -> np.ndarray:
+    return np.minimum(np.maximum(v, lo), hi)
 
 
-def optimize_values_only(
+def optimize_values_at_locations(
     model: BeamModel,
-    candidate_locations: List[float],
-    num_springs: int,
-    num_dampers: int,
+    spring_locations: List[float],
+    damper_locations: List[float],
     targets: List[TargetSpecification],
     omega: np.ndarray,
-    k_bounds: Tuple[float, float] = (0.0, 1e7),
-    c_bounds: Tuple[float, float] = (0.0, 1e5),
-    max_iters: int = 150,
+    bounds: Bounds | None = None,
+    max_iters: int = 200,
     population: int = 30,
+    seed: int | None = None,
+    force=None,
 ) -> Dict:
     """
-    Optimize magnitudes of springs and dampers at fixed locations.
-    Locations are taken as the first num_springs and num_dampers entries from candidate_locations.
-    Returns dict with optimal k_points, c_points, and objective history.
+    Optimize only the magnitudes (k, c) at user-specified locations.
+
+    Decision vector x = [k_vals (len(spring_locations)), c_vals (len(damper_locations))]
     """
-    xlocs_k = candidate_locations[:num_springs]
-    xlocs_c = candidate_locations[:num_dampers]
+    if bounds is None:
+        bounds = Bounds()
+    if seed is not None:
+        np.random.seed(seed)
+
+    n_k = len(spring_locations)
+    n_c = len(damper_locations)
+    dim = n_k + n_c
 
     def decode(ind: np.ndarray):
-        k_vals = _clip_array(ind[:num_springs], *k_bounds)
-        c_vals = _clip_array(ind[num_springs:], *c_bounds)
-        k_points = list(zip(xlocs_k, k_vals.tolist()))
-        c_points = list(zip(xlocs_c, c_vals.tolist()))
+        k_vals = _clip(ind[:n_k], bounds.k_min, bounds.k_max)
+        c_vals = _clip(ind[n_k:], bounds.c_min, bounds.c_max)
+        k_points = list(zip(spring_locations, k_vals.tolist()))
+        c_points = list(zip(damper_locations, c_vals.tolist()))
         return k_points, c_points
-
-    dim = num_springs + num_dampers
 
     # Initialize population
     pop = np.zeros((population, dim))
-    for i in range(population):
-        pop[i, :num_springs] = _bounded_random(*k_bounds, num_springs)
-        pop[i, num_springs:] = _bounded_random(*c_bounds, num_dampers)
+    pop[:, :n_k] = bounds.k_min + (bounds.k_max - bounds.k_min) * np.random.rand(population, n_k)
+    pop[:, n_k:] = bounds.c_min + (bounds.c_max - bounds.c_min) * np.random.rand(population, n_c)
 
     best = None
-    best_obj = np.inf
-    history = []
+    best_val = np.inf
+    hist = []
 
     for it in range(max_iters):
         objs = np.zeros(population)
         for i in range(population):
             k_points, c_points = decode(pop[i])
-            objs[i] = model.objective_from_targets(k_points, c_points, targets, omega)
+            objs[i] = model.objective_from_targets(k_points, c_points, targets, omega, force=force)
 
-        # Selection
-        idx = np.argmin(objs)
-        if objs[idx] < best_obj:
-            best_obj = float(objs[idx])
+        idx = int(np.argmin(objs))
+        if objs[idx] < best_val:
+            best_val = float(objs[idx])
             best = pop[idx].copy()
-        history.append(best_obj)
+        hist.append(best_val)
 
-        # Differential evolution style update
+        # Differential evolution mutation + crossover
         F = 0.7
         CR = 0.9
         new_pop = pop.copy()
         for i in range(population):
             a, b, c = np.random.choice(population, 3, replace=False)
             mutant = pop[a] + F * (pop[b] - pop[c])
-            # Crossover
-            cross = np.random.rand(dim) < CR
-            trial = np.where(cross, mutant, pop[i])
-            # Clip into bounds per segment
-            trial[:num_springs] = _clip_array(trial[:num_springs], *k_bounds)
-            trial[num_springs:] = _clip_array(trial[num_springs:], *c_bounds)
-
-            # Accept if better
+            mask = np.random.rand(dim) < CR
+            trial = np.where(mask, mutant, pop[i])
+            # enforce bounds by segment
+            trial[:n_k] = _clip(trial[:n_k], bounds.k_min, bounds.k_max)
+            trial[n_k:] = _clip(trial[n_k:], bounds.c_min, bounds.c_max)
+            # accept if better
             k_points, c_points = decode(trial)
-            f_trial = model.objective_from_targets(k_points, c_points, targets, omega)
+            f_trial = model.objective_from_targets(k_points, c_points, targets, omega, force=force)
             if f_trial <= objs[i]:
                 new_pop[i] = trial
         pop = new_pop
 
-    k_points, c_points = decode(best)
+    k_points, c_points = decode(best if best is not None else pop[0])
     return {
-        'k_points': k_points,
-        'c_points': c_points,
-        'best_objective': best_obj,
-        'history': np.array(history),
+        "k_points": k_points,
+        "c_points": c_points,
+        "best_objective": best_val,
+        "history": np.asarray(hist),
     }
 
 
@@ -100,93 +108,103 @@ def optimize_placement_and_values(
     num_dampers: int,
     targets: List[TargetSpecification],
     omega: np.ndarray,
-    k_bounds: Tuple[float, float] = (0.0, 1e7),
-    c_bounds: Tuple[float, float] = (0.0, 1e5),
-    max_iters: int = 200,
+    bounds: Bounds | None = None,
+    max_iters: int = 250,
     population: int = 40,
+    min_separation: float | None = None,
+    seed: int | None = None,
+    force=None,
 ) -> Dict:
     """
-    Jointly optimize locations (continuous 0..L) and magnitudes for springs and dampers.
-    Decision vector: [x_k (num_springs), k_values (num_springs), x_c (num_dampers), c_values (num_dampers)]
-    Returns optimal k_points, c_points.
+    Optimize both placements (x in [0,L]) and magnitudes (k, c).
+
+    Decision vector x = [xs_k (nk), ks (nk), xs_c (nc), cs (nc)]
     """
+    if bounds is None:
+        bounds = Bounds()
+    if seed is not None:
+        np.random.seed(seed)
+
     L = model.L
-    dim = (num_springs + num_dampers) * 2
+    nk, nc = int(num_springs), int(num_dampers)
+    dim = (nk + nc) * 2
+
+    def enforce_min_separation(xs: np.ndarray) -> np.ndarray:
+        if min_separation is None or xs.size <= 1:
+            return xs
+        xs_sorted = np.sort(xs)
+        for i in range(1, xs_sorted.size):
+            if xs_sorted[i] - xs_sorted[i - 1] < min_separation:
+                xs_sorted[i] = xs_sorted[i - 1] + min_separation
+        # wrap back into [0,L]
+        xs_sorted = np.clip(xs_sorted, 0.0, L)
+        return xs_sorted
 
     def decode(ind: np.ndarray):
-        xs_k = _clip_array(ind[:num_springs], 0.0, L)
-        ks = _clip_array(ind[num_springs:2 * num_springs], *k_bounds)
-        xs_c = _clip_array(ind[2 * num_springs:2 * num_springs + num_dampers], 0.0, L)
-        cs = _clip_array(ind[2 * num_springs + num_dampers:], *c_bounds)
+        xs_k = _clip(ind[:nk], 0.0, L)
+        ks = _clip(ind[nk:2 * nk], bounds.k_min, bounds.k_max)
+        xs_c = _clip(ind[2 * nk:2 * nk + nc], 0.0, L)
+        cs = _clip(ind[2 * nk + nc:], bounds.c_min, bounds.c_max)
+        if min_separation is not None:
+            xs_k = enforce_min_separation(xs_k)
+            xs_c = enforce_min_separation(xs_c)
         k_points = list(zip(xs_k.tolist(), ks.tolist()))
         c_points = list(zip(xs_c.tolist(), cs.tolist()))
         return k_points, c_points
 
     # Initialize population
     pop = np.zeros((population, dim))
-    for i in range(population):
-        # random positions and values
-        pop[i, :num_springs] = _bounded_random(0.0, L, num_springs)
-        pop[i, num_springs:2 * num_springs] = _bounded_random(*k_bounds, num_springs)
-        pop[i, 2 * num_springs:2 * num_springs + num_dampers] = _bounded_random(0.0, L, num_dampers)
-        pop[i, 2 * num_springs + num_dampers:] = _bounded_random(*c_bounds, num_dampers)
+    pop[:, :nk] = L * np.random.rand(population, nk)
+    pop[:, nk:2 * nk] = bounds.k_min + (bounds.k_max - bounds.k_min) * np.random.rand(population, nk)
+    pop[:, 2 * nk:2 * nk + nc] = L * np.random.rand(population, nc)
+    pop[:, 2 * nk + nc:] = bounds.c_min + (bounds.c_max - bounds.c_min) * np.random.rand(population, nc)
 
-    best = None
-    best_obj = np.inf
-    history = []
+    # PSO
+    vel = np.zeros_like(pop)
+    pbest = pop.copy()
+    pbest_val = np.full((population,), np.inf)
+    gbest = pop[0].copy()
+    gbest_val = np.inf
 
+    hist = []
     for it in range(max_iters):
-        objs = np.zeros(population)
+        # evaluate
         for i in range(population):
             k_points, c_points = decode(pop[i])
-            objs[i] = model.objective_from_targets(k_points, c_points, targets, omega)
+            f = model.objective_from_targets(k_points, c_points, targets, omega, force=force)
+            if f < pbest_val[i]:
+                pbest_val[i] = f
+                pbest[i] = pop[i].copy()
+            if f < gbest_val:
+                gbest_val = f
+                gbest = pop[i].copy()
 
-        # Track best
-        idx = np.argmin(objs)
-        if objs[idx] < best_obj:
-            best_obj = float(objs[idx])
-            best = pop[idx].copy()
-        history.append(best_obj)
+        hist.append(float(gbest_val))
 
-        # PSO-like position/velocity update for diversity
-        if it == 0:
-            vel = np.zeros_like(pop)
-            pbest = pop.copy()
-            pbest_val = objs.copy()
-            gbest = pop[idx].copy()
-        else:
-            w = 0.7
-            c1 = 1.4
-            c2 = 1.4
-            r1 = np.random.rand(population, dim)
-            r2 = np.random.rand(population, dim)
-            vel = w * vel + c1 * r1 * (pbest - pop) + c2 * r2 * (gbest - pop)
-            pop = pop + vel
+        # update velocities/positions
+        w, c1, c2 = 0.72, 1.4, 1.4
+        r1 = np.random.rand(population, dim)
+        r2 = np.random.rand(population, dim)
+        vel = w * vel + c1 * r1 * (pbest - pop) + c2 * r2 * (gbest - pop)
+        pop = pop + vel
 
-            # Clip by segments
-            pop[:, :num_springs] = _clip_array(pop[:, :num_springs], 0.0, L)
-            pop[:, num_springs:2 * num_springs] = _clip_array(pop[:, num_springs:2 * num_springs], *k_bounds)
-            pop[:, 2 * num_springs:2 * num_springs + num_dampers] = _clip_array(pop[:, 2 * num_springs:2 * num_springs + num_dampers], 0.0, L)
-            pop[:, 2 * num_springs + num_dampers:] = _clip_array(pop[:, 2 * num_springs + num_dampers:], *c_bounds)
+        # clip by segments
+        pop[:, :nk] = _clip(pop[:, :nk], 0.0, L)
+        pop[:, nk:2 * nk] = _clip(pop[:, nk:2 * nk], bounds.k_min, bounds.k_max)
+        pop[:, 2 * nk:2 * nk + nc] = _clip(pop[:, 2 * nk:2 * nk + nc], 0.0, L)
+        pop[:, 2 * nk + nc:] = _clip(pop[:, 2 * nk + nc:], bounds.c_min, bounds.c_max)
 
-            # Update personal and global bests
-            new_objs = np.zeros(population)
+        if min_separation is not None:
             for i in range(population):
-                k_points, c_points = decode(pop[i])
-                new_objs[i] = model.objective_from_targets(k_points, c_points, targets, omega)
-            improve = new_objs < pbest_val
-            pbest[improve] = pop[improve]
-            pbest_val[improve] = new_objs[improve]
-            gidx = int(np.argmin(pbest_val))
-            gbest = pbest[gidx].copy()
+                xs_k = enforce_min_separation(pop[i, :nk])
+                xs_c = enforce_min_separation(pop[i, 2 * nk:2 * nk + nc])
+                pop[i, :nk] = xs_k
+                pop[i, 2 * nk:2 * nk + nc] = xs_c
 
-    k_points, c_points = decode(best)
+    k_points, c_points = decode(gbest)
     return {
-        'k_points': k_points,
-        'c_points': c_points,
-        'best_objective': best_obj,
-        'history': np.array(history),
+        "k_points": k_points,
+        "c_points": c_points,
+        "best_objective": float(gbest_val),
+        "history": np.asarray(hist),
     }
-
-
-

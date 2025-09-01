@@ -576,6 +576,15 @@ class GAWorker(QThread):
         self.current_mutpb = ga_mutpb               # Current mutation probability (starts with initial value)
         self.rate_adaptation_history = []           # Track how rates change over time
         
+        # Legacy adaptive control state
+        self.mutation_scale = 0.10                  # Relative perturbation of parameter range for mutations
+        self.mutation_scale_min = 0.01              # Lower bound for mutation scale
+        self.mutation_scale_max = 0.30              # Upper bound for mutation scale
+        self.target_success_rate = 0.20             # 1/5th success rule target
+        self.adapt_smoothing = 0.20                 # EMA smoothing factor for noisy signals
+        self._ema_success_rate = None               # Exponential moving average of success rate
+        self._ema_gene_diversity = None             # Exponential moving average of normalized gene diversity
+        
         # ML/Bandit controller configuration
         self.use_ml_adaptive = use_ml_adaptive
         # Guardrail population bounds
@@ -723,7 +732,11 @@ class GAWorker(QThread):
             'surrogate_pool_factor': float(self.surrogate_pool_factor),
             'surrogate_k': int(self.surrogate_k),
             'surrogate_explore_frac': float(self.surrogate_explore_frac),
-            'surrogate_info': []           # List of dicts per generation with pool/eval counts and error
+            'surrogate_info': [],          # List of dicts per generation with pool/eval counts and error
+            # Legacy adaptive v2 metrics
+            'success_rate_history': [],
+            'gene_diversity_history': [],
+            'mutation_scale_history': []
         }
         # Record seeding method in metrics for transparency
         self.metrics['seeding_method'] = self.seeding_method
@@ -1266,8 +1279,9 @@ class GAWorker(QThread):
                     if random.random() < indpb:
                         # Get the allowed range for this parameter
                         min_val, max_val = parameter_bounds[i]
-                        # Make a small random change (up to ±10% of the parameter range)
-                        perturb = random.uniform(-0.1 * (max_val - min_val), 0.1 * (max_val - min_val))
+                        # Make a small random change using dynamic mutation scale of the parameter range
+                        scale = float(self.mutation_scale) if hasattr(self, 'mutation_scale') else 0.10
+                        perturb = random.uniform(-scale * (max_val - min_val), scale * (max_val - min_val))
                         individual[i] += perturb
                         # Make sure we stay within allowed bounds
                         individual[i] = max(min_val, min(individual[i], max_val))
@@ -2520,6 +2534,25 @@ class GAWorker(QThread):
                 # 5. REPLACEMENT: Replace old population with new one
                 population[:] = offspring
 
+                # Compute success rate: fraction of offspring that are better than their closest parent
+                success_rate = None
+                try:
+                    parent_fits = [ind.fitness.values[0] for ind in population]
+                    off_fits = [ind.fitness.values[0] for ind in offspring]
+                    improved = 0
+                    total_considered = 0
+                    for o in offspring:
+                        # compare to random parent sample as proxy (parents not stored one-to-one)
+                        p = random.choice(population)
+                        if hasattr(o.fitness, 'values') and hasattr(p.fitness, 'values'):
+                            total_considered += 1
+                            if o.fitness.values[0] < p.fitness.values[0]:
+                                improved += 1
+                    if total_considered > 0:
+                        success_rate = improved / total_considered
+                except Exception:
+                    success_rate = None
+
                 # ============================================================================
                 # STATISTICS AND MONITORING
                 # ============================================================================
@@ -2532,6 +2565,26 @@ class GAWorker(QThread):
                 min_fit = min(fits)
                 max_fit = max(fits)
 
+                # Gene diversity: average normalized std across genes
+                try:
+                    if length > 0 and len(population[0]) > 0:
+                        gene_divs = []
+                        for j in range(len(population[0])):
+                            vals = [ind[j] for ind in population]
+                            lo, hi = parameter_bounds[j]
+                            span = (hi - lo) if hi != lo else 1.0
+                            if span == 0:
+                                continue
+                            vmean = sum(vals) / len(vals)
+                            vsum2 = sum((v ** 2) for v in vals)
+                            vstd = abs(vsum2 / len(vals) - vmean ** 2) ** 0.5
+                            gene_divs.append(min(1.0, max(0.0, vstd / span)))
+                        gene_diversity = (sum(gene_divs) / len(gene_divs)) if gene_divs else 0.0
+                    else:
+                        gene_diversity = 0.0
+                except Exception:
+                    gene_diversity = 0.0
+
                 # Create a table for fitness components
                 best_idx = fits.index(min_fit)
                 best_individual = population[best_idx]
@@ -2539,87 +2592,125 @@ class GAWorker(QThread):
                 # Check if the best individual has the fitness components
                 has_components = hasattr(best_individual, 'primary_objective')
                 
-                # If adaptive rates are enabled, check if we need to adjust rates
+                # If adaptive rates are enabled, check if we need to adjust rates (legacy improved)
                 if self.adaptive_rates:
                     # Track if we found an improvement
                     improved = False
-                    
+
                     # Track best solution found
                     if min_fit < best_fitness_overall:
                         improved = True
                         best_fitness_overall = min_fit
                         best_ind_overall = tools.selBest(population, 1)[0]
                         self.update.emit(f"  New best solution found! Fitness: {best_fitness_overall:.6f}")
-                        
-                        # Reduce stagnation counter but don't reset completely when improvement is found
-                        # This ensures rates will still adapt periodically even during successful runs
+                        # Nudge stagnation down but keep history
                         self.stagnation_counter = max(0, self.stagnation_counter - 1)
                     else:
-                        # No improvement, increment stagnation counter
                         self.stagnation_counter += 1
-                        
-                    # If we've reached the stagnation limit or it's an even-numbered generation (to ensure periodic adaptation)
-                    # Force adaptation at least every 3 generations to ensure rates change during short runs
-                    if self.stagnation_counter >= self.stagnation_limit or gen % 3 == 0:
-                        # We'll adjust rates based on current convergence state:
-                        # - If population diversity is low (low std), increase mutation to explore more
-                        # - If diversity is high (high std), increase crossover to exploit more
-                        
-                        # Calculate normalized diversity (0 to 1)
+
+                    # Smooth success rate and gene diversity
+                    if success_rate is not None:
+                        if self._ema_success_rate is None:
+                            self._ema_success_rate = success_rate
+                        else:
+                            a = self.adapt_smoothing
+                            self._ema_success_rate = (1 - a) * self._ema_success_rate + a * success_rate
+                    if 'gene_diversity' in locals():
+                        if self._ema_gene_diversity is None:
+                            self._ema_gene_diversity = gene_diversity
+                        else:
+                            a = self.adapt_smoothing
+                            self._ema_gene_diversity = (1 - a) * self._ema_gene_diversity + a * gene_diversity
+
+                    # Decide if we adapt this generation: upon stagnation or periodic heartbeat
+                    heartbeat = (gen % 2 == 0)
+                    if self.stagnation_counter >= self.stagnation_limit or heartbeat:
+                        # Begin with current rates
+                        old_cx = current_cxpb
+                        old_mu = current_mutpb
+
+                        # 1) Success rule for mutation rate (1/5th rule like):
+                        if self._ema_success_rate is not None:
+                            if self._ema_success_rate < self.target_success_rate * 0.9:
+                                # Too few improvements: increase mutation
+                                self.current_mutpb = min(self.mutpb_max, self.current_mutpb * (1.0 + 0.25))
+                            elif self._ema_success_rate > self.target_success_rate * 1.1:
+                                # Too many easy improvements: reduce mutation
+                                self.current_mutpb = max(self.mutpb_min, self.current_mutpb * (1.0 - 0.20))
+
+                        # 2) Diversity-guided crossover vs mutation tradeoff
+                        div = self._ema_gene_diversity if (self._ema_gene_diversity is not None) else (std / (abs(mean) + 1e-12))
+                        # Normalize diversity to [0,1]
                         if mean > 0:
-                            normalized_diversity = min(1.0, std / mean)
+                            norm_div = min(1.0, max(0.0, div))
                         else:
-                            normalized_diversity = 0.5  # Default middle value
-                        
-                        # Adjust crossover and mutation rates based on diversity
-                        if normalized_diversity < 0.1:  # Low diversity
-                            # Increase mutation, decrease crossover to explore more
-                            self.current_mutpb = min(self.mutpb_max, self.current_mutpb * 1.5)  # Larger multiplier for more dramatic change
-                            self.current_cxpb = max(self.cxpb_min, self.current_cxpb * 0.8)     # Smaller multiplier for more dramatic change
-                            adaptation_type = "Increasing exploration (↑mutation, ↓crossover)"
-                        elif normalized_diversity > 0.3:  # High diversity
-                            # Increase crossover, decrease mutation to exploit more
-                            self.current_cxpb = min(self.cxpb_max, self.current_cxpb * 1.5)     # Larger multiplier for more dramatic change
-                            self.current_mutpb = max(self.mutpb_min, self.current_mutpb * 0.8)  # Smaller multiplier for more dramatic change
-                            adaptation_type = "Increasing exploitation (↑crossover, ↓mutation)"
+                            norm_div = 0.5
+                        if norm_div < 0.08:
+                            # Very low diversity: push exploration strongly
+                            self.current_mutpb = min(self.mutpb_max, self.current_mutpb * 1.35)
+                            self.current_cxpb = max(self.cxpb_min, self.current_cxpb * 0.90)
+                            # Also widen mutation step size
+                            self.mutation_scale = min(self.mutation_scale_max, self.mutation_scale * 1.25)
+                            adaptation_type = "Exploration boost: ↑mutation prob/scale, ↓crossover"
+                        elif norm_div > 0.35:
+                            # High diversity: push exploitation
+                            self.current_cxpb = min(self.cxpb_max, self.current_cxpb * 1.20)
+                            self.current_mutpb = max(self.mutpb_min, self.current_mutpb * 0.90)
+                            # Narrow mutation step size
+                            self.mutation_scale = max(self.mutation_scale_min, self.mutation_scale * 0.90)
+                            adaptation_type = "Exploitation tilt: ↑crossover, ↓mutation prob/scale"
                         else:
-                            # Alternate strategy: swing in opposite direction
+                            # Moderate diversity: gentle balancing with small moves
                             if gen % 2 == 0:
-                                self.current_cxpb = min(self.cxpb_max, self.current_cxpb * 1.3)
-                                self.current_mutpb = max(self.mutpb_min, self.current_mutpb * 0.9)
-                                adaptation_type = "Balanced adjustment (↑crossover, ↓mutation)"
+                                self.current_cxpb = min(self.cxpb_max, self.current_cxpb * 1.08)
+                                self.current_mutpb = max(self.mutpb_min, self.current_mutpb * 0.97)
+                                adaptation_type = "Balanced: slight ↑crossover, slight ↓mutation"
                             else:
-                                self.current_mutpb = min(self.mutpb_max, self.current_mutpb * 1.3)
-                                self.current_cxpb = max(self.cxpb_min, self.current_cxpb * 0.9)
-                                adaptation_type = "Balanced adjustment (↓crossover, ↑mutation)"
-                        
+                                self.current_mutpb = min(self.mutpb_max, self.current_mutpb * 1.08)
+                                self.current_cxpb = max(self.cxpb_min, self.current_cxpb * 0.97)
+                                adaptation_type = "Balanced: slight ↑mutation, slight ↓crossover"
+
+                        # Clamp after changes
+                        self.current_cxpb = min(self.cxpb_max, max(self.cxpb_min, self.current_cxpb))
+                        self.current_mutpb = min(self.mutpb_max, max(self.mutpb_min, self.current_mutpb))
+                        self.mutation_scale = min(self.mutation_scale_max, max(self.mutation_scale_min, self.mutation_scale))
+
                         # Log the adaptation
-                        self.update.emit(f"  Adapting rates due to {self.stagnation_counter} generations without improvement")
-                        self.update.emit(f"  New rates: crossover={self.current_cxpb:.3f}, mutation={self.current_mutpb:.3f} - {adaptation_type}")
-                        
-                        # Add visual indicators of rate changes
-                        cxpb_change = self.current_cxpb - current_cxpb
-                        mutpb_change = self.current_mutpb - current_mutpb
-                        self.update.emit(f"  ↳ Crossover: {current_cxpb:.4f} → {self.current_cxpb:.4f} ({'+' if cxpb_change > 0 else ''}{cxpb_change:.4f})")
-                        self.update.emit(f"  ↳ Mutation:  {current_mutpb:.4f} → {self.current_mutpb:.4f} ({'+' if mutpb_change > 0 else ''}{mutpb_change:.4f})")
-                        
-                        # Reset stagnation counter
-                        self.stagnation_counter = 0
-                        
-                        # Record adaptation in history
+                        self.update.emit(
+                            f"  Adaptive (legacy+): sr={self._ema_success_rate if self._ema_success_rate is not None else 'n/a':} div={self._ema_gene_diversity if self._ema_gene_diversity is not None else 'n/a':}"
+                        )
+                        self.update.emit(
+                            f"  New rates: crossover={self.current_cxpb:.3f}, mutation={self.current_mutpb:.3f}, mut_scale={self.mutation_scale:.3f} - {adaptation_type}"
+                        )
+                        cxpb_change = self.current_cxpb - old_cx
+                        mutpb_change = self.current_mutpb - old_mu
+                        self.update.emit(
+                            f"  ↳ Δcx={cxpb_change:+.4f}, Δmut={mutpb_change:+.4f}"
+                        )
+
+                        # Reset stagnation gently only if changed
+                        if self.stagnation_counter >= self.stagnation_limit:
+                            self.stagnation_counter = max(0, self.stagnation_counter - 2)
+
+                        # Record adaptation in history and metrics
                         adaptation_record = {
                             'generation': gen,
-                            'old_cxpb': current_cxpb,
-                            'old_mutpb': current_mutpb,
+                            'old_cxpb': old_cx,
+                            'old_mutpb': old_mu,
                             'new_cxpb': self.current_cxpb,
                             'new_mutpb': self.current_mutpb,
-                            'normalized_diversity': normalized_diversity,
+                            'mutation_scale': self.mutation_scale,
+                            'success_rate': self._ema_success_rate,
+                            'gene_diversity': self._ema_gene_diversity,
                             'adaptation_type': adaptation_type
                         }
                         self.rate_adaptation_history.append(adaptation_record)
-                        
                         if self.track_metrics:
                             self.metrics['adaptive_rates_history'].append(adaptation_record)
+                            if success_rate is not None:
+                                self.metrics['success_rate_history'].append(success_rate)
+                            self.metrics['gene_diversity_history'].append(self._ema_gene_diversity if self._ema_gene_diversity is not None else gene_diversity)
+                            self.metrics['mutation_scale_history'].append(self.mutation_scale)
                 else:
                     # If adaptive rates are not enabled, just track best solution
                     if min_fit < best_fitness_overall:

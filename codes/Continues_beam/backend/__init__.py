@@ -1,12 +1,8 @@
-from .model import BeamModel, TargetSpecification
-from .optimizers import optimize_values_only, optimize_placement_and_values
+"""Backend for Continuous Beam optimization (rewritten)."""
 
-__all__ = [
-    'BeamModel',
-    'TargetSpecification',
-    'optimize_values_only',
-    'optimize_placement_and_values',
-]
-
-
+from .model import BeamModel, TargetSpecification, ControlQuantity  # noqa: F401
+from .optimizers import (
+    optimize_values_at_locations,
+    optimize_placement_and_values,
+)  # noqa: F401
 
