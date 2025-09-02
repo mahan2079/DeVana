@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.3.6)  1 SEP 2025 06:45
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2025.3.6)  1 SEP 2025 16:18
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -689,36 +689,186 @@ File: tikzlibraryshapes.geometric.code.tex 2023-01-15 v3.1.10 (3.1.10)
 (c:/texlive/2024/texmf-dist/tex/generic/pgf/libraries/shapes/pgflibraryshapes.g
 eometric.code.tex
 File: pgflibraryshapes.geometric.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)) (c:/texlive/2024/texmf-dist/tex/latex/forest/forest.sty
+Package: forest 2017/07/14 v2.1.5 Drawing (linguistic) trees
+
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzli
+braryshapes.code.tex
+File: tikzlibraryshapes.code.tex 2023-01-15 v3.1.10 (3.1.10)
+
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzli
+braryshapes.misc.code.tex
+File: tikzlibraryshapes.misc.code.tex 2023-01-15 v3.1.10 (3.1.10)
+
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/libraries/shapes/pgflibraryshapes.m
+isc.code.tex
+File: pgflibraryshapes.misc.code.tex 2023-01-15 v3.1.10 (3.1.10)
 ))
-Package translations Info: No language package found. I am going to use `englis
-h' as default language. on input line 17.
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzli
+braryshapes.symbols.code.tex
+File: tikzlibraryshapes.symbols.code.tex 2023-01-15 v3.1.10 (3.1.10)
+
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/libraries/shapes/pgflibraryshapes.s
+ymbols.code.tex
+File: pgflibraryshapes.symbols.code.tex 2023-01-15 v3.1.10 (3.1.10)
+))
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzli
+braryshapes.arrows.code.tex
+File: tikzlibraryshapes.arrows.code.tex 2023-01-15 v3.1.10 (3.1.10)
+
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/libraries/shapes/pgflibraryshapes.a
+rrows.code.tex
+File: pgflibraryshapes.arrows.code.tex 2023-01-15 v3.1.10 (3.1.10)
+))
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzli
+braryshapes.callouts.code.tex
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/libraries/shapes/pgflibraryshapes.c
+allouts.code.tex))
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzli
+braryshapes.multipart.code.tex
+File: tikzlibraryshapes.multipart.code.tex 2023-01-15 v3.1.10 (3.1.10)
+
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/libraries/shapes/pgflibraryshapes.m
+ultipart.code.tex
+File: pgflibraryshapes.multipart.code.tex 2023-01-15 v3.1.10 (3.1.10)
+\pgfnodepartlowerbox=\box77
+\pgfnodeparttwobox=\box78
+\pgfnodepartthreebox=\box79
+\pgfnodepartfourbox=\box80
+\pgfnodeparttwentybox=\box81
+\pgfnodepartnineteenbox=\box82
+\pgfnodeparteighteenbox=\box83
+\pgfnodepartseventeenbox=\box84
+\pgfnodepartsixteenbox=\box85
+\pgfnodepartfifteenbox=\box86
+\pgfnodepartfourteenbox=\box87
+\pgfnodepartthirteenbox=\box88
+\pgfnodeparttwelvebox=\box89
+\pgfnodepartelevenbox=\box90
+\pgfnodeparttenbox=\box91
+\pgfnodepartninebox=\box92
+\pgfnodeparteightbox=\box93
+\pgfnodepartsevenbox=\box94
+\pgfnodepartsixbox=\box95
+\pgfnodepartfivebox=\box96
+)))
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzli
+braryfit.code.tex
+File: tikzlibraryfit.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzli
+brarycalc.code.tex
+File: tikzlibrarycalc.code.tex 2023-01-15 v3.1.10 (3.1.10)
+)
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/libraries/pgflibraryintersections.c
+ode.tex
+(c:/texlive/2024/texmf-dist/tex/generic/pgf/libraries/pgflibraryfpu.code.tex)
+\pgf@intersect@solutions=\count345
+)
+(c:/texlive/2024/texmf-dist/tex/latex/pgfopts/pgfopts.sty
+Package: pgfopts 2014/07/10 v2.1a LaTeX package options with pgfkeys
+\pgfopts@list@add@a@toks=\toks40
+\pgfopts@list@add@b@toks=\toks41
+)
+(c:/texlive/2024/texmf-dist/tex/latex/elocalloc/elocalloc.sty
+Package: elocalloc 2016/12/15 v0.03 local allocation for LaTeX 2015+ (DPC)
+)
+(c:/texlive/2024/texmf-dist/tex/latex/environ/environ.sty
+Package: environ 2014/05/04 v0.3 A new way to define environments
+
+(c:/texlive/2024/texmf-dist/tex/latex/trimspaces/trimspaces.sty
+Package: trimspaces 2009/09/17 v1.1 Trim spaces around a token list
+))
+(c:/texlive/2024/texmf-dist/tex/latex/l3packages/xparse/xparse.sty
+(c:/texlive/2024/texmf-dist/tex/latex/l3kernel/expl3.sty
+Package: expl3 2025-01-18 L3 programming layer (loader) 
 
 (c:/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2024-05-08 L3 backend support: PDF output (pdfTeX)
-\l__color_backend_stack_int=\count345
-\l__pdf_internal_box=\box77
+\l__color_backend_stack_int=\count346
+\l__pdf_internal_box=\box97
+))
+Package: xparse 2024-08-16 L3 Experimental document command parser
 )
+(c:/texlive/2024/texmf-dist/tex/latex/inlinedef/inlinedef.sty
+Package: inlinedef 2008/07/10 v1.0 Inlined expansions within definitions
+\ID@toks=\toks42
+\ID@count=\count347
+)
+\ID@usercommands=\toks43
+\safeloop@depth=\count348
+\safeRKloop@depth=\count349
+\forest@temp@dimen=\dimen295
+\forest@temp@count=\count350
+\forest@n=\count351
+\forest@temp@global@count=\count352
+\forest@temp@toks=\toks44
+\forest@temparray@M=\count353
+\forest@temparray@N=\count354
+\forest@global@temparray@M=\count355
+\forest@global@temparray@N=\count356
+\forest@isnum@count=\count357
+\forest@isdim@nonintpart=\count358
+\forest@isdim@dimen=\dimen296
+\forest@sort@m=\count359
+\forest@sort@k=\count360
+\forest@sort@p=\count361
+\bracket@content=\toks45
+\bracket@afterthought=\toks46
+\forest@node@maxid=\count362
+\forest@process@left@M=\count363
+\forest@process@left@N=\count364
+\forest@process@right@M=\count365
+\forest@process@right@N=\count366
+\forest@process@saved@M=\count367
+\forest@process@saved@N=\count368
+\forest@process@result@M=\count369
+\forest@process@result@N=\count370
+\forest@process@n=\count371
+\forest@nodewalk@branch@toks=\toks47
+\forest@nodewalk@shortsteps@resolution=\toks48
+\forest@do@dynamics=\toks49
+\forest@box=\box98
+\forest@xg=\dimen297
+\forest@yg=\dimen298
+\forest@xs=\dimen299
+\forest@ys=\dimen300
+\forest@pi@toks=\toks50
+\forest@segment@toks=\toks51
+\forest@PIi@toks=\toks52
+\forest@PIii@toks=\toks53
+\forest@copy@in=\read3
+\forest@copy@out=\write4
+\forest@externalize@max@outer@n=\count372
+\forest@externalize@inner@n=\count373
+)
+(c:/texlive/2024/texmf-dist/tex/latex/forest/forest-lib-edges.sty
+Package: forest-lib-edges 2016/12/05 v0.1.1
+)
+Package translations Info: No language package found. I am going to use `englis
+h' as default language. on input line 25.
+
 (./statisitc.aux)
 \openout1 = `statisitc.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 17.
-LaTeX Font Info:    ... okay on input line 17.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 17.
-LaTeX Font Info:    ... okay on input line 17.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 17.
-LaTeX Font Info:    ... okay on input line 17.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 17.
-LaTeX Font Info:    ... okay on input line 17.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 17.
-LaTeX Font Info:    ... okay on input line 17.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 17.
-LaTeX Font Info:    ... okay on input line 17.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 17.
-LaTeX Font Info:    ... okay on input line 17.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 17.
-LaTeX Font Info:    ... okay on input line 17.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 17.
-LaTeX Font Info:    ... okay on input line 17.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 25.
+LaTeX Font Info:    ... okay on input line 25.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 25.
+LaTeX Font Info:    ... okay on input line 25.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 25.
+LaTeX Font Info:    ... okay on input line 25.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 25.
+LaTeX Font Info:    ... okay on input line 25.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 25.
+LaTeX Font Info:    ... okay on input line 25.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 25.
+LaTeX Font Info:    ... okay on input line 25.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 25.
+LaTeX Font Info:    ... okay on input line 25.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 25.
+LaTeX Font Info:    ... okay on input line 25.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 25.
+LaTeX Font Info:    ... okay on input line 25.
 
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
@@ -756,17 +906,17 @@ LaTeX Font Info:    ... okay on input line 17.
 
 (c:/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
-\scratchcounter=\count346
-\scratchdimen=\dimen295
-\scratchbox=\box78
-\nofMPsegments=\count347
-\nofMParguments=\count348
-\everyMPshowfont=\toks40
-\MPscratchCnt=\count349
-\MPscratchDim=\dimen296
-\MPnumerator=\count350
-\makeMPintoPDFobject=\count351
-\everyMPtoPDFconversion=\toks41
+\scratchcounter=\count374
+\scratchdimen=\dimen301
+\scratchbox=\box99
+\nofMPsegments=\count375
+\nofMParguments=\count376
+\everyMPshowfont=\toks54
+\MPscratchCnt=\count377
+\MPscratchDim=\dimen302
+\MPnumerator=\count378
+\makeMPintoPDFobject=\count379
+\everyMPtoPDFconversion=\toks55
 ) (c:/texlive/2024/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
@@ -776,11 +926,11 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Liv
 e
 ))
-Package hyperref Info: Link coloring OFF on input line 17.
+Package hyperref Info: Link coloring OFF on input line 25.
 
 (./statisitc.out) (./statisitc.out)
-\@outlinefile=\write4
-\openout4 = `statisitc.out'.
+\@outlinefile=\write5
+\openout5 = `statisitc.out'.
 
 
 (c:/texlive/2024/texmf-dist/tex/latex/translations/translations-basic-dictionar
@@ -789,13 +939,13 @@ File: translations-basic-dictionary-english.trsl (english translation file `tra
 nslations-basic-dictionary')
 )
 Package translations Info: loading dictionary `translations-basic-dictionary' f
-or `english'. on input line 17.
-LaTeX Font Info:    Trying to load font information for U+msa on input line 19.
+or `english'. on input line 25.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 27.
 
  (c:/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 19.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 27.
 
 
 (c:/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd
@@ -805,273 +955,44 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 LaTeX Warning: No \author given.
 
 
-Overfull \hbox (36.25229pt too wide) in paragraph at lines 42--43
- []\OT1/cmr/bx/n/12 Implementation notes.[] \OT1/cmr/m/n/12 Fit-ness and statis
--tics are com-puted in \OT1/cmtt/m/n/12 codes/workers/GAWorker.py
- []
-
-
-Overfull \hbox (59.59932pt too wide) in paragraph at lines 42--43
-\OT1/cmr/m/n/12 us-ing \OT1/cmtt/m/n/12 numpy \OT1/cmr/m/n/12 for math, while F
-RF eval-u-a-tion is del-e-gated to \OT1/cmtt/m/n/12 modules/FRF.py \OT1/cmr/m/n
-/12 (call \OT1/cmtt/m/n/12 modules.FRF.frf\OT1/cmr/m/n/12 ).
- []
-
-
 
 [1
 
 {c:/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
-! Missing $ inserted.
-<inserted text> 
-                $
-l.45 ...andom, sobol, lhs, memory, best, neural\}}
-                                                   (see \texttt{codes/worker...
-
-? 
-! Extra }, or forgotten $.
-<recently read> \egroup 
-                        
-l.45 ...andom, sobol, lhs, memory, best, neural\}}
-                                                   (see \texttt{codes/worker...
-
-? 
-! Missing $ inserted.
-<inserted text> 
-                $
-l.46 
-     
-? 
-
-Overfull \hbox (247.94753pt too wide) in paragraph at lines 45--46
-\OT1/cmtt/m/n/12 seeding[]method $\OMS/cmsy/m/n/12 2 f\OML/cmm/m/it/12 random; 
-sobol; lhs; memory; best; neural\OMS/cmsy/m/n/12 g\OT1/cmr/m/n/12 (\OML/cmm/m/i
-t/12 see[]\OT1/cmr/m/n/12 )\OML/cmm/m/it/12 :Fixedparametersarealwaysenforced:$
- 
- []
-
-LaTeX Font Info:    Font shape `OT1/cmtt/bx/n' in size <12> not available
-(Font)              Font shape `OT1/cmtt/m/n' tried instead on input line 48.
-
-Overfull \hbox (31.0145pt too wide) in paragraph at lines 48--50
-\OT1/cmtt/m/it/12 Libraries/Code\OT1/cmtt/m/n/12 : random.uniform with bounds a
-ssembled in GAWorker; DEAP's
- []
-
-
-Overfull \hbox (21.8553pt too wide) in paragraph at lines 51--53
-[]\OT1/cmtt/m/n/12 Sobol QMC (Low-Discrepancy): sample $\OML/cmm/b/it/12 z \OMS
-/cmsy/m/n/12 2 \OT1/cmr/m/n/12 [0\OML/cmm/m/it/12 ; \OT1/cmr/m/n/12 1][]$ \OT1/
-cmtt/m/n/12 with scipy.stats.qmc.Sobol
- []
-
-
-Overfull \hbox (18.66449pt too wide) in paragraph at lines 51--53
-\OT1/cmtt/m/it/12 Libraries/Code\OT1/cmtt/m/n/12 : scipy.stats.qmc.Sobol initia
-lized lazily; scaling done
- []
-
-
-Overfull \hbox (30.88701pt too wide) in paragraph at lines 51--53
-\OT1/cmtt/m/n/12 with numpy; see helper []ensure[]qmc[]engine() and generate[]s
-eed[]individuals()
- []
-
-
-Overfull \hbox (82.75705pt too wide) in paragraph at lines 54--56
-[]\OT1/cmtt/m/n/12 Latin Hypercube (LHS): draw stratified samples with scipy.st
-ats.qmc.LatinHypercube
- []
-
-
-Overfull \hbox (135.31192pt too wide) in paragraph at lines 54--56
-\OT1/cmtt/m/n/12 and scale to $\OT1/cmr/m/n/12 [\OML/cmm/m/it/12 `[]; u[]\OT1/c
-mr/m/n/12 ]$\OT1/cmtt/m/n/12 ; apply fixed genes. - \OT1/cmtt/m/it/12 Libraries
-/Code\OT1/cmtt/m/n/12 : scipy.stats.qmc.LatinHypercube;
- []
-
-
-Overfull \hbox (27.18202pt too wide) in paragraph at lines 57--59
-[]\OT1/cmtt/m/n/12 Memory Seeding (Replay + Jitter + Explore): maintain a persi
-stent buffer
- []
-
-
-Overfull \hbox (43.97803pt too wide) in paragraph at lines 57--59
-\OT1/cmtt/m/n/12 of evaluated solutions and fitnesses (saved to seeding[]memory
-.json); propose
- []
-
-
-Overfull \hbox (39.53203pt too wide) in paragraph at lines 57--59
-\OT1/cmtt/m/n/12 initial candidates by mixing top solutions (replay), Gaussian 
-jitter around
- []
-
-
-Overfull \hbox (12.48949pt too wide) in paragraph at lines 57--59
-\OT1/cmtt/m/n/12 them (local search), and random exploration. - \OT1/cmtt/m/it/
-12 Libraries/Code\OT1/cmtt/m/n/12 : class
- []
-
-
-Overfull \hbox (39.53203pt too wide) in paragraph at lines 57--59
-\OT1/cmtt/m/n/12 MemorySeeder in codes/workers/MemorySeeder.py; created and use
-d in GAWorker
- []
-
-
-Overfull \hbox (8.65701pt too wide) in paragraph at lines 60--62
-[]\OT1/cmtt/m/n/12 Best-of-Pool (QMC Pool + Diversity Stride): generate a large
- QMC pool
- []
-
-
-Overfull \hbox (12.15955pt too wide) in paragraph at lines 60--62
-\OT1/cmtt/m/n/12 (Sobol), evaluate each candidate by [], sort by fitness, and p
-ick $\OML/cmm/m/it/12 n$ \OT1/cmtt/m/n/12 by
- []
-
-
-Overfull \hbox (27.18202pt too wide) in paragraph at lines 60--62
-\OT1/cmtt/m/n/12 stepping through the sorted list with a stride tuned for diver
-sity. When
- []
-
-
-Overfull \hbox (7.15329pt too wide) in paragraph at lines 60--62
-\OML/cmm/m/it/12 n$ \OT1/cmtt/m/n/12 is not met, backfill from best remaining. 
-- \OT1/cmtt/m/it/12 Libraries/Code\OT1/cmtt/m/n/12 : Sobol
- []
-
-
-Overfull \hbox (2.48201pt too wide) in paragraph at lines 60--62
-\OT1/cmtt/m/n/12 from scipy.stats.qmc; evaluation via toolbox.evaluate; impleme
-nted in
- []
-
-
-Overfull \hbox (8.65701pt too wide) in paragraph at lines 63--65
-[]\OT1/cmtt/m/n/12 Neural Seeding (Surrogate-Guided): train an ensemble surroga
-te online
- []
-
-
-Overfull \hbox (55.08794pt too wide) in paragraph at lines 63--65
-\OT1/cmtt/m/n/12 from $\OT1/cmr/m/n/12 (\OML/cmm/b/it/12 x\OML/cmm/m/it/12 ; f\
-OT1/cmr/m/n/12 (\OML/cmm/b/it/12 x\OT1/cmr/m/n/12 ))$ \OT1/cmtt/m/n/12 pairs an
-d propose candidates by an acquisition function (UCB/EI)
- []
-
-
-Overfull \hbox (32.68059pt too wide) in paragraph at lines 63--65
-\OT1/cmtt/m/n/12 with an exploration fraction $\OML/cmm/m/it/12 "$ \OT1/cmtt/m/
-n/12 optionally adapted by stagnation/diversity;
- []
-
-
-Overfull \hbox (0.13948pt too wide) in paragraph at lines 63--65
-\OT1/cmtt/m/n/12 supports gradient-based refinement. - \OT1/cmtt/m/it/12 Librar
-ies/Code\OT1/cmtt/m/n/12 : NeuralSeeder
- []
-
-
-Overfull \hbox (27.18202pt too wide) in paragraph at lines 63--65
-\OT1/cmtt/m/n/12 in codes/workers/NeuralSeeder.py (PyTorch backend), configured
- and called
- []
-
-Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
-put line 68.
-
 
 [2{c:/texlive/2024/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc}]
-Overfull \hbox (99.58176pt too wide) in paragraph at lines 120--121
- [] 
+Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
+put line 85.
+
+Overfull \hbox (7.41759pt too wide) in paragraph at lines 131--131
+ [][][] 
+ []
+
+
+Overfull \hbox (9.21219pt too wide) in paragraph at lines 131--131
+ [][][] 
+ []
+
+
+Overfull \hbox (3.9805pt too wide) in paragraph at lines 131--131
+ [][][] 
  []
 
 
 
 [3]
-Overfull \hbox (26.10077pt too wide) in paragraph at lines 129--130
- []\OT1/cmr/bx/n/12 Crossover (Blend).[] \OT1/cmtt/m/n/12 For parents $\OML/cmm
-/b/it/12 x\OML/cmm/m/it/12 ; \OML/cmm/b/it/12 y$ \OT1/cmtt/m/n/12 and $\OML/cmm
-/m/it/12 ^^L \OMS/cmsy/m/n/12 2 \OT1/cmr/m/n/12 [0\OML/cmm/m/it/12 ; \OT1/cmr/m
-/n/12 1]$ \OT1/cmtt/m/n/12 (code uses $\OML/cmm/m/it/12 ^^L \OT1/cmr/m/n/12 = 0
-\OML/cmm/m/it/12 :\OT1/cmr/m/n/12 5$\OT1/cmtt/m/n/12 ), offspring
- []
-
-
-Overfull \hbox (0.13948pt too wide) in paragraph at lines 132--133
-[]\OT1/cmtt/m/it/12 Libraries/Code\OT1/cmtt/m/n/12 : deap.tools.cxBlend with al
-pha=0.5; repair of bounds
- []
-
-
-Overfull \hbox (21.12007pt too wide) in paragraph at lines 135--136
- []\OT1/cmr/bx/n/12 Mutation.[] \OT1/cmtt/m/n/12 With probability $\OML/cmm/m/i
-t/12 p[]$ \OT1/cmtt/m/n/12 per individual, and per-gene probability $\OML/cmm/m
-/it/12 p[]$
- []
-
-
-Overfull \hbox (15.81111pt too wide) in paragraph at lines 136--138
-\OT1/cmtt/m/n/12 where $\OT1/cmr/m/n/12 ^^A[] = \OML/cmm/m/it/12 u[] \OMS/cmsy/
-m/n/12 ^^@ \OML/cmm/m/it/12 `[]$ \OT1/cmtt/m/n/12 and $\OML/cmm/m/it/12 ^^Q$ \O
-T1/cmtt/m/n/12 is the dynamic mutation scale (mutation[]scale). Fixed
- []
-
-
-Overfull \hbox (4.58548pt too wide) in paragraph at lines 139--140
-[]\OT1/cmtt/m/it/12 Libraries/Code\OT1/cmtt/m/n/12 : custom mutate[]individual 
-in GAWorker; randomness via
+Overfull \hbox (139.59703pt too wide) detected at line 158
+[]
  []
 
 
 
 [4]
-Overfull \hbox (97.95175pt too wide) in paragraph at lines 168--169
- []\OT1/cmr/bx/n/12 Implementation notes.[] \OT1/cmtt/m/n/12 The FRF is compute
-d by modules.FRF.frf (file codes/modules/FRF.py)
- []
-
-
-Overfull \hbox (28.68234pt too wide) in paragraph at lines 168--169
-\OT1/cmtt/m/n/12 using the full five-mass target structure passed from the GUI.
- GAWorker guards
- []
-
-
-Overfull \hbox (22.50734pt too wide) in paragraph at lines 168--169
-\OT1/cmtt/m/n/12 evaluations for thread pause/abort and records component-wise 
-values (primary
- []
-
-
-Overfull \hbox (12.78084pt too wide) in paragraph at lines 171--172
-\OT1/cmtt/m/n/12 Let $\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 p[]; p[]; N\OT1/cmr/m/n
-/12 )$ \OT1/cmtt/m/n/12 denote crossover prob., mutation prob., and population 
-size. 
- []
-
-
-Overfull \hbox (13.42415pt too wide) in paragraph at lines 174--175
-\OT1/cmtt/m/n/12 Maintain an EMA of success rate $[]$ and gene diversity $[]$. 
-Every heartbeat or
- []
-
-
-Overfull \hbox (31.00359pt too wide) in paragraph at lines 182--183
-\OT1/cmtt/m/n/12 Define a discrete action set $\OMS/cmsy/m/n/12 A \OT1/cmr/m/n/
-12 = \OMS/cmsy/m/n/12 f\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 ^^N[]; ^^N[]; ^^Z\OT1/
-cmr/m/n/12 )\OMS/cmsy/m/n/12 g$ \OT1/cmtt/m/n/12 to scale $\OT1/cmr/m/n/12 (\OM
-L/cmm/m/it/12 p[]; p[]; N\OT1/cmr/m/n/12 )$\OT1/cmtt/m/n/12 . For action
- []
-
-
 
 [5]
-Overfull \hbox (89.0597pt too wide) detected at line 187
+
+[6]
+Overfull \hbox (96.61536pt too wide) detected at line 263
 \OML/cmm/m/it/12 p[] \OMS/cmsy/m/n/12   [][]\OML/cmm/m/it/12 p[]\OT1/cmr/m/n/12
  (1 + \OML/cmm/m/it/12 ^^N[]\OT1/cmr/m/n/12 )\OML/cmm/m/it/12 ; \OT1/cmr/m/n/12
  [[][]\OML/cmm/m/it/12 ; []\OT1/cmr/m/n/12 ][]\OML/cmm/m/it/12 ;  p[] \OMS/cmsy
@@ -1083,237 +1004,110 @@ T1/cmr/m/n/12 )\OML/cmm/m/it/12 ; \OT1/cmr/m/n/12 [[][]\OML/cmm/m/it/12 ; []\OT
  []
 
 
-Overfull \hbox (11.50171pt too wide) in paragraph at lines 200--201
- []\OT1/cmr/bx/n/12 Implementation notes.[] \OT1/cmtt/m/n/12 Implemented direct
-ly in GAWorker without external ML
- []
-
-
-Overfull \hbox (3.98233pt too wide) in paragraph at lines 200--201
-\OT1/cmtt/m/n/12 libraries. Uses math.sqrt/math.log for UCB, and logs decisions
-/rates into
- []
-
-
-Overfull \hbox (6.69933pt too wide) in paragraph at lines 200--201
-\OT1/cmtt/m/n/12 metrics['ml[]controller[]history']. Optional resizing calls th
-e same seeding
- []
-
-
-Overfull \hbox (22.32231pt too wide) in paragraph at lines 203--204
-\OT1/cmtt/m/n/12 States $\OML/cmm/m/it/12 s \OMS/cmsy/m/n/12 2 f\OT1/cmr/m/n/12
- 0\OML/cmm/m/it/12 ; \OT1/cmr/m/n/12 1\OMS/cmsy/m/n/12 g$ \OT1/cmtt/m/n/12 enco
-de coarse progress; actions are as above. Epsilon-greedy
- []
-
-
-Overfull \hbox (48.55173pt too wide) in paragraph at lines 214--215
- []\OT1/cmr/bx/n/12 Implementation notes.[] \OT1/cmtt/m/n/12 Implemented in GAW
-orker as a lightweight tabular Q-learner
- []
-
-
-Overfull \hbox (10.15733pt too wide) in paragraph at lines 214--215
-\OT1/cmtt/m/n/12 with two coarse states and the same discrete action space as t
-he ML bandit.
- []
-
-
-Overfull \hbox (10.15733pt too wide) in paragraph at lines 214--215
-\OT1/cmtt/m/n/12 No external RL libraries are used. Epsilon decays each generat
-ion; updates
- []
-
-
-
-[6]
-Overfull \hbox (28.68234pt too wide) in paragraph at lines 236--237
-\OT1/cmtt/m/n/12 In generations with invalid offspring and sufficient history, 
-GAWorker screens
- []
-
-
-Overfull \hbox (67.80452pt too wide) in paragraph at lines 236--237
-\OT1/cmtt/m/n/12 a candidate pool by a $\OML/cmm/m/it/12 k$\OT1/cmtt/m/n/12 NN 
-surrogate in the normalized cube. Let $[]$ be the normalized
- []
-
-
-Overfull \hbox (6.42122pt too wide) in paragraph at lines 237--239
-\OT1/cmtt/m/n/12 where $\OMS/cmsy/m/n/12 N[]$ \OT1/cmtt/m/n/12 indexes the $\OM
-L/cmm/m/it/12 k$ \OT1/cmtt/m/n/12 nearest neighbors among past evaluations. Sel
-ect $\OML/cmm/m/it/12 q$
- []
-
-
-Overfull \hbox (29.5802pt too wide) in paragraph at lines 237--239
-\OT1/cmtt/m/n/12 candidates with the lowest $[]$ (exploitation) and a remainder
- by maximum novelty
- []
-
-
-Overfull \hbox (5.66554pt too wide) in paragraph at lines 251--252
- []\OT1/cmr/bx/n/12 Implementation notes.[] \OT1/cmtt/m/n/12 The $\OML/cmm/m/it
-/12 k$\OT1/cmtt/m/n/12 NN surrogate is coded from first principles in
- []
-
-
-Overfull \hbox (50.92241pt too wide) in paragraph at lines 251--252
-\OT1/cmtt/m/n/12 GAWorker (no scikit-learn dependency): vectors are normalized 
-to $\OT1/cmr/m/n/12 [0\OML/cmm/m/it/12 ; \OT1/cmr/m/n/12 1][]$\OT1/cmtt/m/n/12 
-, Euclidean
- []
-
-
-Overfull \hbox (16.67117pt too wide) in paragraph at lines 251--252
-\OT1/cmtt/m/n/12 distances are computed with simple loops, and the mean of the 
-$\OML/cmm/m/it/12 k$ \OT1/cmtt/m/n/12 nearest past
- []
-
-
-Overfull \hbox (3.5191pt too wide) in paragraph at lines 251--252
-\OT1/cmtt/m/n/12 fitnesses is used. Exploration fraction $\OML/cmm/m/it/12 ^^X$
- \OT1/cmtt/m/n/12 and pool size factor are set by
- []
-
-
-Overfull \hbox (33.35703pt too wide) in paragraph at lines 255--256
-[]\OT1/cmtt/m/n/12 Threading and GUI: GAWorker inherits from PyQt5.QtCore.QThre
-ad. Progress,
- []
-
-
-Overfull \hbox (39.53203pt too wide) in paragraph at lines 255--256
-\OT1/cmtt/m/n/12 logs, and results are emitted to the GUI via Qt signals. A wat
-chdog QTimer
- []
-
-
 
 [7]
-Overfull \hbox (21.00702pt too wide) in paragraph at lines 256--257
-[]\OT1/cmtt/m/n/12 Metrics: When enabled, psutil is used to record CPU load, me
-mory usage,
- []
-
-
-Overfull \hbox (21.00702pt too wide) in paragraph at lines 256--257
-\OT1/cmtt/m/n/12 I/O, network, and thread counts at intervals; timings per gene
-ration and
- []
-
-
-Overfull \hbox (27.18202pt too wide) in paragraph at lines 257--258
-[]\OT1/cmtt/m/n/12 DEAP safety: A decorator resets deap.creator state between r
-uns to avoid
- []
-
-
-Overfull \hbox (64.23204pt too wide) in paragraph at lines 262--263
-[]\OT1/cmtt/m/n/12 Evolutionary core: DEAP (deap.base, deap.creator, deap.tools
-) for individuals,
- []
-
-
-Overfull \hbox (45.70703pt too wide) in paragraph at lines 263--264
-[]\OT1/cmtt/m/n/12 Sampling: scipy.stats.qmc (Sobol, LHS) for QMC; random for u
-niform seeding. 
- []
-
-
-Overfull \hbox (45.70703pt too wide) in paragraph at lines 264--265
-[]\OT1/cmtt/m/n/12 Math/data: numpy, pandas for arrays and tabular outputs; mat
-plotlib/seaborn
- []
-
-
-Overfull \hbox (45.70703pt too wide) in paragraph at lines 265--266
-[]\OT1/cmtt/m/n/12 GUI/threads/timers: PyQt5 (Widgets, Core, GUI) for applicati
-on scaffolding. 
- []
-
-
-Overfull \hbox (8.65701pt too wide) in paragraph at lines 266--267
-[]\OT1/cmtt/m/n/12 System metrics: psutil for CPU/memory/IO/network; platform f
-or system
- []
-
-
 
 [8]
-Overfull \hbox (38.06325pt too wide) in paragraph at lines 304--305
-\OT1/cmtt/m/n/12 An ensemble surrogate is trained incrementally from $\OT1/cmr/
-m/n/12 (\OML/cmm/b/it/12 x\OML/cmm/m/it/12 ; f\OT1/cmr/m/n/12 (\OML/cmm/b/it/12
- x\OT1/cmr/m/n/12 ))$ \OT1/cmtt/m/n/12 pairs. Acquisition
+
+[9]
+Overfull \hbox (87.6958pt too wide) in paragraph at lines 390--391
+[]\OT1/cmr/m/n/12 Seeding: \OT1/cmtt/m/n/12 lhs\OT1/cmr/m/n/12 . Sur-ro-gate: \
+OT1/cmtt/m/n/12 use[]surrogate=true\OT1/cmr/m/n/12 , \OT1/cmtt/m/n/12 surrogate
+[]k=7\OT1/cmr/m/n/12 , \OT1/cmtt/m/n/12 surrogate[]pool[]factor=2.5\OT1/cmr/m/n
+/12 ,
  []
 
 
-Overfull \hbox (1.71703pt too wide) in paragraph at lines 304--305
-\OT1/cmtt/m/n/12 functions include UCB and EI. Given $\OML/cmm/m/it/12 ^^L \OMS
-/cmsy/m/n/12 2 \OT1/cmr/m/n/12 [\OML/cmm/m/it/12 ^^L[]; ^^L[]\OT1/cmr/m/n/12 ]$
- \OT1/cmtt/m/n/12 and exploration fraction
- []
-
-
-Overfull \hbox (40.35591pt too wide) in paragraph at lines 304--305
-\OML/cmm/m/it/12 "$ \OT1/cmtt/m/n/12 (optionally adapted with stagnation), prop
-ose a pool and select by acquisition
+Overfull \hbox (7.7208pt too wide) in paragraph at lines 391--392
+[]\OT1/cmr/m/n/12 Adaptive: \OT1/cmtt/m/n/12 use[]ml[]adaptive=true\OT1/cmr/m/n
+/12 , \OT1/cmtt/m/n/12 ml[]ucb[]c=0.6\OT1/cmr/m/n/12 , \OT1/cmtt/m/n/12 ml[]ada
+pt[]population=true\OT1/cmr/m/n/12 ,
  []
 
 
 
-[9] (./statisitc.aux)
+[10]
+Overfull \hbox (5.09248pt too wide) in paragraph at lines 404--405
+[]\OT1/cmr/m/n/12 Seeding: \OT1/cmtt/m/n/12 memory \OT1/cmr/m/n/12 (re-play + j
+it-ter + ex-plore). Sur-ro-gate: \OT1/cmtt/m/n/12 k=5\OT1/cmr/m/n/12 , \OT1/cmt
+t/m/n/12 pool[]factor=3.0\OT1/cmr/m/n/12 ,
+ []
+
+
+Overfull \hbox (40.28586pt too wide) in paragraph at lines 405--406
+[]\OT1/cmr/m/n/12 Adaptive: \OT1/cmtt/m/n/12 use[]rl[]controller=true\OT1/cmr/m
+/n/12 , \OT1/cmtt/m/n/12 rl[]alpha=0.1\OT1/cmr/m/n/12 , \OT1/cmtt/m/n/12 rl[]ga
+mma=0.9\OT1/cmr/m/n/12 , \OT1/cmtt/m/n/12 rl[]epsilon=0.2\OT1/cmr/m/n/12 ,
+ []
+
+
+Overfull \hbox (46.1776pt too wide) in paragraph at lines 411--412
+[]\OT1/cmr/m/n/12 Seeding: \OT1/cmtt/m/n/12 neural\OT1/cmr/m/n/12 , \OT1/cmtt/m
+/n/12 neural[]acq[]type=ucb\OT1/cmr/m/n/12 , \OT1/cmtt/m/n/12 neural[]adapt[]ep
+silon=true \OT1/cmr/m/n/12 (\OT1/cmtt/m/n/12 eps[]min=0.05\OT1/cmr/m/n/12 ,
+ []
+
+
+Overfull \hbox (70.49849pt too wide) in paragraph at lines 412--413
+[]\OT1/cmr/m/n/12 Surrogate: \OT1/cmtt/m/n/12 k=5\OT1/cmr/m/n/12 , \OT1/cmtt/m/
+n/12 pool[]factor=2.0\OT1/cmr/m/n/12 , \OT1/cmtt/m/n/12 explore[]frac=0.15\OT1/
+cmr/m/n/12 . Adap-tive: \OT1/cmtt/m/n/12 use[]ml[]adaptive=true\OT1/cmr/m/n/12 
+,
+ []
+
+
+Overfull \hbox (23.3373pt too wide) in paragraph at lines 413--414
+\OT1/cmr/m/n/12 silon adapts to stag-na-tion; the ban-dit tunes cx/mut/pop to m
+ax-i-mize improvement-
+ []
+
+
+Overfull \hbox (66.05249pt too wide) in paragraph at lines 419--420
+[]\OT1/cmr/m/n/12 Surrogate: \OT1/cmtt/m/n/12 k=7\OT1/cmr/m/n/12 , \OT1/cmtt/m/
+n/12 pool[]factor=2.0\OT1/cmr/m/n/12 , \OT1/cmtt/m/n/12 explore[]frac=0.10\OT1/
+cmr/m/n/12 . Adap-tive: \OT1/cmtt/m/n/12 adaptive[]rates=true\OT1/cmr/m/n/12 ,
+ []
+
+
+
+[11] (./statisitc.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
-
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
-
-Package rerunfilecheck Warning: File `statisitc.out' has changed.
-(rerunfilecheck)                Rerun to get outlines right
-(rerunfilecheck)                or use package `bookmark'.
-
-Package rerunfilecheck Info: Checksums for `statisitc.out':
-(rerunfilecheck)             Before: C4F25DB7A146121D8E6FE468D89D6F76;2006
-(rerunfilecheck)             After:  FBB8F831CCF1B132B6D96B30E2C3E598;2475.
- )
-(\end occurred inside a group at level 1)
-
-### simple group (level 1) entered at line 45 ({)
-### bottom level 
+Package rerunfilecheck Info: File `statisitc.out' has not changed.
+(rerunfilecheck)             Checksum: D8B990B2B19404587DB89B6C25945D57;2612.
+ ) 
 Here is how much of TeX's memory you used:
- 26508 strings out of 473201
- 539368 string characters out of 5720300
- 896238 words of memory out of 5000000
- 49323 multiletter control sequences out of 15000+600000
- 574429 words of font info for 94 fonts, out of 8000000 for 9000
+ 37402 strings out of 473201
+ 844962 string characters out of 5720300
+ 1202750 words of memory out of 5000000
+ 60123 multiletter control sequences out of 15000+600000
+ 576741 words of font info for 101 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 84i,12n,91p,513b,1180s stack positions out of 10000i,1000n,20000p,200000b,200000s
-<c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx
-12.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb><
-c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><c:/texliv
-e/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmitt10.pfb><c:/texlive/2024/t
-exmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb><c:/texlive/2024/texmf-dist
-/fonts/type1/public/amsfonts/cm/cmmi6.pfb><c:/texlive/2024/texmf-dist/fonts/typ
-e1/public/amsfonts/cm/cmmi8.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/
-amsfonts/cm/cmmib10.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts
-/cmextra/cmmib8.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/
-cmr10.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb>
-<c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb><c:/texliv
-e/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb><c:/texlive/2024/texm
-f-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb><c:/texlive/2024/texmf-dist/fo
-nts/type1/public/amsfonts/cm/cmsy6.pfb><c:/texlive/2024/texmf-dist/fonts/type1/
-public/amsfonts/cm/cmsy8.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/ams
-fonts/cm/cmtt12.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/
-cmtt8.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sfrm1200.pfb>
-Output written on statisitc.pdf (9 pages, 247164 bytes).
+ 124i,14n,130p,1630b,1653s stack positions out of 10000i,1000n,20000p,200000b,200000s
+<c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb><c:/tex
+live/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb><c:/texlive/202
+4/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><c:/texlive/2024/texmf-d
+ist/fonts/type1/public/amsfonts/cm/cmmi10.pfb><c:/texlive/2024/texmf-dist/fonts
+/type1/public/amsfonts/cm/cmmi12.pfb><c:/texlive/2024/texmf-dist/fonts/type1/pu
+blic/amsfonts/cm/cmmi6.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfo
+nts/cm/cmmi8.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmm
+ib10.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmmib8
+.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb><c:/t
+exlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb><c:/texlive/202
+4/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb><c:/texlive/2024/texmf-di
+st/fonts/type1/public/amsfonts/cm/cmr8.pfb><c:/texlive/2024/texmf-dist/fonts/ty
+pe1/public/amsfonts/cm/cmsy10.pfb><c:/texlive/2024/texmf-dist/fonts/type1/publi
+c/amsfonts/cm/cmsy6.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts
+/cm/cmsy8.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12
+.pfb><c:/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb><c:/
+texlive/2024/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb><c:/texl
+ive/2024/texmf-dist/fonts/type1/public/cm-super/sfrm1200.pfb>
+Output written on statisitc.pdf (11 pages, 280938 bytes).
 PDF statistics:
- 229 PDF objects out of 1000 (max. 8388607)
- 178 compressed objects within 2 object streams
- 45 named destinations out of 1000 (max. 500000)
- 101 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 267 PDF objects out of 1000 (max. 8388607)
+ 211 compressed objects within 3 object streams
+ 62 named destinations out of 1000 (max. 500000)
+ 117 words of extra memory for PDF output out of 10000 (max. 10000000)
 
