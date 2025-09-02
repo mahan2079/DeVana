@@ -11,6 +11,14 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric}
 
+\usepackage[edges]{forest}
+\usetikzlibrary{arrows.meta,shapes.geometric}
+\tikzset{
+  decision/.style={draw,diamond,aspect=2,inner sep=1pt,align=center},
+  block/.style={draw,rounded corners,inner sep=3pt,align=center,text width=26mm}
+}
+
+
 \title{Methodology: Enhanced Genetic Algorithm with Adaptive Controllers (GAWorker)}
 \date{}
 
@@ -98,24 +106,31 @@ We train a fast approximation model (a small neural network ensemble) that learn
 
 \paragraph{Seeding decision tree.}
 \begin{center}
-\begin{tikzpicture}[node distance=10mm, line/.style={-Latex}, decision/.style={diamond,draw,aspect=2,inner sep=1pt,align=center}, block/.style={rectangle,draw,rounded corners,inner sep=3pt,align=center}]
-\node[decision] (allfix) {All genes fixed?};
-\node[block,right=18mm of allfix] (fixed) {Replicate fixed vector $n$ times};
-\draw[line] (allfix) -- node[above]{yes} (fixed);
-\node[decision,below=10mm of allfix] (method) {Method $M$};
-\draw[line] (allfix) -- node[left]{no} (method);
-\node[block,below left=10mm and 18mm of method] (rand) {Random uniform};
-\node[block,below=10mm of method] (qmc) {Sobol/LHS QMC + scale};
-\node[block,below right=10mm and 18mm of method] (mem) {Memory seeding};
-\node[block,right=30mm of qmc] (best) {Best-of-pool};
-\node[block,left=30mm of qmc] (neural) {Neural seeding};
-\draw[line] (method.west) --++ (-5mm,0) |- node[pos=.25,left]{Random} (rand);
-\draw[line] (method) -- node[right]{Sobol/LHS} (qmc);
-\draw[line] (method.east) --++ (5mm,0) |- node[pos=.25,right]{Memory} (mem);
-\draw[line] (method.north east) --++ (15mm,5mm) |- node[pos=.2,right]{Best} (best);
-\draw[line] (method.north west) --++ (-15mm,5mm) |- node[pos=.2,left]{Neural} (neural);
-\end{tikzpicture}
+\resizebox{\linewidth}{!}{%
+\begin{forest}
+for tree={
+  font=\small,
+  align=center,
+  s sep=7mm,          % horizontal separation
+  l sep=9mm,          % vertical separation
+  edge={-Latex},      % arrow tips
+  anchor=north,
+}
+[All genes fixed?, decision
+  [Replicate fixed\\vector $n$ times, block,
+    edge label={node[midway,above]{yes}}]
+  [Method $M$, decision, edge label={node[midway,left]{no}}
+    [Random uniform, block, edge label={node[pos=.7,above]{Random}}, tier=one]
+    [Sobol/LHS QMC\\+ scale, block, edge label={node[pos=.7,above]{Sobol/LHS}}, tier=one]
+    [Memory seeding, block, edge label={node[pos=.7,above]{Memory}}, tier=one]
+    [Neural seeding, block, edge label={node[pos=.8,below]{Neural}}, tier=two]
+    [Best-of-pool, block, edge label={node[pos=.8,below]{Best}}, tier=two]
+  ]
+]
+\end{forest}%
+}
 \end{center}
+
 
 \subsection{Neural seeding in detail (beginner-friendly)}
 \label{sec:neural-detail}
@@ -292,9 +307,32 @@ States $s\in\{0,1\}$ encode coarse progress; actions are as above. Epsilon-greed
 \end{center}
 
 \section{Surrogate-Assisted Screening}
-In generations with invalid offspring and sufficient history, GAWorker screens a candidate pool by a $k$NN surrogate in the normalized cube. Let $\tilde{\bm{x}}$ be the normalized vector with $\tilde{x}_i=(x_i-\ell_i)/(u_i-\ell_i)$. For a candidate $\bm{z}$, predict
-\[ \hat{f}(\bm{z}) = \frac{1}{k} \sum_{j \in \mathcal{N}_k(\tilde{\bm{z}})} y_j, \qquad y_j = f(\bm{x}^{(j)}), \]
-where $\mathcal{N}_k$ indexes the $k$ nearest neighbors among past evaluations. Select $q$ candidates with the lowest $\hat{f}$ (exploitation) and a remainder by maximum novelty (largest minimum distance to the training set).
+When the genetic algorithm (GA) produces new offspring that have not yet been evaluated (i.e., "invalid" individuals), and there is a sufficiently large history of past evaluated solutions, the GAWorker uses a surrogate-assisted screening process to decide which candidates to actually evaluate with the expensive objective function. This process is designed to save computation by focusing evaluations on the most promising or diverse candidates.
+
+\textbf{Surrogate Model:}  
+GAWorker constructs a simple $k$-nearest neighbors (kNN) surrogate model using the archive of previously evaluated individuals. All parameter vectors $\bm{x}$ are first normalized to the unit hypercube $[0,1]^d$ using
+\[
+\tilde{x}_i = \frac{x_i - \ell_i}{u_i - \ell_i}
+\]
+where $\ell_i$ and $u_i$ are the lower and upper bounds for parameter $i$. For any candidate solution $\bm{z}$, its predicted fitness $\hat{f}(\bm{z})$ is computed as the average fitness of its $k$ nearest neighbors in the normalized space:
+\[
+\hat{f}(\bm{z}) = \frac{1}{k} \sum_{j \in \mathcal{N}_k(\tilde{\bm{z}})} y_j, \qquad y_j = f(\bm{x}^{(j)})
+\]
+where $\mathcal{N}_k(\tilde{\bm{z}})$ denotes the indices of the $k$ closest archived samples to $\tilde{\bm{z}}$.
+
+\textbf{Screening Procedure:}
+\begin{itemize}
+    \item \emph{Pool Construction:} GAWorker generates a pool of candidate offspring by applying crossover, mutation, and cloning until the pool size reaches $\lceil \rho q \rceil$, where $q$ is the number of evaluations to perform and $\rho > 1$ is a pool factor (e.g., 2).
+    \item \emph{Surrogate Prediction:} For each candidate in the pool, the kNN surrogate predicts its fitness $\hat{f}$.
+    \item \emph{Exploitation vs. Exploration:} The $q$ candidates to be evaluated are chosen as follows:
+    \begin{itemize}
+        \item A fraction $q_e = \lfloor (1-\xi)q \rfloor$ (where $\xi$ is the exploration fraction, e.g., 0.15) are selected with the lowest predicted $\hat{f}$ (i.e., most promising according to the surrogate).
+        \item The remaining $q_x = q - q_e$ are selected for diversity: these are the candidates with the largest minimum distance to any point in the archive (i.e., most novel).
+    \end{itemize}
+    \item \emph{Evaluation and Replacement:} Only these $q$ selected candidates are evaluated with the true objective function, and their results are used to replace the invalid offspring in the population.
+\end{itemize}
+
+This surrogate screening strategy, as implemented in \texttt{GAWorker.py}, allows the algorithm to balance exploitation (focusing on candidates likely to improve the objective) and exploration (sampling novel regions of the search space), while reducing the number of expensive function evaluations per generation.
 
 \begin{algorithm}[H]
 \caption{Surrogate screening of invalid offspring}
@@ -342,5 +380,47 @@ where $\mathcal{N}_k$ indexes the $k$ nearest neighbors among past evaluations. 
 
 \section{Neural Seeding (optional)}\label{sec:neural}
 An ensemble surrogate is trained incrementally from $(\bm{x},f(\bm{x}))$ pairs. Acquisition functions include UCB and EI. Given $\beta\in[\beta_{\min},\beta_{\max}]$ and exploration fraction $\varepsilon$ (optionally adapted with stagnation), propose a pool and select by acquisition and diversity; newly evaluated samples augment the training set.
+
+\subsection{Recommended Seeding–Surrogate–Adaptation Recipes}
+\label{sec}
+\begin{enumerate}
+
+\item \textbf{LHS + kNN surrogate + ML–UCB}
+\begin{itemize}
+\item Seeding: \texttt{lhs}. Surrogate: \texttt{use\_surrogate=true}, \texttt{surrogate\_k=7}, \texttt{surrogate\_pool\_factor=2.5}, \texttt{surrogate\_explore\_frac=0.15}.
+\item Adaptive: \texttt{use\_ml\_adaptive=true}, \texttt{ml\_ucb\_c=0.6}, \texttt{ml\_adapt\_population=true}, \texttt{pop\_min}, $\approx 0.75N$, \texttt{pop\_max}, $\approx 1.25N$.
+\item Rationale: LHS provides stratified coverage that stabilizes kNN predictions; UCB balances exploration/exploitation with low regret, adapting rates and population to improve improvement-per-evaluation.
+\end{itemize}
+
+\item \textbf{Sobol + kNN surrogate (explorative) + heuristic adaptive rates}
+\begin{itemize}
+\item Seeding: \texttt{sobol}. Surrogate: \texttt{k=5}, \texttt{pool\_factor=2.0}, \texttt{explore\_frac=0.30}.
+\item Adaptive: \texttt{adaptive\_rates=true}, \texttt{stagnation\_limit=5}, diversity-driven increase in mutation when coefficient of variation is low.
+\item Rationale: Low-discrepancy Sobol seeds reduce initial clustering; higher surrogate exploration mitigates model bias on multimodal landscapes; diversity-based heuristics sustain global search.
+\end{itemize}
+
+\item \textbf{Memory seeding + kNN surrogate + RL controller}
+\begin{itemize}
+\item Seeding: \texttt{memory} (replay + jitter + explore). Surrogate: \texttt{k=5}, \texttt{pool\_factor=3.0}, \texttt{explore\_frac=0.20}.
+\item Adaptive: \texttt{use\_rl\_controller=true}, \texttt{rl\_alpha=0.1}, \texttt{rl\_gamma=0.9}, \texttt{rl\_epsilon=0.2}, \texttt{rl\_epsilon\_decay=0.95}, \texttt{pop\_min}, $\approx 0.75N$, \texttt{pop\_max}, $\approx 1.25N$.
+\item Rationale: Warm starts exploit prior data to cut cold-start cost; RL learns effective rate/pop moves from rewards shaped by improvement, time, and diversity, reducing wasted evaluations.
+\end{itemize}
+
+\item \textbf{Neural seeding (UCB, epsilon-adaptive) + kNN surrogate + ML–UCB}
+\begin{itemize}
+\item Seeding: \texttt{neural}, \texttt{neural\_acq\_type=ucb}, \texttt{neural\_adapt\_epsilon=true} (\texttt{eps\_min=0.05}, \texttt{eps\_max=0.30}), \texttt{neural\_pool\_mult=3.0}.
+\item Surrogate: \texttt{k=5}, \texttt{pool\_factor=2.0}, \texttt{explore\_frac=0.15}. Adaptive: \texttt{use\_ml\_adaptive=true}, \texttt{ml\_ucb\_c=0.6}, \texttt{ml\_adapt\_population=true}.
+\item Rationale: Model-guided seeds (UCB) deliver high-utility, diverse starts; epsilon adapts to stagnation; the bandit tunes cx/mut/pop to maximize improvement-per-cost while the surrogate prunes weak offspring.
+\end{itemize}
+
+\item \textbf{Best-of-pool QMC seeding + kNN surrogate (exploit-heavy) + heuristic adaptive rates}
+\begin{itemize}
+\item Seeding: \texttt{best}, \texttt{best\_pool\_mult=5.0}, \texttt{best\_diversity\_frac=0.20}.
+\item Surrogate: \texttt{k=7}, \texttt{pool\_factor=2.0}, \texttt{explore\_frac=0.10}. Adaptive: \texttt{adaptive\_rates=true}, \texttt{stagnation\_limit=4}.
+\item Rationale: A broader QMC pool evaluated with the true objective yields a strong and diverse initial population; then a more exploitative surrogate accelerates convergence, while diversity-triggered rate changes maintain search breadth.
+\end{itemize}
+
+\end{enumerate}
+
 
 \end{document}

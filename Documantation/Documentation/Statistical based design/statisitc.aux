@@ -5,38 +5,49 @@
 \@writefile{toc}{\contentsline {section}{\numberline {1}Optimization Problem}{1}{section.1}\protected@file@percent }
 \newlabel{eq:fitness}{{1}{1}{Optimization Problem}{equation.1}{}}
 \@writefile{toc}{\contentsline {paragraph}{Diversity and statistics.}{1}{section*.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Plain-language view.}{1}{section*.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Implementation notes.}{2}{section*.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {2}Initialization (Seeding)}{2}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Why seeding matters (plain language).}{2}{section*.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Fixed parameters.}{2}{section*.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Random (uniform inside bounds).}{2}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Sobol (low-discrepancy) sampling.}{2}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Latin Hypercube Sampling (LHS).}{2}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Memory seeding (replay + jitter + explore).}{3}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Best-of-pool (QMC pool + diversity stride).}{3}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Neural seeding (surrogate-guided).}{3}{section*.10}\protected@file@percent }
 \@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces GenerateSeedIndividuals($n$)}}{3}{algorithm.1}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces NeuralSeeder: propose($n$, acquisition)}}{3}{algorithm.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Seeding decision tree.}{3}{section*.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3}Evolutionary Operators}{4}{section.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Selection.}{4}{section*.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Crossover (Blend).}{4}{section*.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Mutation.}{4}{section*.7}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {3}{\ignorespaces One Generation (selection, crossover, mutation, repair)}}{5}{algorithm.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4}Fitness Evaluation}{5}{section.4}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {4}{\ignorespaces EvaluateIndividual($\bm  {x}$)}}{5}{algorithm.4}\protected@file@percent }
-\newlabel{alg:evaluate}{{4}{5}{Fitness Evaluation}{algorithm.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Implementation notes.}{5}{section*.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5}Adaptive Hyperparameter Control}{5}{section.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Legacy heuristic (success/diversity driven)}{5}{subsection.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}ML Bandit controller (UCB)}{6}{subsection.5.2}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {5}{\ignorespaces ML Bandit step}}{6}{algorithm.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Implementation notes.}{6}{section*.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}RL controller (Q-learning)}{6}{subsection.5.3}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {6}{\ignorespaces RL step}}{6}{algorithm.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Implementation notes.}{6}{section*.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Controller decision tree.}{7}{section*.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6}Surrogate-Assisted Screening}{7}{section.6}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {7}{\ignorespaces Surrogate screening of invalid offspring}}{7}{algorithm.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Implementation notes.}{7}{section*.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7}Safety, Threads, and Metrics}{8}{section.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8}Implementation and Libraries (at a glance)}{8}{section.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Surrogate decision.}{8}{section*.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {9}Complete Algorithm}{9}{section.9}\protected@file@percent }
-\@writefile{loa}{\contentsline {algorithm}{\numberline {8}{\ignorespaces GAWorker main loop}}{9}{algorithm.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {10}Neural Seeding (optional)}{9}{section.10}\protected@file@percent }
-\newlabel{sec:neural}{{10}{9}{Neural Seeding (optional)}{section.10}{}}
-\gdef \@abspage@last{9}
+\@writefile{toc}{\contentsline {paragraph}{Seeding decision tree.}{3}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Neural seeding in detail (beginner-friendly)}{4}{subsection.2.1}\protected@file@percent }
+\newlabel{sec:neural-detail}{{2.1}{4}{Neural seeding in detail (beginner-friendly)}{subsection.2.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Intuition.}{4}{section*.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Model (ensemble surrogate).}{4}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Training (fast, incremental).}{4}{section*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Acquisition functions (choose where to sample).}{4}{section*.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Candidate generation and selection.}{5}{section*.16}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces NeuralSeeder: propose($n$)}}{5}{algorithm.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Neural seeding workflow.}{5}{section*.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{When to use which seeding method?}{6}{section*.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Evolutionary Operators}{6}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Selection.}{6}{section*.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Crossover (Blend).}{6}{section*.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Mutation.}{6}{section*.21}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {3}{\ignorespaces One Generation (selection, crossover, mutation, repair)}}{6}{algorithm.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Fitness Evaluation}{7}{section.4}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {4}{\ignorespaces EvaluateIndividual($\bm  {x}$)}}{7}{algorithm.4}\protected@file@percent }
+\newlabel{alg:evaluate}{{4}{7}{Fitness Evaluation}{algorithm.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Adaptive Hyperparameter Control}{7}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Legacy heuristic (success/diversity driven)}{7}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}ML Bandit controller (UCB)}{7}{subsection.5.2}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {5}{\ignorespaces ML Bandit step}}{7}{algorithm.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}RL controller (Q-learning)}{8}{subsection.5.3}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {6}{\ignorespaces RL step}}{8}{algorithm.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Controller decision tree.}{8}{section*.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Surrogate-Assisted Screening}{8}{section.6}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {7}{\ignorespaces Surrogate screening of invalid offspring}}{9}{algorithm.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Surrogate decision.}{9}{section*.23}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Complete Algorithm}{10}{section.7}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {8}{\ignorespaces GAWorker main loop}}{10}{algorithm.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Neural Seeding (optional)}{10}{section.8}\protected@file@percent }
+\newlabel{sec:neural}{{8}{10}{Neural Seeding (optional)}{section.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Recommended Seeding–Surrogate–Adaptation Recipes}{10}{subsection.8.1}\protected@file@percent }
+\newlabel{sec}{{8.1}{10}{Recommended Seeding–Surrogate–Adaptation Recipes}{subsection.8.1}{}}
+\gdef \@abspage@last{11}

@@ -1278,6 +1278,16 @@ class GAOptimizationMixin:
         self.rv_bins_box.setRange(5, 200)
         self.rv_bins_box.setValue(50)
         self.rv_bins_box.setToolTip("Histogram bins for visualizations")
+        # Separate tolerance for Random Validation (independent of GA tolerance)
+        self.rv_tol_box = QDoubleSpinBox()
+        self.rv_tol_box.setRange(0.0, 1e9)
+        self.rv_tol_box.setDecimals(6)
+        self.rv_tol_box.setSingleStep(0.0001)
+        try:
+            self.rv_tol_box.setValue(self.ga_tol_box.value())
+        except Exception:
+            self.rv_tol_box.setValue(1.0)
+        self.rv_tol_box.setToolTip("Tolerance threshold used to classify samples as PASS in Random Validation. This is independent from GA tolerance.")
 
         # Action buttons
         rv_btn_row = QWidget()
@@ -1305,8 +1315,16 @@ class GAOptimizationMixin:
         rv_controls_layout.addRow("Alpha:", self.rv_alpha_box)
         rv_controls_layout.addRow("Respect Fixed:", self.rv_respect_fixed_chk)
         rv_controls_layout.addRow("Histogram bins:", self.rv_bins_box)
+        rv_controls_layout.addRow("Tolerance:", self.rv_tol_box)
         rv_controls_layout.addRow("", rv_btn_row)
         rv_controls_layout.addRow("Progress:", self.rv_progress_bar)
+
+        # Auto-refresh plots when bins/tolerance change
+        try:
+            self.rv_bins_box.valueChanged.connect(self.refresh_random_validation_views)
+            self.rv_tol_box.valueChanged.connect(self.refresh_random_validation_views)
+        except Exception:
+            pass
 
         # Right: Result views
         rv_views_widget = QWidget()
@@ -1735,7 +1753,7 @@ class GAOptimizationMixin:
             'seed': seed,
             'alpha': alpha,
             'respect_fixed': respect_fixed,
-            'tol': self.ga_tol_box.value(),
+            'tol': self.rv_tol_box.value(),
             'param_names': param_names,
             'fixed_flags': fixed_flags,
             'num_samples': num_samples,
@@ -1761,7 +1779,7 @@ class GAOptimizationMixin:
             self.rv_cancel_button.setEnabled(False)
             return
         self.rv_results_df = df
-        tol = self.ga_tol_box.value()
+        tol = self.rv_tol_box.value()
         df['pass'] = df['fitness'].apply(lambda v: bool(np.isfinite(v) and v <= tol))
         pct = float(100.0 * df['pass'].mean()) if len(df) else 0.0
         self.rv_success_bar.setValue(int(round(pct)))
@@ -1833,7 +1851,9 @@ class GAOptimizationMixin:
         fig1 = Figure(figsize=(6, 4))
         ax1 = fig1.add_subplot(111)
         sns.histplot(df['fitness'], kde=True, bins=self.rv_bins_box.value(), ax=ax1, color='skyblue', edgecolor='darkblue', alpha=0.6)
-        ax1.axvline(self.ga_tol_box.value(), color='magenta', linestyle='--', linewidth=2.0, alpha=0.9, label='Tolerance')
+        # Highlight within-tolerance region (from 0 to tolerance)
+        ax1.axvspan(0.0, tol, facecolor='palegreen', alpha=0.25, label='Within tolerance')
+        ax1.axvline(tol, color='magenta', linestyle='--', linewidth=2.0, alpha=0.9, label='Tolerance')
         ax1.set_title('Fitness Distribution')
         ax1.set_xlabel('Fitness')
         ax1.set_ylabel('Frequency')
@@ -1936,8 +1956,21 @@ class GAOptimizationMixin:
         df = self.rv_results_df
         fig = Figure(figsize=(6, 4))
         ax = fig.add_subplot(111)
-        sns.scatterplot(x=df[param], y=df['fitness'], ax=ax, alpha=0.6, edgecolor=None)
-        ax.axhline(self.ga_tol_box.value(), color='magenta', linestyle='--', linewidth=2.0, alpha=0.9)
+        # Shade region within tolerance
+        tol = self.rv_tol_box.value()
+        try:
+            xmin = float(np.nanmin(df[param].values)) if len(df) else 0.0
+            xmax = float(np.nanmax(df[param].values)) if len(df) else 1.0
+        except Exception:
+            xmin, xmax = 0.0, 1.0
+        ax.axhspan(0.0, tol, facecolor='palegreen', alpha=0.25, label='Within tolerance')
+        # Color points by pass/fail
+        sns.scatterplot(
+            x=df[param], y=df['fitness'], hue=df['fitness'] <= tol,
+            palette={True: 'tab:green', False: 'tab:red'}, legend=False,
+            ax=ax, alpha=0.6, edgecolor=None
+        )
+        ax.axhline(tol, color='magenta', linestyle='--', linewidth=2.0, alpha=0.9)
         ax.set_xlabel(param)
         ax.set_ylabel('Fitness')
         ax.set_title(f'{param} vs Fitness')
@@ -1956,6 +1989,68 @@ class GAOptimizationMixin:
                 QMessageBox.information(self, "Export", f"Saved to {path}")
             except Exception as e:
                 QMessageBox.critical(self, "Export Error", str(e))
+    
+    def refresh_random_validation_views(self):
+        """Refresh validation plots and summary based on current tolerance/bins."""
+        try:
+            if self.rv_results_df is None or self.rv_results_df.empty:
+                return
+            # Recompute pass column
+            tol = self.rv_tol_box.value()
+            df = self.rv_results_df.copy()
+            df['pass'] = df['fitness'].apply(lambda v: bool(np.isfinite(v) and v <= tol))
+            self.rv_results_df = df
+            # Update success bar and summary header only
+            pct = float(100.0 * df['pass'].mean()) if len(df) else 0.0
+            self.rv_success_bar.setValue(int(round(pct)))
+            # Update summary label tolerance display only (keep other stats)
+            try:
+                html = self.rv_summary_label.text()
+                if "Tolerance:" in html:
+                    # Replace tolerance value in the first occurrence
+                    import re
+                    html = re.sub(r"Tolerance: [0-9eE+\-\.]+", f"Tolerance: {tol:.6f}", html, count=1)
+                    self.rv_summary_label.setText(html)
+            except Exception:
+                pass
+            # Redraw plots
+            # Fitness distribution
+            fig1 = Figure(figsize=(6, 4))
+            ax1 = fig1.add_subplot(111)
+            sns.histplot(df['fitness'], kde=True, bins=self.rv_bins_box.value(), ax=ax1, color='skyblue', edgecolor='darkblue', alpha=0.6)
+            # Highlight within-tolerance region (from 0 to tolerance)
+            ax1.axvspan(0.0, tol, facecolor='palegreen', alpha=0.25, label='Within tolerance')
+            ax1.axvline(tol, color='magenta', linestyle='--', linewidth=2.0, alpha=0.9, label='Tolerance')
+            ax1.set_title('Fitness Distribution')
+            ax1.set_xlabel('Fitness')
+            ax1.set_ylabel('Frequency')
+            ax1.grid(True, linestyle='--', alpha=0.5)
+            ax1.legend()
+            fig1.tight_layout()
+            self._render_figure_into_widget(self.rv_fitdist_plot, fig1)
+            # Components plot: only bins change
+            fig2 = Figure(figsize=(10, 3))
+            axes = fig2.subplots(1, 3)
+            comp_cols = ['primary_objective', 'sparsity_penalty', 'percentage_error_sum']
+            titles = ['Primary Objective', 'Sparsity Penalty', 'Percentage Error Sum']
+            for ax, col, title in zip(axes, comp_cols, titles):
+                sns.histplot(
+                    df[col], kde=False,
+                    bins=max(10, self.rv_bins_box.value() // 2),
+                    ax=ax, color='lightgreen', edgecolor='darkgreen', alpha=0.6,
+                )
+                try:
+                    sns.kdeplot(df[col].dropna(), ax=ax, color='purple', linewidth=2.0)
+                except Exception:
+                    pass
+                ax.set_title(title)
+                ax.grid(True, linestyle='--', alpha=0.5)
+            fig2.tight_layout()
+            self._render_figure_into_widget(self.rv_comp_plot, fig2)
+            # Scatter plot refresh
+            self.update_random_validation_scatter()
+        except Exception as _:
+            pass
     def toggle_ga_fixed(self, state, row, table=None):
         """Toggle the fixed state of a GA parameter row"""
         if table is None:
