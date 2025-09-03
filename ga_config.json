@@ -6,7 +6,7 @@
     "generations": 150,
     "cxpb": 0.7,
     "mutpb": 0.2,
-    "tol": 0.25,
+    "tol": 0.1,
     "alpha": 0.02,
     "percentage_error_scale": 1000.0,
     "adaptive_rates": false,
@@ -23,329 +23,329 @@
       "fixed": false,
       "fixed_value": 0.0,
       "low": 3.3e-05,
-      "high": 0.000872
+      "high": 0.007408
     },
     {
       "name": "beta_2",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 6.6e-05,
-      "high": 0.001623
+      "low": 0.001623,
+      "high": 0.006285
     },
     {
       "name": "beta_3",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.000152,
-      "high": 0.003899
+      "low": 0.000817,
+      "high": 0.010573
     },
     {
       "name": "beta_4",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.023774,
-      "high": 0.024332
+      "high": 0.238843
     },
     {
       "name": "beta_5",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.023237,
-      "high": 0.03339
+      "low": 0.03339,
+      "high": 0.13646
     },
     {
       "name": "beta_6",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.023777,
-      "high": 0.038657
+      "high": 0.132403
     },
     {
       "name": "beta_7",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.010617,
-      "high": 0.02366
+      "high": 0.102849
     },
     {
       "name": "beta_8",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.018754,
-      "high": 0.030214
+      "high": 0.105686
     },
     {
       "name": "beta_9",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.025157,
-      "high": 0.051172
+      "high": 0.137523
     },
     {
       "name": "beta_10",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.024324,
-      "high": 0.025229
+      "low": 0.025229,
+      "high": 0.141866
     },
     {
       "name": "beta_11",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.005589,
-      "high": 0.011324
+      "high": 0.07422
     },
     {
       "name": "beta_12",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.009477,
-      "high": 0.014171
+      "low": 0.014171,
+      "high": 0.080106
     },
     {
       "name": "beta_13",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.007997,
-      "high": 0.018432
+      "high": 0.112607
     },
     {
       "name": "beta_14",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.006468,
-      "high": 0.009486
+      "high": 0.081609
     },
     {
       "name": "beta_15",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.01877,
-      "high": 0.040368
+      "high": 0.139689
     },
     {
       "name": "lambda_1",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.013219,
-      "high": 0.088562
+      "high": 0.326373
     },
     {
       "name": "lambda_2",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.040276,
-      "high": 0.067055
+      "high": 0.289212
     },
     {
       "name": "lambda_3",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.107677,
-      "high": 0.11732
+      "low": 0.11732,
+      "high": 0.518977
     },
     {
       "name": "lambda_4",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.011342,
-      "high": 0.029659
+      "high": 0.342146
     },
     {
       "name": "lambda_5",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.004834,
-      "high": 0.014047
+      "high": 0.151825
     },
     {
       "name": "lambda_6",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.006267,
-      "high": 0.008334
+      "low": 0.001759,
+      "high": 0.087451
     },
     {
       "name": "lambda_7",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.004366,
-      "high": 0.005468
+      "high": 0.064872
     },
     {
       "name": "lambda_8",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.000584,
-      "high": 0.013204
+      "low": 0.009322,
+      "high": 0.045122
     },
     {
       "name": "lambda_9",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.00026,
-      "high": 0.003172
+      "low": 0.003093,
+      "high": 0.049919
     },
     {
       "name": "lambda_10",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.000864,
-      "high": 0.005483
+      "low": 0.005483,
+      "high": 0.036185
     },
     {
       "name": "lambda_11",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.001199,
-      "high": 0.010126
+      "high": 0.035088
     },
     {
       "name": "lambda_12",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.002251,
-      "high": 0.004066
+      "high": 0.033368
     },
     {
       "name": "lambda_13",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.004708,
-      "high": 0.004759
+      "high": 0.068468
     },
     {
       "name": "lambda_14",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.003651,
-      "high": 0.004308
+      "high": 0.035198
     },
     {
       "name": "lambda_15",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.002871,
-      "high": 0.003955
+      "high": 0.04358
     },
     {
       "name": "mu_1",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.006737,
-      "high": 0.028349
+      "high": 0.184601
     },
     {
       "name": "mu_2",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.018244,
-      "high": 0.03068
+      "high": 0.142282
     },
     {
       "name": "mu_3",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.015543,
-      "high": 0.029414
+      "low": 0.029414,
+      "high": 0.112126
     },
     {
       "name": "nu_1",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.005003,
-      "high": 0.00736
+      "low": 0.003252,
+      "high": 0.033401
     },
     {
       "name": "nu_2",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.005028,
-      "high": 0.01052
+      "high": 0.052677
     },
     {
       "name": "nu_3",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.007198,
-      "high": 0.009209
+      "low": 0.009129,
+      "high": 0.056414
     },
     {
       "name": "nu_4",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.004236,
-      "high": 0.00425
+      "high": 0.045622
     },
     {
       "name": "nu_5",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.00184,
-      "high": 0.01388
+      "low": 0.006106,
+      "high": 0.04246
     },
     {
       "name": "nu_6",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.00302,
-      "high": 0.005422
+      "low": 0.005422,
+      "high": 0.048217
     },
     {
       "name": "nu_7",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.00555,
-      "high": 0.009387
+      "low": 0.003485,
+      "high": 0.032907
     },
     {
       "name": "nu_8",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.003686,
-      "high": 0.007193
+      "low": 0.002739,
+      "high": 0.036818
     },
     {
       "name": "nu_9",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.002558,
-      "high": 0.00952
+      "high": 0.036399
     },
     {
       "name": "nu_10",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.002149,
-      "high": 0.005055
+      "low": 0.001728,
+      "high": 0.045256
     },
     {
       "name": "nu_11",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.003649,
-      "high": 0.008117
+      "low": 0.008117,
+      "high": 0.03559
     },
     {
       "name": "nu_12",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.000668,
-      "high": 0.00145
+      "low": 0.00145,
+      "high": 0.047521
     },
     {
       "name": "nu_13",
       "fixed": false,
       "fixed_value": 0.0,
       "low": 0.005157,
-      "high": 0.00662
+      "high": 0.040403
     },
     {
       "name": "nu_14",
       "fixed": false,
       "fixed_value": 0.0,
-      "low": 0.001777,
-      "high": 0.003254
+      "low": 0.0,
+      "high": 0.017662
     },
     {
       "name": "nu_15",
@@ -355,6 +355,6 @@
       "high": 0.0
     }
   ],
-  "export_timestamp": "2025-09-02T06:14:36",
+  "export_timestamp": "2025-09-03T09:55:12",
   "type": "ga_config"
 }

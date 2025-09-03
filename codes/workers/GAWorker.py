@@ -147,8 +147,8 @@ import json
 # Import datetime from the datetime module, for working with dates and times.
 from datetime import datetime
 
-# Import sqrt and log functions from the math module for mathematical operations.
-from math import sqrt, log
+# Import sqrt, log, and ceil functions from the math module for mathematical operations.
+from math import sqrt, log, ceil
 
 # Import a large set of widgets and GUI components from PyQt5.QtWidgets.
 # These are used to build the application's graphical user interface.
@@ -210,6 +210,8 @@ from scipy.stats import qmc
 # Import NeuralSeeder from a local module in the same package.
 # This is likely a custom class for initializing neural networks or populations.
 from .NeuralSeeder import NeuralSeeder
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 # -----------------------------------------------------------------------------------------------
 
@@ -376,6 +378,12 @@ class GAWorker(QThread):
         rl_gamma=0.9,               # RL discount factor
         rl_epsilon=0.2,             # RL exploration rate
         rl_epsilon_decay=0.95,      # RL epsilon decay per episode
+        # RL reward shaping weights (optional; RL-only)
+        rl_w1=1.0,                  # Weight for normalized objective improvement term
+        rl_w2=0.0,                  # Weight for normalized diversity change term
+        rl_w3=0.0,                  # Weight for inverse generation time term
+        rl_w4=None,                 # Weight for |cv - cv*| penalty (defaults to ml_diversity_weight)
+        rl_cv_target=None,          # Target coefficient of variation for RL (defaults to ml_diversity_target)
         # Surrogate-assisted screening parameters
         use_surrogate=False,        # Enable surrogate model for screening
         surrogate_pool_factor=2.0,  # Pool size multiplier for surrogate screening
@@ -596,6 +604,9 @@ class GAWorker(QThread):
         self.ml_diversity_target = ml_diversity_target
         self.ml_historical_weight = ml_historical_weight
         self.ml_current_weight = ml_current_weight
+        # ML bandit performance controls
+        self.ml_update_interval = 3  # adapt rates every N generations
+        self.ml_pop_update_interval = 5  # resize population every M generations
 
         # Reinforcement learning controller configuration
         self.use_rl_controller = use_rl_controller
@@ -603,6 +614,27 @@ class GAWorker(QThread):
         self.rl_gamma = float(rl_gamma)
         self.rl_epsilon = float(rl_epsilon)
         self.rl_epsilon_decay = float(rl_epsilon_decay)
+        # RL reward weights and targets (fallback to ML counterparts where appropriate)
+        try:
+            self.rl_w1 = float(rl_w1)
+        except Exception:
+            self.rl_w1 = 1.0
+        try:
+            self.rl_w2 = float(rl_w2)
+        except Exception:
+            self.rl_w2 = 0.0
+        try:
+            self.rl_w3 = float(rl_w3)
+        except Exception:
+            self.rl_w3 = 0.0
+        try:
+            self.rl_w4 = float(rl_w4) if rl_w4 is not None else float(self.ml_diversity_weight)
+        except Exception:
+            self.rl_w4 = float(self.ml_diversity_weight)
+        try:
+            self.rl_cv_target = float(rl_cv_target) if rl_cv_target is not None else float(self.ml_diversity_target)
+        except Exception:
+            self.rl_cv_target = float(self.ml_diversity_target)
 
         # Surrogate configuration
         self.use_surrogate = use_surrogate
@@ -765,6 +797,14 @@ class GAWorker(QThread):
         # Create metrics tracking timer
         self.metrics_timer = QTimer()
         self.metrics_timer_interval = 500  # milliseconds
+        self.metrics_verbose = False
+        self.log_component_table_every_n = 5
+        # Persistent executor for parallel fitness evaluation (reduces per-call overhead)
+        self._executor = None
+        self._eval_workers = None
+        # History/window controls
+        self.metrics_window = 200  # keep last N generations of metrics/history
+        self.surrogate_dataset_max = 3000  # cap KNN memory to avoid O(N) blowup
         
     def __del__(self):
         """
@@ -847,6 +887,13 @@ class GAWorker(QThread):
         # Like turning off the microwave timer
         if self.watchdog_timer.isActive():
             self.watchdog_timer.stop()
+        # Shutdown persistent executor if it exists
+        try:
+            if self._executor is not None:
+                self._executor.shutdown(wait=False, cancel_futures=True)
+                self._executor = None
+        except Exception:
+            pass
  
     # The 'run' method is the main entry point for executing the genetic algorithm (GA) optimization.
     # It is decorated with @safe_deap_operation to ensure that any exceptions or errors during DEAP (the GA framework) operations
@@ -998,6 +1045,10 @@ class GAWorker(QThread):
             # This is like setting up our workshop with all the tools we'll need
             toolbox = base.Toolbox()
 
+            # Thread-safe FRF evaluation cache to avoid recomputing identical individuals
+            frf_cache = {}
+            cache_lock = threading.Lock()
+
             # Define how to generate random parameter values
             # This is like having a recipe for creating new potential solutions
             def attr_float(i):
@@ -1088,7 +1139,21 @@ class GAWorker(QThread):
 
                 # Convert our solution into a tuple (immutable list) for the FRF analysis
                 # This is like preparing the robot for testing
-                dva_parameters_tuple = tuple(individual)
+                dva_parameters_tuple = tuple(float(v) for v in individual)
+
+                # Fast path: check cache for identical parameter vector
+                try:
+                    with cache_lock:
+                        cached = frf_cache.get(dva_parameters_tuple)
+                    if cached is not None:
+                        primary_objective, sparsity_penalty, percentage_error_component, fitness_value = cached
+                        # Restore component attributes for reporting
+                        individual.primary_objective = primary_objective
+                        individual.sparsity_penalty = sparsity_penalty
+                        individual.percentage_error = percentage_error_component
+                        return (fitness_value,)
+                except Exception:
+                    pass
 
                 try:
                     
@@ -1239,6 +1304,12 @@ class GAWorker(QThread):
                     # 3. Percentage error sum: Sum of all percentage differences from target values (scaled by percentage_error_scale)
                     # Lower score = better solution (like golf scoring)
                     fitness = primary_objective + sparsity_penalty + percentage_error_sum/self.percentage_error_scale
+                    # Memoize results for identical parameter vectors
+                    try:
+                        with cache_lock:
+                            frf_cache[dva_parameters_tuple] = (primary_objective, sparsity_penalty, individual.percentage_error, float(fitness))
+                    except Exception:
+                        pass
                     return (fitness,)
                 except Exception as e:
                     # If anything goes wrong (like  math error or invalid input)
@@ -1258,6 +1329,30 @@ class GAWorker(QThread):
             # - mutate: How we randomly tweak solutions to explore new possibilities
             # - select: How we choose which solutions get to reproduce
             toolbox.register("evaluate", evaluate_individual)  # Our scoring function
+
+            # Parallel evaluator to utilize multiple CPU cores for fitness evaluations
+            def parallel_evaluate(individuals):
+                if not individuals:
+                    return []
+                # Determine worker count once; retain at least 1
+                workers = getattr(self, '_eval_workers', None)
+                if workers is None:
+                    try:
+                        cpu_n = os.cpu_count() or 1
+                    except Exception:
+                        cpu_n = 1
+                    # Leave one core free for UI/OS
+                    workers = max(1, cpu_n - 1)
+                    self._eval_workers = workers
+                if workers <= 1:
+                    return [toolbox.evaluate(ind) for ind in individuals]
+                # Reuse a persistent executor to avoid per-call creation overhead
+                if self._executor is None:
+                    try:
+                        self._executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="gaeval")
+                    except Exception:
+                        self._executor = ThreadPoolExecutor(max_workers=workers)
+                return list(self._executor.map(toolbox.evaluate, individuals))
             toolbox.register("mate", tools.cxBlend, alpha=0.5)  # Blend two solutions together
 
             # ============================================================================
@@ -1404,7 +1499,7 @@ class GAWorker(QThread):
                         return [creator.Individual([float(row[i]) for i in range(len(parameter_bounds))]) for row in seeds]
                     # Best-of-Pool: sample a large pool then evaluate and choose the best pop
                     if self.seeding_method == "best":
-                        pool_n = int(max(count, math.ceil(getattr(self, 'best_pool_mult', 5.0) * count)))
+                        pool_n = int(max(count, ceil(getattr(self, 'best_pool_mult', 5.0) * count)))
                         pool = []
                         # draw QMC
                         m = int(np.ceil(np.log2(max(1, pool_n))))
@@ -1419,7 +1514,7 @@ class GAWorker(QThread):
                         for row in scaled:
                             pool.append(creator.Individual([float(row[i]) for i in range(len(parameter_bounds))]))
                         # Evaluate pool
-                        fits = list(map(toolbox.evaluate, pool))
+                        fits = parallel_evaluate(pool)
                         for ind, fit in zip(pool, fits):
                             ind.fitness.values = fit
                         pool_sorted = sorted(pool, key=lambda ind: ind.fitness.values[0])
@@ -1642,7 +1737,7 @@ class GAWorker(QThread):
             #    - The fitness function is applied to each individual using the DEAP toolbox.
             #    - The results are assigned to the individual's fitness attribute.
             self.update.emit("Evaluating initial population...")
-            fitnesses = list(map(toolbox.evaluate, population))
+            fitnesses = parallel_evaluate(population)
             for ind, fit in zip(population, fitnesses):
                 ind.fitness.values = fit  # Assign the computed fitness to the individual
 
@@ -1767,86 +1862,29 @@ class GAWorker(QThread):
                     # - If an action has never been tried, assign it infinite score to ensure exploration.
                     # - Otherwise, compute a comprehensive reward that considers improvement, speed, diversity, and effort,
                     #   similar to the RL reward system, plus the UCB exploration bonus.
-                    scores = []
-                    # --- Extensive Explanation and Comments for ML Bandit Action Selection (UCB) ---
-
-                    # Loop over all possible actions in the ML bandit action space.
-                    # Each action is a tuple (dcx, dmu, pm) representing:
-                    #   - dcx: relative change to crossover probability (cxpb)
-                    #   - dmu: relative change to mutation probability (mutpb)
-                    #   - pm:  population size multiplier
-                    # For each action, we will compute a "score" that combines:
-                    #   - The average reward observed for this action so far (exploitation)
-                    #   - An exploration bonus (UCB) to encourage trying less-tested actions
-                    # The action with the highest score will be selected for the next generation.
+                    # Compute the best action in a single pass to avoid per-generation list building and sorting
+                    best_score = -float('inf')
+                    best_idx = 0
                     for i, _ in enumerate(ml_actions):
                         if ml_counts[i] == 0:
-                            # --- Exploration: If this action has never been tried, assign it infinite score ---
-                            # This ensures that every action is tried at least once before the algorithm
-                            # starts to favor actions with higher observed rewards.
-                            scores.append((float('inf'), i))
+                            score = float('inf')
                         else:
-                            # --- Exploitation: Compute the average reward for this action so far ---
-                            # ml_sums[i]: cumulative reward for this action
-                            # ml_counts[i]: number of times this action has been selected
                             avg = ml_sums[i] / ml_counts[i]
-
-                            # --- Reward Calculation: Incorporate current generation statistics if available ---
-                            # The reward is designed to reflect not just improvement in fitness,
-                            # but also speed, diversity, and efficiency, similar to RL reward shaping.
-                            # This makes the bandit controller sensitive to multiple objectives.
                             try:
-                                # The following variables are expected to be available in the local scope:
-                                #   - mean: mean fitness of the current generation
-                                #   - std: standard deviation of fitness (diversity)
-                                #   - min_fit: best (lowest) fitness in the current generation
-                                #   - gen_time: time taken for the current generation
-                                #   - evals_this_gen: number of fitness evaluations in this generation
-                                #   - self.ml_diversity_weight: weight for diversity penalty
-                                #   - self.ml_diversity_target: target coefficient of variation for diversity
-                                #   - self.metrics['best_fitness_per_gen']: history of best fitness per generation
-                                # The reward is calculated as follows:
-                                #   - imp: improvement in best fitness compared to previous generation
-                                #   - cv: coefficient of variation (std/mean), a measure of diversity
-                                #   - effort: number of evaluations (to penalize expensive actions)
-                                #   - reward: improvement per unit time, normalized by effort, minus diversity penalty
                                 last_best = self.metrics['best_fitness_per_gen'][-2] if len(self.metrics['best_fitness_per_gen']) > 1 else None
-                                # Calculate improvement: how much did the best fitness improve this generation?
                                 imp = (last_best - min_fit) if (last_best is not None and last_best > min_fit) else 0.0
-                                # Calculate coefficient of variation (diversity measure)
                                 cv = std / (abs(mean) + 1e-12)
-                                # Calculate effort: number of fitness evaluations (avoid division by zero)
                                 effort = max(1.0, evals_this_gen)
-                                # Calculate reward:
-                                #   - (imp / gen_time): improvement per second
-                                #   - / effort: normalized by number of evaluations (efficiency)
-                                #   - - diversity penalty: penalize deviation from target diversity
                                 reward = (imp / max(gen_time, 1e-6)) / effort - self.ml_diversity_weight * abs(cv - self.ml_diversity_target)
-                                # Blend the running average reward with the current reward for stability:
-                                #   - Use user-defined weights for historical average and current reward
                                 blended = self.ml_historical_weight * avg + self.ml_current_weight * reward
                             except Exception:
-                                # If any variable is missing or an error occurs, fall back to average reward only
                                 blended = avg
-
-                            # --- UCB (Upper Confidence Bound) Exploration Bonus ---
-                            # The UCB bonus encourages exploration of less-tried actions.
-                            # It is proportional to sqrt(log(total_selections) / action_selections).
-                            #   - self.ml_ucb_c: exploration parameter (higher = more exploration)
-                            #   - ml_t: total number of action selections so far (time step)
-                            #   - ml_counts[i]: number of times this action has been selected
-                            # The bonus decreases as an action is selected more often.
                             bonus = self.ml_ucb_c * sqrt(log(max(ml_t, 1)) / ml_counts[i])
-
-                            # --- Final Score: Blended reward + UCB bonus ---
-                            # The action's score is the sum of exploitation (reward) and exploration (bonus).
-                            scores.append((blended + bonus, i))
-
-                    # --- Action Selection: Choose the action with the highest score ---
-                    # Sort the scores in descending order and select the top one.
-                    # Each score is a tuple (score_value, action_index).
-                    scores.sort(key=lambda t: t[0], reverse=True)
-                    _, idx = scores[0]  # idx: index of the selected action in ml_actions
+                            score = blended + bonus
+                        if score > best_score:
+                            best_score = score
+                            best_idx = i
+                    idx = best_idx
 
                     # --- Retrieve the Action Parameters ---
                     # Each action is a tuple (dcx, dmu, pm):
@@ -1988,7 +2026,7 @@ class GAWorker(QThread):
                             # which is important for selection and statistics.
                             need_eval = [ind for ind in pop if not ind.fitness.valid]
                             if need_eval:
-                                fits_new = list(map(toolbox.evaluate, need_eval))
+                                fits_new = parallel_evaluate(need_eval)
                                 for ind, fit in zip(need_eval, fits_new):
                                     ind.fitness.values = fit
                                 if self.use_surrogate:
@@ -2137,7 +2175,7 @@ class GAWorker(QThread):
                             # Evaluate all new individuals immediately to ensure valid fitness
                             need_eval = [ind for ind in pop if not ind.fitness.valid]
                             if need_eval:
-                                fits_new = list(map(toolbox.evaluate, need_eval))
+                                fits_new = parallel_evaluate(need_eval)
                                 for ind, fit in zip(need_eval, fits_new):
                                     ind.fitness.values = fit
                                 if self.use_surrogate:
@@ -2221,7 +2259,7 @@ class GAWorker(QThread):
                         if need_eval:
                             self.update.emit(f"  RL ctrl: evaluating {len(need_eval)} new individuals after resize...")
                             eval_start = time.time()
-                            fits_new = list(map(toolbox.evaluate, need_eval))
+                            fits_new = parallel_evaluate(need_eval)
                             for ind, fit in zip(need_eval, fits_new):
                                 ind.fitness.values = fit
                             if self.track_metrics:
@@ -2242,32 +2280,39 @@ class GAWorker(QThread):
                     old_cxpb = self.current_cxpb
                     old_mutpb = self.current_mutpb
                     old_pop_size = len(population)
-                    # The ML bandit selects new rates and possibly a new population size
-                    idx, new_cx, new_mu, new_pop = ml_select_action(self.current_cxpb, self.current_mutpb, len(population))
-                    self.current_cxpb = new_cx
-                    self.current_mutpb = new_mu
-                    # If population size adaptation is enabled and the size changed, resize and evaluate new individuals
-                    if self.ml_adapt_population and new_pop != len(population):
-                        population = resize_population(population, new_pop)
-                        # Evaluate any new or unevaluated individuals
-                        need_eval = [ind for ind in population if not ind.fitness.valid]
-                        if need_eval:
-                            self.update.emit(f"  ML ctrl: evaluating {len(need_eval)} new individuals after resize...")
-                            eval_start = time.time()
-                            fits_new = list(map(toolbox.evaluate, need_eval))
-                            for ind, fit in zip(need_eval, fits_new):
-                                ind.fitness.values = fit
-                            if self.track_metrics:
-                                self.metrics['evaluation_times'].append(time.time() - eval_start)
-                            evals_this_gen += len(need_eval)
+                    # Throttle ML bandit updates to reduce overhead
+                    did_bandit_update = (gen % max(1, getattr(self, 'ml_update_interval', 1)) == 0)
+                    idx = None
+                    if did_bandit_update:
+                        # The ML bandit selects new rates and possibly a new population size
+                        idx, new_cx, new_mu, new_pop = ml_select_action(self.current_cxpb, self.current_mutpb, len(population))
+                        self.current_cxpb = new_cx
+                        self.current_mutpb = new_mu
+                        # Resize population less frequently to avoid heavy re-evaluations
+                        do_pop_update = (self.ml_adapt_population and new_pop != len(population) and (gen % max(1, getattr(self, 'ml_pop_update_interval', 1)) == 0))
+                        if do_pop_update:
+                            population = resize_population(population, new_pop)
+                            # Evaluate any new or unevaluated individuals
+                            need_eval = [ind for ind in population if not ind.fitness.valid]
+                            if need_eval:
+                                # Batch evaluate with persistent executor
+                                self.update.emit(f"  ML ctrl: evaluating {len(need_eval)} new individuals after resize...")
+                                eval_start = time.time()
+                                fits_new = parallel_evaluate(need_eval)
+                                for ind, fit in zip(need_eval, fits_new):
+                                    ind.fitness.values = fit
+                                if self.track_metrics:
+                                    self.metrics['evaluation_times'].append(time.time() - eval_start)
+                                evals_this_gen += len(need_eval)
                     # Set the current rates for this generation
                     current_cxpb = min(self.cxpb_max, max(self.cxpb_min, self.current_cxpb))
                     current_mutpb = min(self.mutpb_max, max(self.mutpb_min, self.current_mutpb))
-                    # Log the chosen rates and population size
-                    self.update.emit("  Rates type: ML-Bandit")
-                    self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
-                    self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
-                    self.update.emit(f"  - Population: {len(population)}")
+                    # Log the chosen rates and population size (throttled)
+                    if gen == 1 or gen == self.ga_num_generations or (gen % max(1, getattr(self, 'log_component_table_every_n', 5)) == 0):
+                        self.update.emit("  Rates type: ML-Bandit")
+                        self.update.emit(f"  - Crossover: {current_cxpb:.4f}")
+                        self.update.emit(f"  - Mutation: {current_mutpb:.4f}")
+                        self.update.emit(f"  - Population: {len(population)}")
 
                 # --- Legacy/Heuristic: Use fixed or legacy adaptive rates
                 else:
@@ -2384,31 +2429,28 @@ class GAWorker(QThread):
                                 else:
                                     break
 
-                        # Normalize helper
-                        def _norm_vec(vec):
-                            out = []
-                            for i, val in enumerate(vec):
-                                lo, hi = parameter_bounds[i]
-                                if hi == lo:
-                                    out.append(0.0)
-                                else:
-                                    out.append((val - lo) / (hi - lo))
-                            return out
+                        # Vectorized surrogate normalization and KNN prediction
+                        lows = np.array([b[0] for b in parameter_bounds], dtype=float)
+                        highs = np.array([b[1] for b in parameter_bounds], dtype=float)
+                        spans = highs - lows
+                        spans[spans == 0.0] = 1.0
+                        if self._surrogate_X:
+                            try:
+                                Xn_np = (np.array(self._surrogate_X, dtype=float) - lows) / spans
+                            except Exception:
+                                Xn_np = np.empty((0, len(parameter_bounds)), dtype=float)
+                        else:
+                            Xn_np = np.empty((0, len(parameter_bounds)), dtype=float)
+                        y_np = np.array(self._surrogate_y, dtype=float) if self._surrogate_y else np.empty((0,), dtype=float)
 
-                        # KNN surrogate prediction
-                        Xn = [_norm_vec(x) for x in self._surrogate_X]
                         def _predict_fitness(v):
-                            vz = _norm_vec(v)
-                            dists = []
-                            for Xrow, y in zip(Xn, self._surrogate_y):
-                                d = 0.0
-                                for a, b in zip(vz, Xrow):
-                                    d += (a - b) * (a - b)
-                                d = d ** 0.5
-                                dists.append((d, y))
-                            dists.sort(key=lambda t: t[0])
+                            if Xn_np.size == 0:
+                                return float('inf')
+                            vz = (np.array(v, dtype=float) - lows) / spans
+                            dists = np.linalg.norm(Xn_np - vz, axis=1)
                             k = min(self.surrogate_k, len(dists))
-                            return sum(y for _, y in dists[:k]) / max(1, k)
+                            idxs = np.argsort(dists, kind='mergesort')[:k]
+                            return float(np.sum(y_np[idxs]) / max(1, k))
 
                         # Score pool by surrogate (lower is better)
                         scored = [(_predict_fitness(list(ind)), ind) for ind in pool]
@@ -2422,17 +2464,11 @@ class GAWorker(QThread):
                         if explore_n > 0:
                             # pick explore_n most novel relative to training set (by distance)
                             def _novelty(ind):
-                                vz = _norm_vec(list(ind))
-                                # min distance to seen
-                                mind = float('inf')
-                                for Xrow in Xn:
-                                    d = 0.0
-                                    for a, b in zip(vz, Xrow):
-                                        d += (a - b) * (a - b)
-                                    d = d ** 0.5
-                                    if d < mind:
-                                        mind = d
-                                return mind
+                                if Xn_np.size == 0:
+                                    return 0.0
+                                vz = (np.array(list(ind), dtype=float) - lows) / spans
+                                dists = np.linalg.norm(Xn_np - vz, axis=1)
+                                return float(np.min(dists))
                             remain = [ind for _, ind in scored[exploit_n:]]
                             remain.sort(key=lambda ind: _novelty(ind), reverse=True)
                             chosen.extend(remain[:explore_n])
@@ -2440,7 +2476,7 @@ class GAWorker(QThread):
                         # Evaluate chosen only
                         self.update.emit(f"  Surrogate: pool={len(pool)} eval={len(chosen)} (exploit={exploit_n}, explore={len(chosen)-exploit_n})")
                         evaluation_start = time.time()
-                        fits = list(map(toolbox.evaluate, chosen))
+                        fits = parallel_evaluate(chosen)
                         for ind, fit in zip(chosen, fits):
                             ind.fitness.values = fit
                         if self.track_metrics:
@@ -2473,7 +2509,7 @@ class GAWorker(QThread):
                     else:
                         # Fallback: evaluate all invalids
                         self.update.emit(f"  Evaluating {len(invalid_ind)} individuals...")
-                        fitnesses = list(map(toolbox.evaluate, invalid_ind))
+                        fitnesses = parallel_evaluate(invalid_ind)
                         for ind, fit in zip(invalid_ind, fitnesses):
                             ind.fitness.values = fit
                         # Count evaluations once per individual
@@ -2718,7 +2754,7 @@ class GAWorker(QThread):
                         best_ind_overall = tools.selBest(population, 1)[0]
                         self.update.emit(f"  New best solution found! Fitness: {best_fitness_overall:.6f}")
 
-                if has_components:
+                if has_components and (gen == 1 or gen == self.ga_num_generations or getattr(self, 'log_component_table_every_n', 1) <= 1 or (gen % getattr(self, 'log_component_table_every_n', 1) == 0)):
                     table_header = "  ┌───────────────────────┬───────────────┬───────────────┬───────────────┬───────────────┐"
                     table_format = "  │ {0:<21} │ {1:>13} │ {2:>13} │ {3:>13} │ {4:>13} │"
                     table_footer = "  └───────────────────────┴───────────────┴───────────────┴───────────────┴───────────────┘"
@@ -2762,19 +2798,17 @@ class GAWorker(QThread):
                         else:
                             self.update.emit(f"  Stagnation counter: {self.stagnation_counter}/{self.stagnation_limit}")
                 else:
-                    # If components are not available, use the traditional display
-                    self.update.emit(f"  Min fitness: {min_fit:.6f}")
-                    self.update.emit(f"  Max fitness: {max_fit:.6f}")
-                    self.update.emit(f"  Avg fitness: {mean:.6f}")
-                    self.update.emit(f"  Std fitness: {std:.6f}")
-                    
-                    # If adaptive rates are enabled, display current rates
-                    if self.adaptive_rates:
-                        # Instead of showing rates again, show an indicator of whether rates will be adapted
-                        if self.stagnation_counter >= self.stagnation_limit - 1:
-                            self.update.emit(f"  ⚠️ Rates will adapt next generation due to stagnation ({self.stagnation_counter}/{self.stagnation_limit})")
-                        else:
-                            self.update.emit(f"  Stagnation counter: {self.stagnation_counter}/{self.stagnation_limit}")
+                    # If components are not available, use the traditional display (throttled)
+                    if (gen == 1 or gen == self.ga_num_generations or getattr(self, 'log_component_table_every_n', 1) <= 1 or (gen % getattr(self, 'log_component_table_every_n', 1) == 0)):
+                        self.update.emit(f"  Min fitness: {min_fit:.6f}")
+                        self.update.emit(f"  Max fitness: {max_fit:.6f}")
+                        self.update.emit(f"  Avg fitness: {mean:.6f}")
+                        self.update.emit(f"  Std fitness: {std:.6f}")
+                        if self.adaptive_rates:
+                            if self.stagnation_counter >= self.stagnation_limit - 1:
+                                self.update.emit(f"  ⚠️ Rates will adapt next generation due to stagnation ({self.stagnation_counter}/{self.stagnation_limit})")
+                            else:
+                                self.update.emit(f"  Stagnation counter: {self.stagnation_counter}/{self.stagnation_limit}")
 
                 # Track metrics for this generation if enabled
                 if self.track_metrics:
@@ -2815,7 +2849,32 @@ class GAWorker(QThread):
                         imp = (last_best - min_fit) if (last_best is not None and last_best > min_fit) else 0.0
                         cv = std / (abs(mean) + 1e-12)
                         effort = max(1.0, evals_this_gen)
-                        reward = (imp / max(gen_time, 1e-6)) / effort - self.ml_diversity_weight * abs(cv - self.ml_diversity_target)
+                        if self.use_rl_controller:
+                            # RL reward per LaTeX spec:
+                            # R_t = w1 * max(0, f*_{t-1}-f*_t)/(1+|f*_t|) + w2 * (d_t - d_{t-1})/(1+d_{t-1})
+                            #       + w3 * (1/Δt) - w4 * |cv_t - cv*|
+                            f_t = min_fit
+                            f_prev = last_best if last_best is not None else f_t
+                            term1 = self.rl_w1 * (max(0.0, (f_prev - f_t)) / (1.0 + abs(f_t)))
+                            # diversity terms
+                            d_t = None
+                            d_prev = None
+                            try:
+                                # reuse computed gene_diversity if available in locals(); else approximate via cv
+                                d_t = gene_diversity if 'gene_diversity' in locals() else min(1.0, max(0.0, std / (abs(mean) + 1e-12)))
+                            except Exception:
+                                d_t = 0.0
+                            try:
+                                d_prev = self._ema_gene_diversity if (self._ema_gene_diversity is not None) else d_t
+                            except Exception:
+                                d_prev = d_t
+                            term2 = self.rl_w2 * ((d_t - d_prev) / (1.0 + max(0.0, d_prev)))
+                            term3 = self.rl_w3 * (1.0 / max(gen_time, 1e-6))
+                            term4 = self.rl_w4 * abs(cv - (self.rl_cv_target if hasattr(self, 'rl_cv_target') else self.ml_diversity_target))
+                            reward = term1 + term2 + term3 - term4
+                        else:
+                            # ML bandit reward (unchanged)
+                            reward = (imp / max(gen_time, 1e-6)) / effort - self.ml_diversity_weight * abs(cv - self.ml_diversity_target)
 
                         if self.use_ml_adaptive:
                             try:
@@ -2864,6 +2923,33 @@ class GAWorker(QThread):
                             'pool_size': int(self.surrogate_pool_factor * len(invalid_ind)) if 'invalid_ind' in locals() else 0,
                             'evaluated_count': evals_this_gen
                         })
+
+                    # Prune histories to sliding window to avoid unbounded growth
+                    try:
+                        W = int(getattr(self, 'metrics_window', 0))
+                        if W and W > 0:
+                            def _trim(lst):
+                                if isinstance(lst, list) and len(lst) > W:
+                                    del lst[:-W]
+                            _trim(self.metrics['generation_times'])
+                            _trim(self.metrics['time_per_generation_breakdown'])
+                            _trim(self.metrics['fitness_history'])
+                            _trim(self.metrics['mean_fitness_history'])
+                            _trim(self.metrics['std_fitness_history'])
+                            _trim(self.metrics['pop_size_history'])
+                            _trim(self.metrics['rates_history'])
+                            _trim(self.metrics['best_fitness_per_gen'])
+                            _trim(self.metrics['best_individual_per_gen'])
+                            _trim(self.metrics['convergence_rate'])
+                            _trim(self.metrics['ml_controller_history'])
+                            _trim(self.metrics['rl_controller_history'])
+                            _trim(self.metrics['surrogate_info'])
+                            _trim(self.metrics['adaptive_rates_history'])
+                            _trim(self.metrics['success_rate_history'])
+                            _trim(self.metrics['gene_diversity_history'])
+                            _trim(self.metrics['mutation_scale_history'])
+                    except Exception:
+                        pass
 
                 # Check if we've found a good enough solution
                 if min_fit <= self.ga_tol:
@@ -3017,8 +3103,9 @@ class GAWorker(QThread):
             return
             
         try:
-            # Log that metrics collection is happening
-            self.update.emit("Collecting resource metrics...")
+            # Log that metrics collection is happening (throttled)
+            if getattr(self, 'metrics_verbose', False):
+                self.update.emit("Collecting resource metrics...")
             
             # Get basic CPU and memory usage
             cpu_percent = psutil.cpu_percent(interval=None)
@@ -3030,8 +3117,9 @@ class GAWorker(QThread):
             self.metrics['cpu_usage'].append(cpu_percent)
             self.metrics['memory_usage'].append(memory_usage_mb)
             
-            # Log basic metrics for debugging
-            self.update.emit(f"CPU: {cpu_percent}%, Memory: {memory_usage_mb:.2f} MB")
+            # Log basic metrics for debugging (throttled)
+            if getattr(self, 'metrics_verbose', False):
+                self.update.emit(f"CPU: {cpu_percent}%, Memory: {memory_usage_mb:.2f} MB")
             
             # Get per-core CPU usage
             per_core_cpu = psutil.cpu_percent(interval=None, percpu=True)
@@ -3059,8 +3147,9 @@ class GAWorker(QThread):
                 }
                 self.metrics['io_counters'].append(io_data)
                 
-                # Log I/O metrics for debugging
-                self.update.emit(f"I/O - Read: {io_counters.read_count}, Write: {io_counters.write_count}")
+                # Log I/O metrics for debugging (throttled)
+                if getattr(self, 'metrics_verbose', False):
+                    self.update.emit(f"I/O - Read: {io_counters.read_count}, Write: {io_counters.write_count}")
             except (AttributeError, psutil.AccessDenied) as e:
                 # Some platforms might not support this
                 self.update.emit(f"Warning: Unable to collect I/O metrics: {str(e)}")
@@ -3107,8 +3196,9 @@ class GAWorker(QThread):
             }
             self.generation_metrics.emit(current_metrics)
             
-            # Log that metrics collection completed
-            self.update.emit("Resource metrics collection completed")
+            # Log that metrics collection completed (throttled)
+            if getattr(self, 'metrics_verbose', False):
+                self.update.emit("Resource metrics collection completed")
         except Exception as e:
             self.update.emit(f"Warning: Failed to update resource metrics: {str(e)}")
             
