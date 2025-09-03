@@ -350,12 +350,12 @@
             "min": 100,
             "max": 200
         },
-        "generations": 10000,
+        "generations": 2500,
         "crossover_probability": 0.7,
-        "mutation_probability": 0.05,
+        "mutation_probability": 0.075,
         "tolerance": 0.15,
-        "alpha_sparsity": 0.02,
-        "percentage_error_scale": 1000.0,
+        "alpha_sparsity": 0.015,
+        "percentage_error_scale": 1200.0,
         "benchmark_runs": 20,
         "controller": "fixed",
         "adaptive_rates": {

@@ -2288,6 +2288,12 @@ class GAOptimizationMixin:
             rl_gamma=self.rl_gamma_box.value(),
             rl_epsilon=self.rl_epsilon_box.value(),
             rl_epsilon_decay=self.rl_decay_box.value(),
+            # RL reward weights (optional UI; fallback defaults used if not present)
+            rl_w1=getattr(self, 'rl_w1_box', type('x', (), {'value': lambda s: 1.0})()).value(),
+            rl_w2=getattr(self, 'rl_w2_box', type('x', (), {'value': lambda s: 0.0})()).value(),
+            rl_w3=getattr(self, 'rl_w3_box', type('x', (), {'value': lambda s: 0.0})()).value(),
+            rl_w4=getattr(self, 'rl_w4_box', type('x', (), {'value': lambda s: self.ml_diversity_weight_box.value()})()).value(),
+            rl_cv_target=getattr(self, 'rl_cv_target_box', type('x', (), {'value': lambda s: self.ml_diversity_target_box.value()})()).value(),
             # Surrogate
             use_surrogate=self.surrogate_checkbox.isChecked(),
             surrogate_pool_factor=self.surr_pool_factor_box.value(),
@@ -2702,6 +2708,12 @@ class GAOptimizationMixin:
             rl_gamma=self.rl_gamma_box.value(),
             rl_epsilon=self.rl_epsilon_box.value(),
             rl_epsilon_decay=self.rl_decay_box.value(),
+            # RL reward weights (optional UI; fallback defaults used if not present)
+            rl_w1=getattr(self, 'rl_w1_box', type('x', (), {'value': lambda s: 1.0})()).value(),
+            rl_w2=getattr(self, 'rl_w2_box', type('x', (), {'value': lambda s: 0.0})()).value(),
+            rl_w3=getattr(self, 'rl_w3_box', type('x', (), {'value': lambda s: 0.0})()).value(),
+            rl_w4=getattr(self, 'rl_w4_box', type('x', (), {'value': lambda s: self.ml_diversity_weight_box.value()})()).value(),
+            rl_cv_target=getattr(self, 'rl_cv_target_box', type('x', (), {'value': lambda s: self.ml_diversity_target_box.value()})()).value(),
             # Surrogate
             use_surrogate=self.surrogate_checkbox.isChecked(),
             surrogate_pool_factor=self.surr_pool_factor_box.value(),
