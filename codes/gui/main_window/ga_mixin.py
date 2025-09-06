@@ -605,6 +605,20 @@ class GAOptimizationMixin:
         self.ml_ucb_c_box.setToolTip("Exploration strength for UCB (higher explores more)")
         ga_hyper_layout.addRow("ML UCB c:", self.ml_ucb_c_box)
 
+        # ML stagnation boost controls
+        self.ml_stag_chk = QCheckBox("Boost exploration on stagnation")
+        self.ml_stag_chk.setChecked(True)
+        self.ml_stag_limit = QSpinBox()
+        self.ml_stag_limit.setRange(1, 50)
+        self.ml_stag_limit.setValue(5)
+        ml_stag_row = QWidget()
+        ml_stag_row_l = QHBoxLayout(ml_stag_row)
+        ml_stag_row_l.setContentsMargins(0, 0, 0, 0)
+        ml_stag_row_l.addWidget(self.ml_stag_chk)
+        ml_stag_row_l.addWidget(QLabel("Limit (gens):"))
+        ml_stag_row_l.addWidget(self.ml_stag_limit)
+        ga_hyper_layout.addRow("ML Stagnation:", ml_stag_row)
+
         # ML reward blending weights
         self.ml_historical_weight_box = QDoubleSpinBox()
         self.ml_historical_weight_box.setRange(0.0, 1.0)
@@ -659,6 +673,19 @@ class GAOptimizationMixin:
         self.rl_decay_box.setDecimals(3)
         self.rl_decay_box.setValue(0.95)
         rl_form.addRow("RL ε decay:", self.rl_decay_box)
+        # RL stagnation boost controls
+        self.rl_stag_chk = QCheckBox("Boost exploration on stagnation")
+        self.rl_stag_chk.setChecked(True)
+        self.rl_stag_limit = QSpinBox()
+        self.rl_stag_limit.setRange(1, 50)
+        self.rl_stag_limit.setValue(5)
+        rl_stag_row = QWidget()
+        rl_stag_row_l = QHBoxLayout(rl_stag_row)
+        rl_stag_row_l.setContentsMargins(0, 0, 0, 0)
+        rl_stag_row_l.addWidget(self.rl_stag_chk)
+        rl_stag_row_l.addWidget(QLabel("Limit (gens):"))
+        rl_stag_row_l.addWidget(self.rl_stag_limit)
+        rl_form.addRow("RL Stagnation:", rl_stag_row)
         self.rl_options_widget.setVisible(False)
         self.controller_rl_radio.toggled.connect(self.rl_options_widget.setVisible)
         ga_hyper_layout.addRow("RL Options:", self.rl_options_widget)
@@ -1147,7 +1174,38 @@ class GAOptimizationMixin:
         # ---- Subtab 2: All Runs Table ----
         runs_tab = QWidget()
         runs_layout = QVBoxLayout(runs_tab)
-        
+
+        # Ranking & Grouping controls
+        self.bench_rank_controls = QGroupBox("Ranking & Grouping Criteria")
+        rank_form = QFormLayout(self.bench_rank_controls)
+        self.bench_rank_metric_combo = QComboBox()
+        self.bench_rank_metric_combo.addItems([
+            "Fitness (lower better)",
+            "Convergence Generation (lower better)",
+            "CPU Time Used (s, lower better)",
+            "Wall Time (s, lower better)",
+            "Composite (weighted)"
+        ])
+        self.bench_rank_metric_combo.setCurrentIndex(0)
+        rank_form.addRow("Metric:", self.bench_rank_metric_combo)
+
+        # Composite weights (used only if Composite selected)
+        composite_row = QWidget(); composite_layout = QGridLayout(composite_row); composite_layout.setContentsMargins(0,0,0,0)
+        self.weight_fitness_spin = QDoubleSpinBox(); self.weight_fitness_spin.setRange(0.0, 100.0); self.weight_fitness_spin.setSingleStep(0.1); self.weight_fitness_spin.setValue(1.0)
+        self.weight_convgen_spin = QDoubleSpinBox(); self.weight_convgen_spin.setRange(0.0, 100.0); self.weight_convgen_spin.setSingleStep(0.1); self.weight_convgen_spin.setValue(0.5)
+        self.weight_cpu_spin = QDoubleSpinBox(); self.weight_cpu_spin.setRange(0.0, 100.0); self.weight_cpu_spin.setSingleStep(0.1); self.weight_cpu_spin.setValue(0.25)
+        self.weight_time_spin = QDoubleSpinBox(); self.weight_time_spin.setRange(0.0, 100.0); self.weight_time_spin.setSingleStep(0.1); self.weight_time_spin.setValue(0.25)
+        composite_layout.addWidget(QLabel("w_fitness"), 0, 0); composite_layout.addWidget(self.weight_fitness_spin, 0, 1)
+        composite_layout.addWidget(QLabel("w_conv_gen"), 0, 2); composite_layout.addWidget(self.weight_convgen_spin, 0, 3)
+        composite_layout.addWidget(QLabel("w_cpu"), 1, 0); composite_layout.addWidget(self.weight_cpu_spin, 1, 1)
+        composite_layout.addWidget(QLabel("w_time"), 1, 2); composite_layout.addWidget(self.weight_time_spin, 1, 3)
+        rank_form.addRow("Composite Weights:", composite_row)
+
+        # Apply button (also auto-update on changes)
+        self.bench_apply_rank_btn = QPushButton("Apply Ranking")
+        rank_form.addRow(self.bench_apply_rank_btn)
+        runs_layout.addWidget(self.bench_rank_controls)
+
         # Create a table for all runs
         self.benchmark_runs_table = QTableWidget()
         self.benchmark_runs_table.setColumnCount(4)
@@ -1156,7 +1214,7 @@ class GAOptimizationMixin:
         self.benchmark_runs_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.benchmark_runs_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.benchmark_runs_table.itemClicked.connect(self.show_run_details)
-        
+
         runs_layout.addWidget(QLabel("All Benchmark Runs:"))
         runs_layout.addWidget(self.benchmark_runs_table)
         # Attach export menu and add a visible export button
@@ -1188,10 +1246,18 @@ class GAOptimizationMixin:
         self.selected_run_widget = QWidget()
         selected_run_layout.addWidget(self.selected_run_widget)
         
+        # Group Summary tab (populated after runs complete)
+        self.group_summary_tab = QWidget()
+        group_summary_layout = QVBoxLayout(self.group_summary_tab)
+        self.group_summary_container = QWidget()
+        self.group_summary_container.setLayout(QVBoxLayout())
+        group_summary_layout.addWidget(self.group_summary_container)
+
         # Add the subtabs to the stats tabbed widget
         stats_subtabs.addTab(summary_tab, "Summary Statistics")
         stats_subtabs.addTab(runs_tab, "All Runs")
         stats_subtabs.addTab(details_tab, "Run Details")
+        stats_subtabs.addTab(self.group_summary_tab, "Group Summary")
         stats_subtabs.addTab(ga_ops_tab, "GA Operations")
         stats_subtabs.addTab(selected_run_tab, "Selected Run Analysis")
         
@@ -1209,6 +1275,17 @@ class GAOptimizationMixin:
         
         # GA Operations Performance Tab - already added as a subtab of Statistics
         
+        # Wire ranking controls to refresh visualizations
+        try:
+            self.bench_rank_metric_combo.currentIndexChanged.connect(self.visualize_ga_benchmark_results)
+            self.weight_fitness_spin.valueChanged.connect(self.visualize_ga_benchmark_results)
+            self.weight_convgen_spin.valueChanged.connect(self.visualize_ga_benchmark_results)
+            self.weight_cpu_spin.valueChanged.connect(self.visualize_ga_benchmark_results)
+            self.weight_time_spin.valueChanged.connect(self.visualize_ga_benchmark_results)
+            self.bench_apply_rank_btn.clicked.connect(self.visualize_ga_benchmark_results)
+        except Exception:
+            pass
+
         # Add the benchmark visualization tabs to the benchmark tab
         ga_benchmark_layout.addWidget(self.benchmark_viz_tabs)
         
@@ -2282,12 +2359,18 @@ class GAOptimizationMixin:
             ml_diversity_target=self.ml_diversity_target_box.value(),
             ml_historical_weight=self.ml_historical_weight_box.value(),
             ml_current_weight=self.ml_current_weight_box.value(),
+            # ML stagnation settings
+            ml_stag_enabled=self.ml_stag_chk.isChecked(),
+            ml_stag_limit=self.ml_stag_limit.value(),
             # RL controller params
             use_rl_controller=bool(use_rl and not (use_ml or use_adaptive)),
             rl_alpha=self.rl_alpha_box.value(),
             rl_gamma=self.rl_gamma_box.value(),
             rl_epsilon=self.rl_epsilon_box.value(),
             rl_epsilon_decay=self.rl_decay_box.value(),
+            # RL stagnation settings
+            rl_stag_enabled=self.rl_stag_chk.isChecked(),
+            rl_stag_limit=self.rl_stag_limit.value(),
             # RL reward weights (optional UI; fallback defaults used if not present)
             rl_w1=getattr(self, 'rl_w1_box', type('x', (), {'value': lambda s: 1.0})()).value(),
             rl_w2=getattr(self, 'rl_w2_box', type('x', (), {'value': lambda s: 0.0})()).value(),
@@ -2702,12 +2785,18 @@ class GAOptimizationMixin:
             ml_diversity_target=self.ml_diversity_target_box.value(),
             ml_historical_weight=self.ml_historical_weight_box.value(),
             ml_current_weight=self.ml_current_weight_box.value(),
+            # ML stagnation settings
+            ml_stag_enabled=self.ml_stag_chk.isChecked(),
+            ml_stag_limit=self.ml_stag_limit.value(),
             # RL controller params
             use_rl_controller=bool(use_rl and not (use_ml or use_adaptive)),
             rl_alpha=self.rl_alpha_box.value(),
             rl_gamma=self.rl_gamma_box.value(),
             rl_epsilon=self.rl_epsilon_box.value(),
             rl_epsilon_decay=self.rl_decay_box.value(),
+            # RL stagnation settings
+            rl_stag_enabled=self.rl_stag_chk.isChecked(),
+            rl_stag_limit=self.rl_stag_limit.value(),
             # RL reward weights (optional UI; fallback defaults used if not present)
             rl_w1=getattr(self, 'rl_w1_box', type('x', (), {'value': lambda s: 1.0})()).value(),
             rl_w2=getattr(self, 'rl_w2_box', type('x', (), {'value': lambda s: 0.0})()).value(),
@@ -2806,6 +2895,122 @@ class GAOptimizationMixin:
             return
         # Ensure integer run numbers
         df['run_number'] = df['run_number'].astype(int)
+        
+        # Derive additional metrics for ranking/grouping
+        try:
+            if 'elapsed_time' not in df.columns and 'benchmark_metrics' in df.columns:
+                df['elapsed_time'] = df['benchmark_metrics'].apply(lambda m: float(m.get('total_duration')) if isinstance(m, dict) and m.get('total_duration') is not None else np.nan)
+        except Exception:
+            pass
+        try:
+            if 'cpu_time_used' not in df.columns and 'benchmark_metrics' in df.columns:
+                df['cpu_time_used'] = df['benchmark_metrics'].apply(lambda m: float(m.get('proc_cpu_time_used')) if isinstance(m, dict) and m.get('proc_cpu_time_used') is not None else np.nan)
+        except Exception:
+            pass
+        try:
+            if 'convergence_generation' not in df.columns and 'benchmark_metrics' in df.columns:
+                def _conv_gen(m):
+                    try:
+                        if not isinstance(m, dict):
+                            return np.nan
+                        seq = m.get('best_fitness_per_gen')
+                        if not seq:
+                            return np.nan
+                        best = min(seq)
+                        return int(seq.index(best) + 1)
+                    except Exception:
+                        return np.nan
+                df['convergence_generation'] = df['benchmark_metrics'].apply(_conv_gen)
+                print(f"Debug: Derived convergence_generation for {len(df)} runs")
+                print(f"Debug: Convergence generation values: {df['convergence_generation'].dropna().head().tolist()}")
+                print(f"Debug: Number of valid convergence_generation values: {df['convergence_generation'].notna().sum()}")
+            elif 'convergence_generation' in df.columns:
+                print(f"Debug: convergence_generation already exists in dataframe")
+                print(f"Debug: Existing convergence generation values: {df['convergence_generation'].dropna().head().tolist()}")
+                print(f"Debug: Number of valid convergence_generation values: {df['convergence_generation'].notna().sum()}")
+        except Exception:
+            pass
+
+        # Compute ranking score based on selected metric (lower is better)
+        def _compute_score_row(row):
+            metric = self.bench_rank_metric_combo.currentText() if hasattr(self, 'bench_rank_metric_combo') else 'Fitness (lower better)'
+            try:
+                if metric.startswith('Fitness'):
+                    return float(row.get('best_fitness', np.inf))
+                if metric.startswith('Convergence'):
+                    return float(row.get('convergence_generation', np.inf))
+                if metric.startswith('CPU Time'):
+                    return float(row.get('cpu_time_used', np.inf))
+                if metric.startswith('Wall Time'):
+                    return float(row.get('elapsed_time', np.inf))
+                # Composite: weighted normalized sum
+                wf = float(self.weight_fitness_spin.value()) if hasattr(self, 'weight_fitness_spin') else 1.0
+                wc = float(self.weight_convgen_spin.value()) if hasattr(self, 'weight_convgen_spin') else 0.5
+                wcpu = float(self.weight_cpu_spin.value()) if hasattr(self, 'weight_cpu_spin') else 0.25
+                wt = float(self.weight_time_spin.value()) if hasattr(self, 'weight_time_spin') else 0.25
+                total_w = max(1e-9, wf + wc + wcpu + wt)
+                def _norm(series, val):
+                    try:
+                        s = series.dropna()
+                        lo, hi = float(s.min()), float(s.max())
+                        if not np.isfinite(val) or not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+                            return 1.0
+                        return (float(val) - lo) / (hi - lo)
+                    except Exception:
+                        return 1.0
+                score = 0.0
+                score += wf * _norm(df['best_fitness'], row.get('best_fitness', np.nan))
+                score += wc * _norm(df.get('convergence_generation', pd.Series(dtype=float)), row.get('convergence_generation', np.nan))
+                score += wcpu * _norm(df.get('cpu_time_used', pd.Series(dtype=float)), row.get('cpu_time_used', np.nan))
+                score += wt * _norm(df.get('elapsed_time', pd.Series(dtype=float)), row.get('elapsed_time', np.nan))
+                return score / total_w
+            except Exception:
+                return float(row.get('best_fitness', np.inf))
+
+        try:
+            df['score'] = df.apply(_compute_score_row, axis=1)
+        except Exception:
+            df['score'] = df['best_fitness']
+
+        # Group runs into Best/Mid/Worst based on closeness to reference runs
+        try:
+            if df['score'].notna().sum() >= 3:
+                # Find reference runs
+                best_ref_score = df['score'].min()  # Best run (lowest score)
+                worst_ref_score = df['score'].max()  # Worst run (highest score)
+                mean_ref_score = df['score'].mean()  # Mean reference
+                
+                def _assign_to_closest_reference(score_val):
+                    if not np.isfinite(score_val):
+                        return 'Unknown'
+                    
+                    # Calculate distances to each reference
+                    dist_to_best = abs(score_val - best_ref_score)
+                    dist_to_mean = abs(score_val - mean_ref_score)
+                    dist_to_worst = abs(score_val - worst_ref_score)
+                    
+                    # Assign to closest reference group
+                    min_dist = min(dist_to_best, dist_to_mean, dist_to_worst)
+                    
+                    if min_dist == dist_to_best:
+                        return 'Best'
+                    elif min_dist == dist_to_mean:
+                        return 'Mid'
+                    else:
+                        return 'Worst'
+                
+                df['group'] = df['score'].apply(_assign_to_closest_reference)
+                
+                # Store reference information for display
+                df['best_ref_score'] = best_ref_score
+                df['mean_ref_score'] = mean_ref_score
+                df['worst_ref_score'] = worst_ref_score
+            else:
+                # Fallback for insufficient data
+                median_score = df['score'].median()
+                df['group'] = df['score'].apply(lambda v: 'Mid' if np.isfinite(v) else 'Unknown')
+        except Exception:
+            df['group'] = 'Unknown'
         
         # Visualize computational metrics
         widgets_dict = {
@@ -3416,16 +3621,19 @@ class GAOptimizationMixin:
             print(f"Error updating statistics tables: {str(e)}")
         
          
-         # 7. Update runs table with fitness, rank and best/worst/mean indicators
+         # 7. Update runs table with ranking by selected metric and group coloring
         try:
              self.benchmark_runs_table.setRowCount(len(df))
+
+             # Sort by score (lower is better)
+             if 'score' in df.columns:
+                 sorted_df = df.sort_values('score')
+             else:
+                 sorted_df = df.sort_values('best_fitness')
              
-             # Sort runs by fitness (assuming lower is better)
-             sorted_df = df.sort_values('best_fitness')
-             
-             # Get index of run with fitness value closest to mean
-             mean_fitness = df['best_fitness'].mean()
-             mean_index = (df['best_fitness'] - mean_fitness).abs().idxmin()
+             # Reference mean for tooltip when fitness metric used
+             mean_fitness = df['best_fitness'].mean() if 'best_fitness' in df.columns else np.nan
+             mean_index = (df['best_fitness'] - mean_fitness).abs().idxmin() if 'best_fitness' in df.columns else None
              
              # Create a button class for the details button
              class DetailButton(QPushButton):
@@ -3448,22 +3656,27 @@ class GAOptimizationMixin:
                  fitness_item.setTextAlignment(Qt.AlignCenter)
                  rank_item.setTextAlignment(Qt.AlignCenter)
                  
-                 # Color coding
-                 if i == 0:  # Best run (lowest fitness)
-                     run_item.setBackground(QColor(200, 255, 200))  # Light green
-                     fitness_item.setBackground(QColor(200, 255, 200))
-                     rank_item.setBackground(QColor(200, 255, 200))
-                     run_item.setToolTip("Best Run (Lowest Fitness)")
-                 elif i == len(df) - 1:  # Worst run (highest fitness)
-                     run_item.setBackground(QColor(255, 200, 200))  # Light red
-                     fitness_item.setBackground(QColor(255, 200, 200))
-                     rank_item.setBackground(QColor(255, 200, 200))
-                     run_item.setToolTip("Worst Run (Highest Fitness)")
-                 elif row.name == mean_index:  # Mean run (closest to mean fitness)
-                     run_item.setBackground(QColor(255, 255, 200))  # Light yellow
-                     fitness_item.setBackground(QColor(255, 255, 200))
-                     rank_item.setBackground(QColor(255, 255, 200))
-                     run_item.setToolTip("Mean Run (Closest to Average Fitness)")
+                 # Color coding by group
+                 group = str(row.get('group', ''))
+                 if group == 'Best':
+                     base_color = QColor(200, 255, 200)
+                 elif group == 'Mid':
+                     base_color = QColor(235, 235, 200)
+                 elif group == 'Worst':
+                     base_color = QColor(255, 220, 220)
+                 else:
+                     base_color = QColor(230, 230, 230)
+                 for it in (run_item, fitness_item, rank_item):
+                     it.setBackground(base_color)
+                 tip_parts = [f"Group: {group}"]
+                 if np.isfinite(fitness):
+                     tip_parts.append(f"Fitness: {fitness:.6f}")
+                 if 'score' in row:
+                     try:
+                         tip_parts.append(f"Score: {float(row['score']):.6f}")
+                     except Exception:
+                         pass
+                 run_item.setToolTip(" | ".join(tip_parts))
                  
                  # Add items to the table
                  self.benchmark_runs_table.setItem(i, 0, run_item)
@@ -3486,6 +3699,9 @@ class GAOptimizationMixin:
         except:
             pass
         self.export_benchmark_button.clicked.connect(self.export_ga_benchmark_data)
+        
+        # Build/update comprehensive Group Summary tab content
+        self._build_comprehensive_group_summary(df)
         
         # New: Build Parameter Ranges tab with multiple criteria and comparison tools
         try:
@@ -4156,6 +4372,13 @@ class GAOptimizationMixin:
     def generate_parameter_statistical_analysis(self, df):
         """Generate comprehensive statistical analysis for optimized parameters across all runs"""
         try:
+            print(f"Debug: generate_parameter_statistical_analysis - df columns: {list(df.columns)}")
+            print(f"Debug: df has convergence_generation column: {'convergence_generation' in df.columns}")
+            if 'convergence_generation' in df.columns:
+                conv_gen_values = df['convergence_generation'].dropna()
+                print(f"Debug: Number of non-null convergence_generation values: {len(conv_gen_values)}")
+                print(f"Debug: Sample convergence_generation values: {conv_gen_values.head().tolist()}")
+
             # Extract parameter data from all runs
             parameter_data = self.extract_parameter_data_from_runs(df)
             
@@ -4571,7 +4794,8 @@ class GAOptimizationMixin:
         """Update dropdown menus with available parameters"""
         try:
             param_names = list(parameter_data.keys())
-            
+            print(f"Debug: update_parameter_dropdowns - param_names: {param_names}")
+
             # Update parameter selection dropdown with all parameters
             self.param_selection_combo.clear()
             self.param_selection_combo.setMaxVisibleItems(10)  # Show 10 items at a time in dropdown
@@ -4606,6 +4830,9 @@ class GAOptimizationMixin:
     
     def on_parameter_selection_changed(self):
         """Handle parameter selection change"""
+        selected_param = self.param_selection_combo.currentText()
+        print(f"Debug: Parameter selection changed to: {selected_param}")
+        print(f"Debug: Available parameters in dropdown: {[self.param_selection_combo.itemText(i) for i in range(self.param_selection_combo.count())]}")
         # Auto-update plots when parameter selection changes
         self.update_parameter_plots()
     
@@ -4693,31 +4920,58 @@ class GAOptimizationMixin:
         """Extract parameter values from all runs for statistical analysis"""
         try:
             parameter_data = {}
-            
+            convergence_count = 0
+
+            print(f"Debug: extract_parameter_data_from_runs - df columns: {list(df.columns)}")
+            print(f"Debug: df has convergence_generation column: {'convergence_generation' in df.columns}")
+
             for idx, row in df.iterrows():
                 run_number = row['run_number']
                 best_solution = row['best_solution']
                 parameter_names = row['parameter_names']
-                
+
                 # Ensure we have valid data
                 if not isinstance(best_solution, list) or not isinstance(parameter_names, list):
                     continue
-                
+
                 if len(best_solution) != len(parameter_names):
                     continue
-                
+
                 # Extract parameter values for this run
                 for param_name, param_value in zip(parameter_names, best_solution):
                     if param_name not in parameter_data:
                         parameter_data[param_name] = []
                     parameter_data[param_name].append(param_value)
-            
+
+                # Extract convergence_generation data if available
+                if 'convergence_generation' in df.columns and pd.notna(row.get('convergence_generation')):
+                    conv_gen = row['convergence_generation']
+                    print(f"Debug: Processing convergence_generation for run {run_number}: {conv_gen}")
+                    if isinstance(conv_gen, (int, float)) and np.isfinite(conv_gen):
+                        if 'convergence_generation' not in parameter_data:
+                            parameter_data['convergence_generation'] = []
+                        parameter_data['convergence_generation'].append(float(conv_gen))
+                        convergence_count += 1
+                        print(f"Debug: Added convergence_generation {conv_gen} for run {run_number}")
+                    else:
+                        print(f"Debug: Invalid convergence_generation value for run {run_number}: {conv_gen}")
+
             # Convert to numpy arrays for easier statistical analysis
             for param_name in parameter_data:
+                print(f"Debug: Converting {param_name} to numpy array. Raw data type: {type(parameter_data[param_name])}, length: {len(parameter_data[param_name])}")
+                if param_name == 'convergence_generation':
+                    print(f"Debug: Raw convergence_generation data: {parameter_data[param_name][:5] if len(parameter_data[param_name]) > 0 else 'empty'}")
                 parameter_data[param_name] = np.array(parameter_data[param_name])
-            
+                if param_name == 'convergence_generation':
+                    print(f"Debug: Numpy convergence_generation data: {parameter_data[param_name][:5] if len(parameter_data[param_name]) > 0 else 'empty'}")
+
+            print(f"Debug: Extracted parameters: {list(parameter_data.keys())}")
+            print(f"Debug: Convergence generation data points: {convergence_count}")
+            if 'convergence_generation' in parameter_data:
+                print(f"Debug: Final convergence generation values: {parameter_data['convergence_generation'][:5]}...")
+
             return parameter_data
-            
+
         except Exception as e:
             print(f"Error extracting parameter data: {str(e)}")
             return {}
@@ -5174,8 +5428,21 @@ class GAOptimizationMixin:
     def create_distribution_plot(self, selected_param):
         """Create enhanced distribution plot for selected parameter"""
         try:
+            print(f"Debug: create_distribution_plot called with parameter: {selected_param}")
+            if selected_param == 'convergence_generation':
+                print(f"Debug: SPECIAL - Creating distribution plot for convergence_generation")
+            if hasattr(self, 'current_parameter_data'):
+                print(f"Debug: current_parameter_data keys: {list(self.current_parameter_data.keys())}")
+                if 'convergence_generation' in self.current_parameter_data:
+                    print(f"Debug: convergence_generation data shape: {self.current_parameter_data['convergence_generation'].shape}")
+                    print(f"Debug: convergence_generation sample values: {self.current_parameter_data['convergence_generation'][:5]}")
+                else:
+                    print("Debug: convergence_generation NOT found in current_parameter_data")
+            else:
+                print("Debug: No current_parameter_data attribute")
+
             param_names = [selected_param]
-            
+
             n_params = len(param_names)
             if n_params == 0:
                 return
@@ -5197,44 +5464,106 @@ class GAOptimizationMixin:
             for i, param_name in enumerate(param_names):
                 ax = fig.add_subplot(n_rows, n_cols, i + 1)
                 
+                if param_name not in self.current_parameter_data:
+                    print(f"Debug: Parameter {param_name} not found in current_parameter_data")
+                    ax.text(0.5, 0.5, f"Parameter '{param_name}' not found", ha='center', va='center', transform=ax.transAxes)
+                    continue
+
                 values = self.current_parameter_data[param_name]
+                print(f"Debug: Plotting parameter {param_name} with {len(values)} values")
+                print(f"Debug: Values type: {type(values)}, dtype: {values.dtype if hasattr(values, 'dtype') else 'N/A'}")
+                print(f"Debug: Values sample: {values[:3] if len(values) > 0 else 'empty'}")
+
+                # Check for NaN or invalid values
+                import numpy as np
+                finite_values = values[np.isfinite(values)]
+                print(f"Debug: Finite values count: {len(finite_values)} out of {len(values)}")
+
+                # Special checks for convergence_generation
+                if param_name == 'convergence_generation':
+                    print(f"Debug: Convergence generation - Min: {finite_values.min()}, Max: {finite_values.max()}")
+                    print(f"Debug: Convergence generation - Unique values: {len(np.unique(finite_values))}")
+                    print(f"Debug: Convergence generation - Is all integers: {np.all(finite_values == finite_values.astype(int))}")
+                    print(f"Debug: Convergence generation - Range: {finite_values.max() - finite_values.min()}")
+                    if finite_values.max() == finite_values.min():
+                        print(f"Debug: WARNING - All convergence_generation values are the same: {finite_values[0]}")
                 color = colors[i % len(colors)]
                 
                 # Create enhanced histogram with better binning
-                n_bins = max(20, min(50, len(values) // 10))
-                n, bins, patches = ax.hist(values, bins=n_bins, density=True, alpha=0.7, 
+                if len(finite_values) == 0:
+                    print(f"Debug: No finite values for {param_name}, skipping histogram")
+                    ax.text(0.5, 0.5, f"No valid data for {param_name}", ha='center', va='center', transform=ax.transAxes)
+                    continue
+
+                # Special binning for convergence_generation (integer data)
+                if param_name == 'convergence_generation':
+                    unique_vals = len(np.unique(finite_values))
+                    n_bins = min(unique_vals, max(10, unique_vals // 2))
+                    print(f"Debug: Using {n_bins} bins for convergence_generation (unique values: {unique_vals})")
+                else:
+                    n_bins = max(20, min(50, len(finite_values) // 10))
+                print(f"Debug: Creating histogram with {n_bins} bins for {len(finite_values)} finite values")
+                n, bins, patches = ax.hist(finite_values, bins=n_bins, density=True, alpha=0.7,
                                          color=color, edgecolor='black', linewidth=1.2)
                 
                 # Add KDE curve
+                from scipy import stats
                 try:
-                    from scipy import stats
-                    kde = stats.gaussian_kde(values)
-                    x_range = np.linspace(values.min(), values.max(), 200)
-                    ax.plot(x_range, kde(x_range), 'darkred', linewidth=3, 
+                    # Special handling for convergence_generation
+                    if param_name == 'convergence_generation':
+                        print(f"Debug: Attempting KDE for convergence_generation")
+                        # Check if we have enough unique values for KDE
+                        unique_vals = len(np.unique(finite_values))
+                        print(f"Debug: Convergence generation unique values for KDE: {unique_vals}")
+
+                        if unique_vals < 2:
+                            print(f"Debug: Not enough unique values for KDE ({unique_vals}), skipping")
+                            raise ValueError("Not enough unique values for KDE")
+
+                        # Use broader bandwidth for integer data
+                        kde = stats.gaussian_kde(finite_values, bw_method='scott')
+                    else:
+                        kde = stats.gaussian_kde(finite_values)
+
+                    x_range = np.linspace(finite_values.min(), finite_values.max(), 200)
+                    kde_values = kde(x_range)
+                    print(f"Debug: KDE computed successfully for {param_name}, range: {kde_values.min():.6f} to {kde_values.max():.6f}")
+                    ax.plot(x_range, kde_values, 'darkred', linewidth=3,
                            label='Kernel Density Estimate', alpha=0.9)
-                    
+
                     # Add normal distribution overlay for comparison
-                    mu, sigma = np.mean(values), np.std(values)
-                    x_norm = np.linspace(values.min(), values.max(), 200)
-                    normal_curve = stats.norm.pdf(x_norm, mu, sigma)
-                    ax.plot(x_norm, normal_curve, 'purple', linewidth=2, linestyle=':', 
-                           label='Normal Distribution', alpha=0.8)
-                    
+                    mu, sigma = np.mean(finite_values), np.std(finite_values)
+                    if sigma > 0:  # Only add normal distribution if we have variance
+                        x_norm = np.linspace(finite_values.min(), finite_values.max(), 200)
+                        normal_curve = stats.norm.pdf(x_norm, mu, sigma)
+                        ax.plot(x_norm, normal_curve, 'purple', linewidth=2, linestyle=':',
+                               label='Normal Distribution', alpha=0.8)
+
                     # Calculate normality test
-                    _, p_value = stats.normaltest(values)
-                    normality_text = f"Normality p-value: {p_value:.4f}"
-                    
+                    if len(finite_values) >= 8:  # normaltest requires at least 8 samples
+                        _, p_value = stats.normaltest(finite_values)
+                        normality_text = f"Normality p-value: {p_value:.4f}"
+                    else:
+                        normality_text = "Normality test: Insufficient data"
+
                 except Exception as e:
                     print(f"Error creating KDE for {param_name}: {str(e)}")
-                    normality_text = "Normality test: N/A"
+                    import traceback
+                    traceback.print_exc()
+                    normality_text = f"Normality test: KDE failed ({str(e)})"
+
+                    # For convergence_generation, at least show the histogram without KDE
+                    if param_name == 'convergence_generation':
+                        print(f"Debug: Creating histogram-only plot for convergence_generation due to KDE failure")
+                        # The histogram was already created above, so we just skip the KDE overlay
                 
                 # Calculate comprehensive statistics
-                mean_val = np.mean(values)
-                median_val = np.median(values)
+                mean_val = np.mean(finite_values)
+                median_val = np.median(finite_values)
                 mode_val = bins[np.argmax(n)] if len(bins) > 1 else mean_val
-                std_val = np.std(values)
-                skewness = stats.skew(values) if 'stats' in locals() else 0
-                kurtosis = stats.kurtosis(values) if 'stats' in locals() else 0
+                std_val = np.std(finite_values)
+                skewness = stats.skew(finite_values) if 'stats' in locals() else 0
+                kurtosis = stats.kurtosis(finite_values) if 'stats' in locals() else 0
                 
                 # Add statistical lines
                 ax.axvline(mean_val, color='red', linestyle='--', linewidth=2, 
@@ -5245,21 +5574,21 @@ class GAOptimizationMixin:
                           label=f'Mode: {mode_val:.4f}', alpha=0.8)
                 
                 # Add percentile lines
-                q1 = np.percentile(values, 25)
-                q3 = np.percentile(values, 75)
-                ax.axvline(q1, color='blue', linestyle=':', linewidth=1.5, 
+                q1 = np.percentile(finite_values, 25)
+                q3 = np.percentile(finite_values, 75)
+                ax.axvline(q1, color='blue', linestyle=':', linewidth=1.5,
                           label=f'Q1: {q1:.4f}', alpha=0.6)
-                ax.axvline(q3, color='blue', linestyle=':', linewidth=1.5, 
+                ax.axvline(q3, color='blue', linestyle=':', linewidth=1.5,
                           label=f'Q3: {q3:.4f}', alpha=0.6)
                 
                 # Add statistics text box
-                stats_text = (f"Count: {len(values)}\n"
+                stats_text = (f"Count: {len(finite_values)}\n"
                              f"Mean: {mean_val:.4f}\n"
                              f"Std Dev: {std_val:.4f}\n"
                              f"Skewness: {skewness:.3f}\n"
                              f"Kurtosis: {kurtosis:.3f}\n"
-                             f"Min: {values.min():.4f}\n"
-                             f"Max: {values.max():.4f}\n"
+                             f"Min: {finite_values.min():.4f}\n"
+                             f"Max: {finite_values.max():.4f}\n"
                              f"{normality_text}")
                 
                 ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
@@ -5292,21 +5621,83 @@ class GAOptimizationMixin:
                 ax.text(0.5, -0.12, shape_text, transform=ax.transAxes, 
                        ha='center', fontsize=10, style='italic')
             
+            # Debug: Check if we reach canvas creation
+            print(f"Debug: About to create canvas for {selected_param}")
+            print(f"Debug: Figure has {len(fig.get_axes())} axes")
+
             # Create canvas and add to layout
             canvas = FigureCanvasQTAgg(fig)
+            print(f"Debug: Canvas created successfully for {selected_param}")
+
+            # Clear existing widgets from param_plot_widget
+            if self.param_plot_widget.layout():
+                print(f"Debug: Clearing existing layout for {selected_param}")
+                while self.param_plot_widget.layout().count():
+                    child = self.param_plot_widget.layout().takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+
             self.param_plot_widget.layout().addWidget(canvas)
-            
+            print(f"Debug: Canvas added to layout for {selected_param}")
+
             # Add toolbar
             toolbar = NavigationToolbar(canvas, self.param_plot_widget)
             self.param_plot_widget.layout().addWidget(toolbar)
-            
+            print(f"Debug: Toolbar added for {selected_param}")
+
             # Add buttons using the helper method
             self.add_plot_buttons(fig, "Distribution Plot", selected_param)
-            
+            print(f"Debug: Plot buttons added for {selected_param}")
+            print(f"Debug: Distribution plot creation completed for {selected_param}")
+
         except Exception as e:
             print(f"Error creating distribution plot: {str(e)}")
             import traceback
             traceback.print_exc()
+
+            # Fallback: create a simple plot for convergence_generation if everything fails
+            if selected_param == 'convergence_generation':
+                try:
+                    print(f"Debug: Attempting fallback plot for convergence_generation")
+                    # Get the data if not already available
+                    if 'finite_values' not in locals():
+                        if hasattr(self, 'current_parameter_data') and selected_param in self.current_parameter_data:
+                            values = self.current_parameter_data[selected_param]
+                            finite_values = values[np.isfinite(values)]
+                        else:
+                            raise ValueError("No data available for fallback plot")
+
+                    # Create a new figure for the fallback plot
+                    fig_fallback = Figure(figsize=(10, 6), dpi=100, tight_layout=True)
+                    fig_fallback.patch.set_facecolor('white')
+                    ax_fallback = fig_fallback.add_subplot(111)
+
+                    # Create a simple bar plot of value frequencies
+                    unique_vals, counts = np.unique(finite_values, return_counts=True)
+                    ax_fallback.bar(unique_vals, counts, alpha=0.7, color='skyblue', edgecolor='black')
+                    ax_fallback.set_title(f"{selected_param} Distribution (Bar Plot)", fontsize=14, fontweight='bold', pad=20)
+                    ax_fallback.set_xlabel("Generation", fontsize=12, fontweight='bold')
+                    ax_fallback.set_ylabel("Frequency", fontsize=12, fontweight='bold')
+                    ax_fallback.grid(True, alpha=0.3)
+
+                    # Create canvas with the fallback plot
+                    canvas = FigureCanvasQTAgg(fig_fallback)
+                    toolbar = NavigationToolbar(canvas, self.param_plot_widget)
+                    self.param_plot_widget.layout().addWidget(canvas)
+                    self.param_plot_widget.layout().addWidget(toolbar)
+
+                    # Add plot buttons
+                    self.add_plot_buttons(fig_fallback, "Distribution Plot", selected_param)
+
+                    print(f"Debug: Fallback bar plot created successfully for convergence_generation")
+                    return  # Exit the function since we successfully created a fallback plot
+                except Exception as fallback_e:
+                    print(f"Debug: Fallback plot also failed: {str(fallback_e)}")
+                    # Create a simple error message widget
+                    error_label = QLabel(f"Unable to create plot for {selected_param}")
+                    error_label.setAlignment(Qt.AlignCenter)
+                    error_label.setStyleSheet("font-size: 14px; color: red; padding: 20px;")
+                    self.param_plot_widget.layout().addWidget(error_label)
     
     def create_scatter_plot(self, selected_param, comparison_param):
         """Create scatter plot between selected parameters"""
@@ -5803,7 +6194,29 @@ class GAOptimizationMixin:
             for i, param_name in enumerate(param_names):
                 ax = fig.add_subplot(n_rows, n_cols, i + 1)
                 
+                if param_name not in self.current_parameter_data:
+                    print(f"Debug: Parameter {param_name} not found in current_parameter_data")
+                    ax.text(0.5, 0.5, f"Parameter '{param_name}' not found", ha='center', va='center', transform=ax.transAxes)
+                    continue
+
                 values = self.current_parameter_data[param_name]
+                print(f"Debug: Plotting parameter {param_name} with {len(values)} values")
+                print(f"Debug: Values type: {type(values)}, dtype: {values.dtype if hasattr(values, 'dtype') else 'N/A'}")
+                print(f"Debug: Values sample: {values[:3] if len(values) > 0 else 'empty'}")
+
+                # Check for NaN or invalid values
+                import numpy as np
+                finite_values = values[np.isfinite(values)]
+                print(f"Debug: Finite values count: {len(finite_values)} out of {len(values)}")
+
+                # Special checks for convergence_generation
+                if param_name == 'convergence_generation':
+                    print(f"Debug: Convergence generation - Min: {finite_values.min()}, Max: {finite_values.max()}")
+                    print(f"Debug: Convergence generation - Unique values: {len(np.unique(finite_values))}")
+                    print(f"Debug: Convergence generation - Is all integers: {np.all(finite_values == finite_values.astype(int))}")
+                    print(f"Debug: Convergence generation - Range: {finite_values.max() - finite_values.min()}")
+                    if finite_values.max() == finite_values.min():
+                        print(f"Debug: WARNING - All convergence_generation values are the same: {finite_values[0]}")
                 color = colors[i % len(colors)]
                 
                 # Create enhanced Q-Q plot
@@ -6349,6 +6762,12 @@ class GAOptimizationMixin:
                     # Ensure benchmark_metrics dict exists
                     if 'benchmark_metrics' not in r or not isinstance(r['benchmark_metrics'], dict):
                         r['benchmark_metrics'] = {}
+                    # Handle convergence_generation field
+                    if 'convergence_generation' in r:
+                        try:
+                            r['convergence_generation'] = float(r['convergence_generation'])
+                        except Exception:
+                            r['convergence_generation'] = np.nan
                     # Ensure results_summary dict exists (for singular_response/percentage_differences/etc.)
                     if 'results_summary' not in r or not isinstance(r['results_summary'], dict):
                         summary = {}
@@ -9740,3 +10159,789 @@ All parameters remain constant during optimization.''',
         else:
             # User cancelled, return empty list
             return []
+
+    def _build_comprehensive_group_summary(self, df):
+        """Build comprehensive visualizations for the Group Summary tab with separate subtabs"""
+        try:
+            # Clear existing content
+            if hasattr(self, 'group_summary_container') and self.group_summary_container.layout():
+                layout = self.group_summary_container.layout()
+                while layout.count():
+                    child = layout.takeAt(0)
+                    if child.widget():
+                        child.widget().setParent(None)
+            
+            import numpy as np
+            import pandas as pd
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+            from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+            import seaborn as sns
+            from scipy import stats
+            
+            # Get group counts
+            groups = ['Best', 'Mid', 'Worst']
+            group_counts = {}
+            for g in groups:
+                group_counts[g] = int((df['group'] == g).sum()) if 'group' in df.columns else 0
+            
+            total_runs = len(df)
+            metric_name = self.bench_rank_metric_combo.currentText() if hasattr(self, 'bench_rank_metric_combo') else 'Fitness'
+            
+            # Create tabbed widget for separate plot subtabs
+            plot_tabs = QTabWidget()
+            self.group_summary_container.layout().addWidget(plot_tabs)
+            
+            # Define colors for groups
+            group_colors = {'Best': '#2ca02c', 'Mid': '#ff7f0e', 'Worst': '#d62728'}
+            
+            # 1. Overview Tab
+            overview_tab = QWidget()
+            overview_layout = QVBoxLayout(overview_tab)
+            
+            summary_text = QTextEdit()
+            summary_text.setReadOnly(True)
+            summary_text.setMaximumHeight(180)  # Increased height for reference info
+            
+            # Get reference run information
+            ref_info = ""
+            if 'best_ref_score' in df.columns and 'mean_ref_score' in df.columns and 'worst_ref_score' in df.columns:
+                best_ref = df.iloc[0]['best_ref_score']
+                mean_ref = df.iloc[0]['mean_ref_score'] 
+                worst_ref = df.iloc[0]['worst_ref_score']
+                ref_info = f"""
+🎯 REFERENCE RUNS (Clustering Centers):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🥇 Best Reference:  {best_ref:.6f}
+🥈 Mean Reference:  {mean_ref:.6f}
+🥉 Worst Reference: {worst_ref:.6f}
+
+ℹ️  Runs are grouped by closeness to these references
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+            
+            summary_content = f"""
+📊 BENCHMARK SUMMARY ({total_runs} runs)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🥇 Best Group:  {group_counts.get('Best', 0):>3} runs ({group_counts.get('Best', 0)/max(1,total_runs)*100:5.1f}%)
+🥈 Mid Group:   {group_counts.get('Mid', 0):>3} runs ({group_counts.get('Mid', 0)/max(1,total_runs)*100:5.1f}%)
+🥉 Worst Group: {group_counts.get('Worst', 0):>3} runs ({group_counts.get('Worst', 0)/max(1,total_runs)*100:5.1f}%)
+
+📈 Ranking Metric: {metric_name}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{ref_info}
+            """
+            summary_text.setPlainText(summary_content.strip())
+            overview_layout.addWidget(summary_text)
+            plot_tabs.addTab(overview_tab, "📊 Overview")
+            
+            # 2. KDE Distribution Tab
+            kde_tab = QWidget()
+            kde_layout = QVBoxLayout(kde_tab)
+            
+            if 'score' in df.columns:
+                fig_kde = Figure(figsize=(12, 8), tight_layout=True)
+                ax_kde = fig_kde.add_subplot(111)
+                
+                for group in groups:
+                    group_data = df[df['group'] == group]['score'].dropna()
+                    if len(group_data) >= 2:
+                        sns.kdeplot(data=group_data, ax=ax_kde, label=f'{group} (n={len(group_data)})', 
+                                   color=group_colors[group], fill=True, alpha=0.3)
+                        # Add mean line
+                        mean_val = group_data.mean()
+                        ax_kde.axvline(mean_val, color=group_colors[group], linestyle='--', alpha=0.8)
+                
+                # Add reference run markers
+                if 'best_ref_score' in df.columns:
+                    best_ref = df.iloc[0]['best_ref_score']
+                    mean_ref = df.iloc[0]['mean_ref_score']
+                    worst_ref = df.iloc[0]['worst_ref_score']
+                    
+                    ax_kde.axvline(best_ref, color='darkgreen', linestyle='-', linewidth=3, alpha=0.8, label=f'Best Ref: {best_ref:.4f}')
+                    ax_kde.axvline(mean_ref, color='darkorange', linestyle='-', linewidth=3, alpha=0.8, label=f'Mean Ref: {mean_ref:.4f}')
+                    ax_kde.axvline(worst_ref, color='darkred', linestyle='-', linewidth=3, alpha=0.8, label=f'Worst Ref: {worst_ref:.4f}')
+                
+                ax_kde.set_title('Score Distribution by Reference-Based Groups', fontweight='bold', fontsize=14)
+                ax_kde.set_xlabel('Score (lower is better)')
+                ax_kde.set_ylabel('Density')
+                ax_kde.legend()
+                ax_kde.grid(True, alpha=0.3)
+                
+                canvas_kde = FigureCanvas(fig_kde)
+                toolbar_kde = NavigationToolbar(canvas_kde, kde_tab)
+                self._attach_open_in_new_window(toolbar_kde, fig_kde, "KDE Distribution by Reference-Based Groups")
+                kde_layout.addWidget(canvas_kde)
+                kde_layout.addWidget(toolbar_kde)
+            else:
+                kde_layout.addWidget(QLabel("No score data available for KDE plot"))
+            
+            plot_tabs.addTab(kde_tab, "📈 KDE Distribution")
+            
+            # 3. Violin Plot Tab
+            violin_tab = QWidget()
+            violin_layout = QVBoxLayout(violin_tab)
+            
+            if 'group' in df.columns and 'best_fitness' in df.columns:
+                fig_violin = Figure(figsize=(10, 8), tight_layout=True)
+                ax_violin = fig_violin.add_subplot(111)
+                
+                group_data_list = []
+                group_labels = []
+                for group in groups:
+                    group_fitness = df[df['group'] == group]['best_fitness'].dropna()
+                    if len(group_fitness) > 0:
+                        group_data_list.append(group_fitness.values)
+                        group_labels.append(f'{group}\n(n={len(group_fitness)})')
+                
+                if group_data_list:
+                    parts = ax_violin.violinplot(group_data_list, positions=range(len(group_data_list)), 
+                                               showmeans=True, showmedians=True)
+                    
+                    # Color the violin parts
+                    for i, (pc, group) in enumerate(zip(parts['bodies'], groups[:len(group_data_list)])):
+                        pc.set_facecolor(group_colors[group])
+                        pc.set_alpha(0.6)
+                    
+                    ax_violin.set_xticks(range(len(group_labels)))
+                    ax_violin.set_xticklabels(group_labels)
+                    ax_violin.set_title('Fitness Distribution by Group', fontweight='bold', fontsize=14)
+                    ax_violin.set_ylabel('Best Fitness')
+                    ax_violin.grid(True, alpha=0.3)
+                
+                canvas_violin = FigureCanvas(fig_violin)
+                toolbar_violin = NavigationToolbar(canvas_violin, violin_tab)
+                self._attach_open_in_new_window(toolbar_violin, fig_violin, "Fitness Distribution by Group - Violin Plot")
+                violin_layout.addWidget(canvas_violin)
+                violin_layout.addWidget(toolbar_violin)
+            else:
+                violin_layout.addWidget(QLabel("No group or fitness data available for violin plot"))
+            
+            plot_tabs.addTab(violin_tab, "🎻 Violin Plot")
+            
+            # 4. Box Plot Tab
+            box_tab = QWidget()
+            box_layout = QVBoxLayout(box_tab)
+            
+            metrics_to_plot = []
+            metric_names = []
+            if 'best_fitness' in df.columns:
+                metrics_to_plot.append(df['best_fitness'].dropna())
+                metric_names.append('Fitness')
+            if 'convergence_generation' in df.columns:
+                metrics_to_plot.append(df['convergence_generation'].dropna())
+                metric_names.append('Conv Gen')
+            if 'elapsed_time' in df.columns:
+                metrics_to_plot.append(df['elapsed_time'].dropna())
+                metric_names.append('Time (s)')
+            if 'cpu_time_used' in df.columns:
+                metrics_to_plot.append(df['cpu_time_used'].dropna())
+                metric_names.append('CPU (s)')
+            
+            if metrics_to_plot:
+                fig_box = Figure(figsize=(12, 8), tight_layout=True)
+                ax_box = fig_box.add_subplot(111)
+                
+                # Normalize metrics for comparison
+                normalized_metrics = []
+                for metric in metrics_to_plot:
+                    if len(metric) > 0:
+                        min_val, max_val = metric.min(), metric.max()
+                        if max_val > min_val:
+                            normalized = (metric - min_val) / (max_val - min_val)
+                        else:
+                            normalized = pd.Series([0.5] * len(metric))
+                        normalized_metrics.append(normalized.values)
+                    else:
+                        normalized_metrics.append([])
+                
+                if normalized_metrics:
+                    ax_box.boxplot(normalized_metrics, labels=metric_names)
+                    ax_box.set_title('Normalized Metrics Comparison', fontweight='bold', fontsize=14)
+                    ax_box.set_ylabel('Normalized Value (0-1)')
+                    ax_box.grid(True, alpha=0.3)
+                    ax_box.tick_params(axis='x', rotation=45)
+                
+                canvas_box = FigureCanvas(fig_box)
+                toolbar_box = NavigationToolbar(canvas_box, box_tab)
+                self._attach_open_in_new_window(toolbar_box, fig_box, "Normalized Metrics Comparison - Box Plot")
+                box_layout.addWidget(canvas_box)
+                box_layout.addWidget(toolbar_box)
+            else:
+                box_layout.addWidget(QLabel("No metrics data available for box plot"))
+            
+            plot_tabs.addTab(box_tab, "📦 Box Plot")
+            
+            # 5. Scatter Plot Tab
+            scatter_tab = QWidget()
+            scatter_layout = QVBoxLayout(scatter_tab)
+            
+            if 'run_number' in df.columns and 'best_fitness' in df.columns and 'group' in df.columns:
+                fig_scatter = Figure(figsize=(12, 8), tight_layout=True)
+                ax_scatter = fig_scatter.add_subplot(111)
+                
+                for group in groups:
+                    group_data = df[df['group'] == group]
+                    if len(group_data) > 0:
+                        ax_scatter.scatter(group_data['run_number'], group_data['best_fitness'], 
+                                         c=group_colors[group], label=f'{group} (n={len(group_data)})', 
+                                         alpha=0.7, s=50)
+                
+                # Add trend line
+                if len(df) > 1:
+                    z = np.polyfit(df['run_number'], df['best_fitness'], 1)
+                    p = np.poly1d(z)
+                    ax_scatter.plot(df['run_number'], p(df['run_number']), 'r--', alpha=0.8, linewidth=2)
+                
+                ax_scatter.set_title('Fitness vs Run Number', fontweight='bold', fontsize=14)
+                ax_scatter.set_xlabel('Run Number')
+                ax_scatter.set_ylabel('Best Fitness')
+                ax_scatter.legend()
+                ax_scatter.grid(True, alpha=0.3)
+                
+                canvas_scatter = FigureCanvas(fig_scatter)
+                toolbar_scatter = NavigationToolbar(canvas_scatter, scatter_tab)
+                self._attach_open_in_new_window(toolbar_scatter, fig_scatter, "Fitness vs Run Number - Scatter Plot")
+                scatter_layout.addWidget(canvas_scatter)
+                scatter_layout.addWidget(toolbar_scatter)
+            else:
+                scatter_layout.addWidget(QLabel("No run number, fitness, or group data available for scatter plot"))
+            
+            plot_tabs.addTab(scatter_tab, "⚡ Scatter Plot")
+            
+            # 6. Correlation Matrix Tab
+            correlation_tab = QWidget()
+            correlation_layout = QVBoxLayout(correlation_tab)
+            
+            numeric_cols = []
+            for col in ['best_fitness', 'convergence_generation', 'elapsed_time', 'cpu_time_used', 'score']:
+                if col in df.columns and df[col].notna().sum() > 1:
+                    numeric_cols.append(col)
+            
+            if len(numeric_cols) >= 2:
+                fig_corr = Figure(figsize=(10, 8), tight_layout=True)
+                ax_correlation = fig_corr.add_subplot(111)
+                
+                corr_data = df[numeric_cols].corr()
+                im = ax_correlation.imshow(corr_data.values, cmap='RdBu_r', aspect='auto', vmin=-1, vmax=1)
+                ax_correlation.set_xticks(range(len(numeric_cols)))
+                ax_correlation.set_yticks(range(len(numeric_cols)))
+                ax_correlation.set_xticklabels([col.replace('_', '\n') for col in numeric_cols], rotation=45)
+                ax_correlation.set_yticklabels([col.replace('_', '\n') for col in numeric_cols])
+                ax_correlation.set_title('Metrics Correlation Matrix', fontweight='bold', fontsize=14)
+                
+                # Add correlation values
+                for i in range(len(numeric_cols)):
+                    for j in range(len(numeric_cols)):
+                        text = ax_correlation.text(j, i, f'{corr_data.iloc[i, j]:.2f}', 
+                                                 ha="center", va="center", color="black", fontweight='bold')
+                
+                # Add colorbar
+                cbar = fig_corr.colorbar(im, ax=ax_correlation, shrink=0.8)
+                cbar.set_label('Correlation', rotation=270, labelpad=15)
+                
+                canvas_corr = FigureCanvas(fig_corr)
+                toolbar_corr = NavigationToolbar(canvas_corr, correlation_tab)
+                self._attach_open_in_new_window(toolbar_corr, fig_corr, "Metrics Correlation Matrix")
+                correlation_layout.addWidget(canvas_corr)
+                correlation_layout.addWidget(toolbar_corr)
+            else:
+                correlation_layout.addWidget(QLabel("Not enough numeric columns for correlation matrix"))
+            
+            plot_tabs.addTab(correlation_tab, "🔗 Correlation")
+            
+            # 7. Q-Q Plot Tab
+            qq_tab = QWidget()
+            qq_layout = QVBoxLayout(qq_tab)
+            
+            if 'best_fitness' in df.columns:
+                fig_qq = Figure(figsize=(10, 8), tight_layout=True)
+                ax_qq = fig_qq.add_subplot(111)
+                
+                stats.probplot(df['best_fitness'].dropna(), dist="norm", plot=ax_qq)
+                ax_qq.set_title('Q-Q Plot (Fitness Normality Check)', fontweight='bold', fontsize=14)
+                ax_qq.grid(True, alpha=0.3)
+                
+                canvas_qq = FigureCanvas(fig_qq)
+                toolbar_qq = NavigationToolbar(canvas_qq, qq_tab)
+                self._attach_open_in_new_window(toolbar_qq, fig_qq, "Q-Q Plot - Fitness Normality Check")
+                qq_layout.addWidget(canvas_qq)
+                qq_layout.addWidget(toolbar_qq)
+            else:
+                qq_layout.addWidget(QLabel("No fitness data available for Q-Q plot"))
+            
+            plot_tabs.addTab(qq_tab, "📊 Q-Q Plot")
+            
+            # 8. Pie Chart Tab
+            pie_tab = QWidget()
+            pie_layout = QVBoxLayout(pie_tab)
+            
+            if group_counts:
+                sizes = [group_counts[g] for g in groups if group_counts[g] > 0]
+                labels = [f'{g}\n({group_counts[g]} runs)' for g in groups if group_counts[g] > 0]
+                colors = [group_colors[g] for g in groups if group_counts[g] > 0]
+                
+                if sizes:
+                    fig_pie = Figure(figsize=(10, 8), tight_layout=True)
+                    ax_pie = fig_pie.add_subplot(111)
+                    
+                    wedges, texts, autotexts = ax_pie.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', 
+                                                        startangle=90, textprops={'fontsize': 12})
+                    ax_pie.set_title('Group Distribution', fontweight='bold', fontsize=14)
+                    
+                    canvas_pie = FigureCanvas(fig_pie)
+                    toolbar_pie = NavigationToolbar(canvas_pie, pie_tab)
+                    self._attach_open_in_new_window(toolbar_pie, fig_pie, "Group Distribution - Pie Chart")
+                    pie_layout.addWidget(canvas_pie)
+                    pie_layout.addWidget(toolbar_pie)
+                else:
+                    pie_layout.addWidget(QLabel("No group data available for pie chart"))
+            else:
+                pie_layout.addWidget(QLabel("No group counts available for pie chart"))
+            
+            plot_tabs.addTab(pie_tab, "🥧 Group Distribution")
+            
+            # 9. Metrics Comparison Tab
+            metrics_comp_tab = QWidget()
+            metrics_comp_layout = QVBoxLayout(metrics_comp_tab)
+            
+            if group_counts:
+                metrics_data = []
+                group_names = []
+                
+                for group in groups:
+                    if group_counts[group] > 0:
+                        group_df = df[df['group'] == group]
+                        group_names.append(group)
+                        
+                        row_data = [
+                            group_df['best_fitness'].mean() if 'best_fitness' in group_df.columns else 0,
+                            group_df['convergence_generation'].mean() if 'convergence_generation' in group_df.columns else 0,
+                            group_df['elapsed_time'].mean() if 'elapsed_time' in group_df.columns else 0,
+                            group_df['cpu_time_used'].mean() if 'cpu_time_used' in group_df.columns else 0
+                        ]
+                        metrics_data.append(row_data)
+                
+                if metrics_data and group_names:
+                    fig_metrics = Figure(figsize=(12, 8), tight_layout=True)
+                    ax_metrics = fig_metrics.add_subplot(111)
+                    
+                    metrics_array = np.array(metrics_data).T
+                    metric_labels = ['Fitness', 'Conv Gen', 'Time (s)', 'CPU (s)']
+                    
+                    x = np.arange(len(group_names))
+                    width = 0.2
+                    
+                    for i, (metric_values, label) in enumerate(zip(metrics_array, metric_labels)):
+                        if np.any(np.isfinite(metric_values)) and np.max(metric_values) > 0:
+                            # Normalize for better visualization
+                            normalized_values = metric_values / np.max(metric_values) if np.max(metric_values) > 0 else metric_values
+                            ax_metrics.bar(x + i*width, normalized_values, width, label=label, alpha=0.8)
+                    
+                    ax_metrics.set_xlabel('Groups')
+                    ax_metrics.set_ylabel('Normalized Values')
+                    ax_metrics.set_title('Group Performance Comparison', fontweight='bold', fontsize=14)
+                    ax_metrics.set_xticks(x + width * 1.5)
+                    ax_metrics.set_xticklabels(group_names)
+                    ax_metrics.legend()
+                    ax_metrics.grid(True, alpha=0.3)
+                    
+                    canvas_metrics = FigureCanvas(fig_metrics)
+                    toolbar_metrics = NavigationToolbar(canvas_metrics, metrics_comp_tab)
+                    self._attach_open_in_new_window(toolbar_metrics, fig_metrics, "Group Performance Comparison - Metrics")
+                    metrics_comp_layout.addWidget(canvas_metrics)
+                    metrics_comp_layout.addWidget(toolbar_metrics)
+                else:
+                    metrics_comp_layout.addWidget(QLabel("No group data available for metrics comparison"))
+            else:
+                metrics_comp_layout.addWidget(QLabel("No group counts available for metrics comparison"))
+            
+            plot_tabs.addTab(metrics_comp_tab, "📈 Metrics Comparison")
+            
+            # 10. Trends Tab
+            trends_tab = QWidget()
+            trends_layout = QVBoxLayout(trends_tab)
+            
+            if 'run_number' in df.columns and len(df) > 3:
+                fig_trends = Figure(figsize=(12, 8), tight_layout=True)
+                ax_trends = fig_trends.add_subplot(111)
+                
+                # Calculate moving average
+                window = max(3, len(df) // 10)
+                df_sorted = df.sort_values('run_number')
+                
+                if 'best_fitness' in df.columns:
+                    moving_avg = df_sorted['best_fitness'].rolling(window=window, center=True).mean()
+                    ax_trends.plot(df_sorted['run_number'], df_sorted['best_fitness'], 'o-', alpha=0.5, label='Fitness', markersize=3)
+                    ax_trends.plot(df_sorted['run_number'], moving_avg, '-', linewidth=3, label=f'Moving Avg (w={window})')
+                
+                ax_trends.set_title('Performance Trends Over Runs', fontweight='bold', fontsize=14)
+                ax_trends.set_xlabel('Run Number')
+                ax_trends.set_ylabel('Best Fitness')
+                ax_trends.legend()
+                ax_trends.grid(True, alpha=0.3)
+                
+                canvas_trends = FigureCanvas(fig_trends)
+                toolbar_trends = NavigationToolbar(canvas_trends, trends_tab)
+                self._attach_open_in_new_window(toolbar_trends, fig_trends, "Performance Trends Over Runs")
+                trends_layout.addWidget(canvas_trends)
+                trends_layout.addWidget(toolbar_trends)
+            else:
+                trends_layout.addWidget(QLabel("Not enough run data for trends analysis"))
+            
+            plot_tabs.addTab(trends_tab, "📉 Performance Trends")
+            
+            # 11. Distribution Analysis Tab
+            dist_analysis_tab = QWidget()
+            dist_analysis_layout = QVBoxLayout(dist_analysis_tab)
+            
+            if 'score' in df.columns and len(df) >= 5:
+                fig_dist = Figure(figsize=(14, 8), tight_layout=True)
+                
+                # Create single plot layout for cleaner appearance
+                ax_main = fig_dist.add_subplot(111)
+                
+                # Get score data
+                scores = df['score'].dropna()
+                
+                # Create histogram with more bins for better precision
+                n_bins = min(max(20, len(scores) // 2), 100)  # More bins for higher resolution
+                counts, bins, patches = ax_main.hist(scores, bins=n_bins, alpha=0.8, color='lightblue', 
+                                                   edgecolor='black', linewidth=0.5, density=True, 
+                                                   rwidth=0.85)  # Reduce bar width to 85% for better separation
+                
+                # Fit and overlay multiple distribution types
+                try:
+                    from scipy import stats
+                    from sklearn.neighbors import KernelDensity
+                    
+                    # Calculate basic statistics
+                    mu, sigma = scores.mean(), scores.std()
+                    
+                    # 1. KDE (Kernel Density Estimation) - follows actual data shape
+                    x_range = np.linspace(scores.min(), scores.max(), 200)
+                    kde = KernelDensity(kernel='gaussian', bandwidth=sigma/3).fit(scores.values.reshape(-1, 1))
+                    kde_scores = np.exp(kde.score_samples(x_range.reshape(-1, 1)))
+                    ax_main.plot(x_range, kde_scores, 'purple', linewidth=3, alpha=0.9, 
+                               label=f'KDE (Actual Shape)')
+                    
+                    # 2. Try different distributions and find best fit
+                    distributions_to_try = [
+                        ('Normal', stats.norm),
+                        ('Skew Normal', stats.skewnorm),
+                        ('Gamma', stats.gamma),
+                        ('Beta', stats.beta),
+                        ('Log Normal', stats.lognorm)
+                    ]
+                    
+                    best_dist = None
+                    best_aic = np.inf
+                    best_params = None
+                    best_name = None
+                    
+                    for dist_name, dist in distributions_to_try:
+                        try:
+                            # Fit distribution
+                            if dist_name == 'Beta':
+                                # Beta needs data in [0,1] range
+                                if scores.min() >= 0:
+                                    norm_scores = (scores - scores.min()) / (scores.max() - scores.min())
+                                    params = dist.fit(norm_scores)
+                                    # Transform back for plotting
+                                    x_beta = (x_range - scores.min()) / (scores.max() - scores.min())
+                                    y_beta = dist.pdf(x_beta, *params) / (scores.max() - scores.min())
+                                    
+                                    # Calculate AIC for normalized data
+                                    log_likelihood = np.sum(dist.logpdf(norm_scores, *params))
+                                else:
+                                    continue
+                            else:
+                                params = dist.fit(scores)
+                                y_beta = dist.pdf(x_range, *params)
+                                log_likelihood = np.sum(dist.logpdf(scores, *params))
+                            
+                            # Calculate AIC (Akaike Information Criterion)
+                            aic = 2 * len(params) - 2 * log_likelihood
+                            
+                            if aic < best_aic and np.all(np.isfinite(y_beta)):
+                                best_aic = aic
+                                best_dist = dist
+                                best_params = params
+                                best_name = dist_name
+                                if dist_name == 'Beta':
+                                    best_y = y_beta
+                                else:
+                                    best_y = y_beta
+                                    
+                        except Exception:
+                            continue
+                    
+                    # Plot the best fitting distribution
+                    if best_dist is not None and best_params is not None:
+                        if best_name == 'Beta':
+                            y_fit = best_y
+                        else:
+                            y_fit = best_dist.pdf(x_range, *best_params)
+                            
+                        ax_main.plot(x_range, y_fit, 'red', linewidth=2, alpha=0.8, linestyle='--',
+                                   label=f'Best Fit: {best_name} (AIC={best_aic:.1f})')
+                        
+                        # Add distribution parameters to legend
+                        if best_name == 'Normal':
+                            param_str = f'μ={best_params[0]:.4f}, σ={best_params[1]:.4f}'
+                        elif best_name == 'Skew Normal':
+                            param_str = f'a={best_params[0]:.3f}, μ={best_params[1]:.4f}, σ={best_params[2]:.4f}'
+                        elif best_name in ['Gamma', 'Log Normal']:
+                            param_str = f'shape={best_params[0]:.3f}, scale={best_params[2]:.4f}' if len(best_params) > 2 else f'shape={best_params[0]:.3f}'
+                        else:
+                            param_str = f'params={[f"{p:.3f}" for p in best_params[:3]]}'
+                        
+                        # Add parameter info as separate legend entry
+                        ax_main.plot([], [], ' ', label=f'  Parameters: {param_str}')
+                    else:
+                        # Fallback to simple normal if all fits fail
+                        y_norm = stats.norm.pdf(x_range, mu, sigma)
+                        ax_main.plot(x_range, y_norm, 'red', linewidth=2, alpha=0.8, linestyle='--',
+                                   label=f'Normal Fit (μ={mu:.4f}, σ={sigma:.4f})')
+                        
+                except Exception as e:
+                    # Fallback to basic statistics
+                    mu, sigma = scores.mean(), scores.std()
+                    print(f"Distribution fitting failed: {e}")
+                
+                # Get reference boundaries and color regions
+                if 'best_ref_score' in df.columns:
+                    best_ref = df.iloc[0]['best_ref_score']
+                    mean_ref = df.iloc[0]['mean_ref_score']
+                    worst_ref = df.iloc[0]['worst_ref_score']
+                    
+                    # Calculate boundary points (midpoints between references)
+                    best_mid_boundary = (best_ref + mean_ref) / 2
+                    mid_worst_boundary = (mean_ref + worst_ref) / 2
+                    
+                    # Color the histogram bars based on regions
+                    for i, (patch, bin_center) in enumerate(zip(patches, (bins[:-1] + bins[1:]) / 2)):
+                        if bin_center <= best_mid_boundary:
+                            patch.set_facecolor('#2ca02c')  # Best - Green
+                            patch.set_alpha(0.7)
+                        elif bin_center <= mid_worst_boundary:
+                            patch.set_facecolor('#ff7f0e')  # Mid - Orange  
+                            patch.set_alpha(0.7)
+                        else:
+                            patch.set_facecolor('#d62728')  # Worst - Red
+                            patch.set_alpha(0.7)
+                    
+                    # Add vertical reference lines
+                    ax_main.axvline(best_ref, color='darkgreen', linestyle='-', linewidth=3, alpha=0.9,
+                                   label=f'Best Reference: {best_ref:.4f}')
+                    ax_main.axvline(mean_ref, color='darkorange', linestyle='-', linewidth=3, alpha=0.9,
+                                   label=f'Mean Reference: {mean_ref:.4f}')
+                    ax_main.axvline(worst_ref, color='darkred', linestyle='-', linewidth=3, alpha=0.9,
+                                   label=f'Worst Reference: {worst_ref:.4f}')
+                    
+                    # Add boundary lines (dashed)
+                    ax_main.axvline(best_mid_boundary, color='gray', linestyle='--', linewidth=2, alpha=0.7,
+                                   label=f'Best-Mid Boundary: {best_mid_boundary:.4f}')
+                    ax_main.axvline(mid_worst_boundary, color='gray', linestyle='--', linewidth=2, alpha=0.7,
+                                   label=f'Mid-Worst Boundary: {mid_worst_boundary:.4f}')
+                    
+                    # Calculate group statistics
+                    best_group = df[df['group'] == 'Best']['score'].dropna()
+                    mid_group = df[df['group'] == 'Mid']['score'].dropna()
+                    worst_group = df[df['group'] == 'Worst']['score'].dropna()
+                    
+                    # Add group density curves
+                    if len(best_group) >= 2:
+                        try:
+                            mu_best, sigma_best = stats.norm.fit(best_group)
+                            x_best = np.linspace(best_group.min(), best_group.max(), 50)
+                            y_best = stats.norm.pdf(x_best, mu_best, sigma_best)
+                            ax_main.plot(x_best, y_best, color='green', linestyle=':', linewidth=2, alpha=0.8)
+                        except Exception:
+                            pass
+                    
+                    if len(mid_group) >= 2:
+                        try:
+                            mu_mid, sigma_mid = stats.norm.fit(mid_group)
+                            x_mid = np.linspace(mid_group.min(), mid_group.max(), 50)
+                            y_mid = stats.norm.pdf(x_mid, mu_mid, sigma_mid)
+                            ax_main.plot(x_mid, y_mid, color='orange', linestyle=':', linewidth=2, alpha=0.8)
+                        except Exception:
+                            pass
+                    
+                    if len(worst_group) >= 2:
+                        try:
+                            mu_worst, sigma_worst = stats.norm.fit(worst_group)
+                            x_worst = np.linspace(worst_group.min(), worst_group.max(), 50)
+                            y_worst = stats.norm.pdf(x_worst, mu_worst, sigma_worst)
+                            ax_main.plot(x_worst, y_worst, color='red', linestyle=':', linewidth=2, alpha=0.8)
+                        except Exception:
+                            pass
+                
+                # Formatting
+                ax_main.set_title('Score Distribution Analysis with Reference-Based Grouping', 
+                                fontweight='bold', fontsize=14)
+                ax_main.set_xlabel('Score Value (lower is better)', fontsize=12)
+                ax_main.set_ylabel('Density', fontsize=12)
+                ax_main.grid(True, alpha=0.3)
+                ax_main.legend(loc='upper left', fontsize=9, bbox_to_anchor=(0, 1))
+                
+                
+                # Add distribution analysis text directly on the main plot
+                try:
+                    skewness = stats.skew(scores)
+                    kurtosis = stats.kurtosis(scores)
+                    
+                    # Interpret skewness
+                    if skewness < -0.5:
+                        skew_desc = "Left-skewed (better runs more common)"
+                    elif skewness > 0.5:
+                        skew_desc = "Right-skewed (worse runs more common)"
+                    else:
+                        skew_desc = "Approximately symmetric"
+                    
+                    # Interpret kurtosis
+                    if kurtosis > 1:
+                        kurt_desc = "Heavy-tailed (more outliers)"
+                    elif kurtosis < -1:
+                        kurt_desc = "Light-tailed (fewer outliers)"
+                    else:
+                        kurt_desc = "Normal-like tails"
+                    
+                    # Check if best fit was found and add fit quality info
+                    fit_quality = ""
+                    if 'best_name' in locals() and best_name:
+                        if best_name == 'Normal':
+                            fit_quality = "✅ Normal distribution fits well"
+                        elif best_name == 'Skew Normal':
+                            fit_quality = "⚠️ Data is skewed (asymmetric)"
+                        elif best_name in ['Gamma', 'Log Normal']:
+                            fit_quality = "📊 Right-skewed distribution"
+                        elif best_name == 'Beta':
+                            fit_quality = "🔄 Bounded distribution"
+                        else:
+                            fit_quality = f"📈 Best fit: {best_name}"
+                    
+                    # Create compact analysis text for plot overlay
+                    analysis_text = f"""📊 DISTRIBUTION ANALYSIS
+📈 Skewness: {skewness:.3f} ({skew_desc})
+📊 Kurtosis: {kurtosis:.3f} ({kurt_desc})
+{fit_quality if fit_quality else ""}
+🎯 Most data in: {df['group'].mode().iloc[0] if not df['group'].mode().empty else 'Unknown'} group
+📏 Range: {scores.min():.4f} - {scores.max():.4f}
+
+🔍 LEGEND:
+• Purple: Actual data shape (KDE)  • Red dashed: Best fit
+• Green bars: Best region  • Orange bars: Mid region  • Red bars: Worst region
+• Solid lines: References  • Dashed lines: Boundaries"""
+                    
+                    # Position the text box on the right side of the plot
+                    ax_main.text(0.98, 0.98, analysis_text.strip(), transform=ax_main.transAxes,
+                               verticalalignment='top', horizontalalignment='right', fontsize=8, 
+                               fontfamily='monospace',
+                               bbox=dict(boxstyle='round,pad=0.5', facecolor='lightcyan', alpha=0.9, edgecolor='steelblue'))
+                except Exception:
+                    ax_main.text(0.98, 0.98, "Distribution analysis unavailable", 
+                               transform=ax_main.transAxes, ha='right', va='top',
+                               bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgray', alpha=0.8))
+                
+                canvas_dist = FigureCanvas(fig_dist)
+                toolbar_dist = NavigationToolbar(canvas_dist, dist_analysis_tab)
+                self._attach_open_in_new_window(toolbar_dist, fig_dist, "Score Distribution Analysis")
+                dist_analysis_layout.addWidget(canvas_dist)
+                dist_analysis_layout.addWidget(toolbar_dist)
+            else:
+                dist_analysis_layout.addWidget(QLabel("Not enough score data for distribution analysis (minimum 5 runs required)"))
+            
+            plot_tabs.addTab(dist_analysis_tab, "📊 Distribution Analysis")
+            
+            # 12. Statistics Table Tab
+            stats_tab = QWidget()
+            stats_layout = QVBoxLayout(stats_tab)
+            
+            stats_table = QTableWidget()
+            stats_table.setColumnCount(7)
+            stats_table.setHorizontalHeaderLabels(['Group', 'Count', 'Mean Fitness', 'Std Fitness', 'Mean Conv Gen', 'Mean Time (s)', 'Mean CPU (s)'])
+            stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            
+            stats_table.setRowCount(len(groups))
+            for i, group in enumerate(groups):
+                group_data = df[df['group'] == group] if 'group' in df.columns else pd.DataFrame()
+                
+                items = [
+                    QTableWidgetItem(group),
+                    QTableWidgetItem(str(len(group_data))),
+                    QTableWidgetItem(f"{group_data['best_fitness'].mean():.6f}" if 'best_fitness' in group_data.columns and len(group_data) > 0 else "-"),
+                    QTableWidgetItem(f"{group_data['best_fitness'].std():.6f}" if 'best_fitness' in group_data.columns and len(group_data) > 0 else "-"),
+                    QTableWidgetItem(f"{group_data['convergence_generation'].mean():.2f}" if 'convergence_generation' in group_data.columns and len(group_data) > 0 else "-"),
+                    QTableWidgetItem(f"{group_data['elapsed_time'].mean():.3f}" if 'elapsed_time' in group_data.columns and len(group_data) > 0 else "-"),
+                    QTableWidgetItem(f"{group_data['cpu_time_used'].mean():.3f}" if 'cpu_time_used' in group_data.columns and len(group_data) > 0 else "-"),
+                ]
+                
+                for j, item in enumerate(items):
+                    item.setTextAlignment(Qt.AlignCenter)
+                    # Color code by group
+                    if group == 'Best':
+                        item.setBackground(QColor(200, 255, 200))
+                    elif group == 'Mid':
+                        item.setBackground(QColor(255, 255, 200))
+                    elif group == 'Worst':
+                        item.setBackground(QColor(255, 220, 220))
+                    stats_table.setItem(i, j, item)
+            
+            stats_layout.addWidget(stats_table)
+            
+            # Add export button for the table
+            export_btn = QPushButton("Export Statistics Table")
+            export_btn.clicked.connect(lambda: self._export_table_via_dialog(stats_table, "group_summary_statistics"))
+            stats_layout.addWidget(export_btn)
+            
+            plot_tabs.addTab(stats_tab, "📋 Statistics Table")
+            
+        except Exception as e:
+            print(f"Error building comprehensive group summary: {str(e)}")
+            # Add error message to the container
+            try:
+                error_label = QLabel(f"Error creating visualizations: {str(e)}")
+                error_label.setStyleSheet("color: red; font-weight: bold; padding: 10px;")
+                self.group_summary_container.layout().addWidget(error_label)
+            except Exception:
+                pass
+
+    def _export_table_via_dialog(self, table, default_name):
+        """Export table data via file dialog"""
+        try:
+            from PyQt5.QtWidgets import QFileDialog
+            import pandas as pd
+            
+            filename, _ = QFileDialog.getSaveFileName(
+                self, "Export Table Data", 
+                f"{default_name}.csv", 
+                "CSV Files (*.csv);;All Files (*)"
+            )
+            
+            if filename:
+                # Extract data from table
+                data = []
+                headers = []
+                
+                # Get headers
+                for col in range(table.columnCount()):
+                    headers.append(table.horizontalHeaderItem(col).text())
+                
+                # Get data
+                for row in range(table.rowCount()):
+                    row_data = []
+                    for col in range(table.columnCount()):
+                        item = table.item(row, col)
+                        row_data.append(item.text() if item else "")
+                    data.append(row_data)
+                
+                # Create DataFrame and save
+                df = pd.DataFrame(data, columns=headers)
+                df.to_csv(filename, index=False)
+                
+                print(f"Table exported to: {filename}")
+                
+        except Exception as e:
+            print(f"Error exporting table: {str(e)}")

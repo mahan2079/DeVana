@@ -372,12 +372,18 @@ class GAWorker(QThread):
         ml_diversity_target=0.2,    # Target diversity for ML controller
         ml_historical_weight=0.7,   # Weight for historical average in reward blending
         ml_current_weight=0.3,      # Weight for current reward in reward blending
+        # ML stagnation controls
+        ml_stag_enabled=False,      # Enable exploration boost when stagnation persists
+        ml_stag_limit=None,         # Generations without improvement before ML boost
         # Reinforcement Learning controller parameters
         use_rl_controller=False,    # Enable RL-based controller
         rl_alpha=0.1,               # RL learning rate
         rl_gamma=0.9,               # RL discount factor
         rl_epsilon=0.2,             # RL exploration rate
         rl_epsilon_decay=0.95,      # RL epsilon decay per episode
+        # RL stagnation controls
+        rl_stag_enabled=False,      # Enable exploration boost when stagnation persists
+        rl_stag_limit=None,         # Generations without improvement before RL boost
         # RL reward shaping weights (optional; RL-only)
         rl_w1=1.0,                  # Weight for normalized objective improvement term
         rl_w2=0.0,                  # Weight for normalized diversity change term
@@ -607,6 +613,13 @@ class GAWorker(QThread):
         # ML bandit performance controls
         self.ml_update_interval = 3  # adapt rates every N generations
         self.ml_pop_update_interval = 5  # resize population every M generations
+        # ML stagnation config
+        self.ml_stag_enabled = bool(ml_stag_enabled)
+        try:
+            self.ml_stag_limit = int(ml_stag_limit) if ml_stag_limit is not None else int(self.stagnation_limit)
+        except Exception:
+            self.ml_stag_limit = int(self.stagnation_limit)
+        self.ml_stag_counter = 0
 
         # Reinforcement learning controller configuration
         self.use_rl_controller = use_rl_controller
@@ -614,6 +627,13 @@ class GAWorker(QThread):
         self.rl_gamma = float(rl_gamma)
         self.rl_epsilon = float(rl_epsilon)
         self.rl_epsilon_decay = float(rl_epsilon_decay)
+        # RL stagnation config
+        self.rl_stag_enabled = bool(rl_stag_enabled)
+        try:
+            self.rl_stag_limit = int(rl_stag_limit) if rl_stag_limit is not None else int(self.stagnation_limit)
+        except Exception:
+            self.rl_stag_limit = int(self.stagnation_limit)
+        self.rl_stag_counter = 0
         # RL reward weights and targets (fallback to ML counterparts where appropriate)
         try:
             self.rl_w1 = float(rl_w1)
@@ -723,6 +743,9 @@ class GAWorker(QThread):
             'start_time': None,
             'end_time': None,
             'total_duration': None,
+            'proc_cpu_time_start': None,
+            'proc_cpu_time_end': None,
+            'proc_cpu_time_used': None,
             'cpu_usage': [],
             'memory_usage': [],
             'fitness_history': [],
@@ -759,6 +782,10 @@ class GAWorker(QThread):
                 'historical': float(self.ml_historical_weight),
                 'current': float(self.ml_current_weight)
             },
+            'ml_stagnation_enabled': bool(self.ml_stag_enabled),
+            'rl_stagnation_enabled': bool(self.rl_stag_enabled),
+            'ml_stagnation_counter_history': [],
+            'rl_stagnation_counter_history': [],
             # Surrogate metrics
             'surrogate_enabled': bool(use_surrogate),
             'surrogate_pool_factor': float(self.surrogate_pool_factor),
@@ -984,6 +1011,14 @@ class GAWorker(QThread):
         # Start metrics tracking if enabled
         if self.track_metrics:
             self._start_metrics_tracking()
+        # Record process CPU time start for per-run CPU usage estimation
+        try:
+            proc = psutil.Process(os.getpid())
+            cpu_times = proc.cpu_times()
+            # Sum user + system for process-level CPU time
+            self.metrics['proc_cpu_time_start'] = float(getattr(cpu_times, 'user', 0.0) + getattr(cpu_times, 'system', 0.0))
+        except Exception:
+            self.metrics['proc_cpu_time_start'] = None
         
         try:
             # Initialize parameter tracking lists/dictionaries
@@ -2247,8 +2282,18 @@ class GAWorker(QThread):
                 # --- RL Controller: Use a reinforcement learning agent to select rates and population size
                 if self.use_rl_controller:
                     old_pop = len(population)  # Store the current population size
-                    # The RL controller selects new crossover/mutation rates and possibly a new population size.
-                    rl_idx, new_cxpb, new_mutpb, new_pop = rl_select_action(self.current_cxpb, self.current_mutpb, old_pop)
+                    # Stagnation-driven exploration boost: temporarily raise epsilon when stagnated
+                    eps_eff = float(self.rl_epsilon)
+                    if self.rl_stag_enabled and self.rl_stag_counter >= max(1, self.rl_stag_limit):
+                        # Simple boost: double epsilon, capped at 1.0
+                        eps_eff = min(1.0, self.rl_epsilon * 2.0)
+                    _saved_eps = self.rl_epsilon
+                    try:
+                        self.rl_epsilon = eps_eff
+                        # The RL controller selects new crossover/mutation rates and possibly a new population size.
+                        rl_idx, new_cxpb, new_mutpb, new_pop = rl_select_action(self.current_cxpb, self.current_mutpb, old_pop)
+                    finally:
+                        self.rl_epsilon = _saved_eps
                     self.current_cxpb = new_cxpb
                     self.current_mutpb = new_mutpb
                     # If the RL controller changed the population size, resize and evaluate new individuals.
@@ -2284,8 +2329,18 @@ class GAWorker(QThread):
                     did_bandit_update = (gen % max(1, getattr(self, 'ml_update_interval', 1)) == 0)
                     idx = None
                     if did_bandit_update:
-                        # The ML bandit selects new rates and possibly a new population size
-                        idx, new_cx, new_mu, new_pop = ml_select_action(self.current_cxpb, self.current_mutpb, len(population))
+                        # Stagnation-driven exploration boost: temporarily raise UCB c when stagnated
+                        ucb_c_eff = float(self.ml_ucb_c)
+                        if self.ml_stag_enabled and self.ml_stag_counter >= max(1, self.ml_stag_limit):
+                            # Simple boost: double exploration coefficient
+                            ucb_c_eff = float(self.ml_ucb_c) * 2.0
+                        _saved_c = self.ml_ucb_c
+                        try:
+                            self.ml_ucb_c = ucb_c_eff
+                            # The ML bandit selects new rates and possibly a new population size
+                            idx, new_cx, new_mu, new_pop = ml_select_action(self.current_cxpb, self.current_mutpb, len(population))
+                        finally:
+                            self.ml_ucb_c = _saved_c
                         self.current_cxpb = new_cx
                         self.current_mutpb = new_mu
                         # Resize population less frequently to avoid heavy re-evaluations
@@ -2915,6 +2970,30 @@ class GAWorker(QThread):
                                 'epsilon': self.rl_epsilon
                             })
 
+                    # Update controller stagnation counters at end of generation
+                    try:
+                        if self.use_ml_adaptive and self.ml_stag_enabled:
+                            last_best = self.metrics['best_fitness_per_gen'][-2] if len(self.metrics['best_fitness_per_gen']) > 1 else None
+                            if last_best is not None and min_fit < last_best:
+                                self.ml_stag_counter = 0
+                            else:
+                                self.ml_stag_counter += 1
+                            if self.track_metrics:
+                                self.metrics['ml_stagnation_counter_history'].append(self.ml_stag_counter)
+                    except Exception:
+                        pass
+                    try:
+                        if self.use_rl_controller and self.rl_stag_enabled:
+                            last_best = self.metrics['best_fitness_per_gen'][-2] if len(self.metrics['best_fitness_per_gen']) > 1 else None
+                            if last_best is not None and min_fit < last_best:
+                                self.rl_stag_counter = 0
+                            else:
+                                self.rl_stag_counter += 1
+                            if self.track_metrics:
+                                self.metrics['rl_stagnation_counter_history'].append(self.rl_stag_counter)
+                    except Exception:
+                        pass
+
                     # Record surrogate info
                     if self.use_surrogate:
                         self.metrics['surrogate_info'].append({
@@ -2965,6 +3044,16 @@ class GAWorker(QThread):
             # Stop metrics tracking
             if self.track_metrics:
                 self._stop_metrics_tracking()
+            # Capture process CPU time end and compute used
+            try:
+                proc = psutil.Process(os.getpid())
+                cpu_times = proc.cpu_times()
+                self.metrics['proc_cpu_time_end'] = float(getattr(cpu_times, 'user', 0.0) + getattr(cpu_times, 'system', 0.0))
+                if self.metrics.get('proc_cpu_time_start') is not None:
+                    self.metrics['proc_cpu_time_used'] = float(self.metrics['proc_cpu_time_end'] - self.metrics['proc_cpu_time_start'])
+            except Exception:
+                self.metrics['proc_cpu_time_end'] = None
+                self.metrics['proc_cpu_time_used'] = None
             
             # Process the best solution we found
             if not self.abort:
@@ -3007,6 +3096,25 @@ class GAWorker(QThread):
                     # Add benchmark metrics to final results if tracking was enabled
                     if self.track_metrics:
                         final_results['benchmark_metrics'] = self.metrics
+                        # Convenience flat fields for All Runs ranking
+                        try:
+                            final_results['elapsed_time'] = float(self.metrics.get('total_duration')) if self.metrics.get('total_duration') is not None else None
+                        except Exception:
+                            pass
+                        try:
+                            # Convergence generation = index of first occurrence of global min best_fitness_per_gen
+                            if self.metrics.get('best_fitness_per_gen'):
+                                series = self.metrics['best_fitness_per_gen']
+                                best = min(series)
+                                # 1-based generation index
+                                final_results['convergence_generation'] = int(series.index(best) + 1)
+                        except Exception:
+                            pass
+                        try:
+                            if self.metrics.get('proc_cpu_time_used') is not None:
+                                final_results['cpu_time_used'] = float(self.metrics['proc_cpu_time_used'])
+                        except Exception:
+                            pass
                     
                     # Make sure to clean up after a successful run
                     self.cleanup()
@@ -3029,6 +3137,22 @@ class GAWorker(QThread):
                     # Add benchmark metrics to final results if tracking was enabled
                     if self.track_metrics:
                         final_results['benchmark_metrics'] = self.metrics
+                        try:
+                            final_results['elapsed_time'] = float(self.metrics.get('total_duration')) if self.metrics.get('total_duration') is not None else None
+                        except Exception:
+                            pass
+                        try:
+                            if self.metrics.get('best_fitness_per_gen'):
+                                series = self.metrics['best_fitness_per_gen']
+                                best = min(series)
+                                final_results['convergence_generation'] = int(series.index(best) + 1)
+                        except Exception:
+                            pass
+                        try:
+                            if self.metrics.get('proc_cpu_time_used') is not None:
+                                final_results['cpu_time_used'] = float(self.metrics['proc_cpu_time_used'])
+                        except Exception:
+                            pass
                     
                     # Make sure to clean up after an error
                     self.cleanup()
@@ -3047,6 +3171,22 @@ class GAWorker(QThread):
                     # Add benchmark metrics to final results if tracking was enabled
                     if self.track_metrics:
                         final_results['benchmark_metrics'] = self.metrics
+                        try:
+                            final_results['elapsed_time'] = float(self.metrics.get('total_duration')) if self.metrics.get('total_duration') is not None else None
+                        except Exception:
+                            pass
+                        try:
+                            if self.metrics.get('best_fitness_per_gen') is not None and len(self.metrics['best_fitness_per_gen']) > 0:
+                                series = self.metrics['best_fitness_per_gen']
+                                best = min(series)
+                                final_results['convergence_generation'] = int(series.index(best) + 1)
+                        except Exception:
+                            pass
+                        try:
+                            if self.metrics.get('proc_cpu_time_used') is not None:
+                                final_results['cpu_time_used'] = float(self.metrics['proc_cpu_time_used'])
+                        except Exception:
+                            pass
                     
                     self.cleanup()
                     self.finished.emit(final_results, best_ind_overall, parameter_names, best_fitness_overall)
