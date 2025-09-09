@@ -2974,11 +2974,13 @@ class GAOptimizationMixin:
 
         # Group runs into Best/Mid/Worst based on closeness to reference runs
         try:
-            if df['score'].notna().sum() >= 3:
+            # Use only finite scores to compute references (robust to old imports)
+            finite_scores = pd.to_numeric(df['score'], errors='coerce').replace([np.inf, -np.inf], np.nan).dropna()
+            if len(finite_scores) >= 3:
                 # Find reference runs
-                best_ref_score = df['score'].min()  # Best run (lowest score)
-                worst_ref_score = df['score'].max()  # Worst run (highest score)
-                mean_ref_score = df['score'].mean()  # Mean reference
+                best_ref_score = float(finite_scores.min())  # Best run (lowest score)
+                worst_ref_score = float(finite_scores.max())  # Worst run (highest score)
+                mean_ref_score = float(finite_scores.mean())  # Mean reference
                 
                 def _assign_to_closest_reference(score_val):
                     if not np.isfinite(score_val):
@@ -10597,30 +10599,59 @@ All parameters remain constant during optimization.''',
             
             if 'score' in df.columns and len(df) >= 5:
                 fig_dist = Figure(figsize=(14, 8), tight_layout=True)
-                
+
                 # Create single plot layout for cleaner appearance
                 ax_main = fig_dist.add_subplot(111)
-                
-                # Get score data
-                scores = df['score'].dropna()
-                
+
+                # Get score data (robust to old imports and non-finite values)
+                try:
+                    scores_series = pd.to_numeric(df['score'], errors='coerce')
+                except Exception:
+                    scores_series = df['score']
+                scores = scores_series.replace([np.inf, -np.inf], np.nan).dropna()
+
+                # If empty after cleaning, show a friendly message and skip detailed overlays
+                skip_dist_details = False
+                if scores.empty or scores.size < 2:
+                    skip_dist_details = True
+                    ax_main.text(
+                        0.5, 0.5,
+                        'Not enough valid data to plot distribution',
+                        ha='center', va='center'
+                    )
+
                 # Create histogram with more bins for better precision
                 n_bins = min(max(20, len(scores) // 2), 100)  # More bins for higher resolution
-                counts, bins, patches = ax_main.hist(scores, bins=n_bins, alpha=0.8, color='lightblue', 
-                                                   edgecolor='black', linewidth=0.5, density=True, 
-                                                   rwidth=0.85)  # Reduce bar width to 85% for better separation
-                
+                counts, bins, patches = ax_main.hist(
+                    scores,
+                    bins=n_bins,
+                    alpha=0.8,
+                    color='lightblue',
+                    edgecolor='black',
+                    linewidth=0.5,
+                    density=True,
+                    rwidth=0.85,
+                )
+
                 # Fit and overlay multiple distribution types
                 try:
                     from scipy import stats
                     from sklearn.neighbors import KernelDensity
                     
                     # Calculate basic statistics
-                    mu, sigma = scores.mean(), scores.std()
-                    
+                    mu, sigma = float(scores.mean()), float(scores.std())
+
+                    # Ensure a non-degenerate plotting range
+                    smin, smax = float(scores.min()), float(scores.max())
+                    if not np.isfinite(smin) or not np.isfinite(smax) or smin == smax:
+                        # Expand to a small window around the single/invalid value
+                        smin, smax = smin - 1.0 if np.isfinite(smin) else -1.0, smax + 1.0 if np.isfinite(smax) else 1.0
+
                     # 1. KDE (Kernel Density Estimation) - follows actual data shape
-                    x_range = np.linspace(scores.min(), scores.max(), 200)
-                    kde = KernelDensity(kernel='gaussian', bandwidth=sigma/3).fit(scores.values.reshape(-1, 1))
+                    x_range = np.linspace(smin, smax, 200)
+                    # Guard against zero/NaN bandwidth
+                    bw = sigma / 3.0 if np.isfinite(sigma) and sigma > 0 else max((smax - smin) / 100.0, 1e-3)
+                    kde = KernelDensity(kernel='gaussian', bandwidth=bw).fit(scores.values.reshape(-1, 1))
                     kde_scores = np.exp(kde.score_samples(x_range.reshape(-1, 1)))
                     ax_main.plot(x_range, kde_scores, 'purple', linewidth=3, alpha=0.9, 
                                label=f'KDE (Actual Shape)')
