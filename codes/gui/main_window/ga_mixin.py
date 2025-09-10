@@ -341,7 +341,116 @@ class GAOptimizationMixin:
             QMessageBox.information(self, "Import", "GA config applied.")
         except Exception as e:
             QMessageBox.critical(self, "Import Error", str(e))
-    
+
+    def export_ga_config(self):
+        """Export current GA config (bounds and settings) to JSON file."""
+        try:
+            import json
+            from datetime import datetime
+            from PyQt5.QtWidgets import QFileDialog
+
+            # Build GA settings dictionary
+            ga_settings = {
+                'pop_min': int(self.ga_pop_min_box.value()),
+                'pop_max': int(self.ga_pop_max_box.value()),
+                'pop_size': int(self.ga_pop_size_box.value()),
+                'generations': int(self.ga_num_generations_box.value()),
+                'cxpb': float(self.ga_cxpb_box.value()),
+                'mutpb': float(self.ga_mutpb_box.value()),
+                'tol': float(self.ga_tol_box.value()),
+                'alpha': float(self.ga_alpha_box.value()),
+                'percentage_error_scale': float(self.ga_percentage_error_scale_box.value()),
+                'dva_activation_threshold': float(self.ga_activation_threshold_box.value()),
+                'dva_activation_penalty': float(self.ga_activation_penalty_box.value()),
+                'use_enhanced_cost': bool(self.enh_cost_enable_chk.isChecked()),
+                'benefit_w_primary': float(self.benefit_w_primary_box.value()),
+                'benefit_w_accuracy': float(self.benefit_w_accuracy_box.value()),
+                'benefit_w_sparsity': float(self.benefit_w_sparsity_box.value()),
+                'category_w_material': float(self.cat_w_material_box.value()),
+                'category_w_manufacturing': float(self.cat_w_manufacturing_box.value()),
+                'category_w_maintenance': float(self.cat_w_maintenance_box.value()),
+                'category_w_operational': float(self.cat_w_operational_box.value()),
+                'benefit_weight_start': float(self.benefit_weight_start_box.value()),
+                'benefit_weight_end': float(self.benefit_weight_end_box.value()),
+                'generation_ratio': float(self.generation_ratio_box.value()),
+                'adaptive_rates': bool(self.adaptive_rates_checkbox.isChecked()),
+                'stagnation_limit': int(self.stagnation_limit_box.value()),
+                'cxpb_min': float(self.cxpb_min_box.value()),
+                'cxpb_max': float(self.cxpb_max_box.value()),
+                'mutpb_min': float(self.mutpb_min_box.value()),
+                'mutpb_max': float(self.mutpb_max_box.value()),
+            }
+
+            # Determine controller type
+            if self.controller_adaptive_radio.isChecked():
+                controller = 'adaptive'
+            elif self.controller_ml_radio.isChecked():
+                controller = 'ml_bandit'
+            elif self.controller_rl_radio.isChecked():
+                controller = 'rl'
+            else:
+                controller = 'fixed'
+            ga_settings['controller'] = controller
+
+            # Build parameters list with ranges and costs
+            parameters = []
+            if hasattr(self, 'ga_param_table'):
+                for r in range(self.ga_param_table.rowCount()):
+                    try:
+                        param_data = {
+                            'name': self.ga_param_table.item(r, 0).text() if self.ga_param_table.item(r, 0) else '',
+                            'low': float(self.ga_param_table.cellWidget(r, 1).value()) if self.ga_param_table.cellWidget(r, 1) else 0.0,
+                            'high': float(self.ga_param_table.cellWidget(r, 2).value()) if self.ga_param_table.cellWidget(r, 2) else 1.0,
+                            'fixed': bool(self.ga_param_table.cellWidget(r, 3).isChecked()) if self.ga_param_table.cellWidget(r, 3) else False,
+                            'costs': {
+                                'material': float(self.ga_param_table.cellWidget(r, 5).value()) if self.ga_param_table.cellWidget(r, 5) else 0.0,
+                                'manufacturing': float(self.ga_param_table.cellWidget(r, 6).value()) if self.ga_param_table.cellWidget(r, 6) else 0.0,
+                                'maintenance': float(self.ga_param_table.cellWidget(r, 7).value()) if self.ga_param_table.cellWidget(r, 7) else 0.0,
+                                'operational': float(self.ga_param_table.cellWidget(r, 8).value()) if self.ga_param_table.cellWidget(r, 8) else 0.0,
+                            }
+                        }
+                        # Add category mapping if available
+                        category_widget = self.ga_param_table.cellWidget(r, 9) if self.ga_param_table.columnCount() > 9 else None
+                        if isinstance(category_widget, QComboBox):
+                            param_data['category'] = category_widget.currentText()
+
+                        parameters.append(param_data)
+                    except Exception:
+                        continue
+
+            # Create export payload
+            export_payload = {
+                'type': 'ga_config',
+                'version': '2.0',
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'ga_settings': ga_settings,
+                'parameters': parameters
+            }
+
+            # Suggest default filename
+            default_name = f"ga_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export GA Config",
+                default_name,
+                "JSON Files (*.json);;All Files (*)"
+            )
+
+            if not file_path:
+                return
+
+            if not file_path.lower().endswith('.json'):
+                file_path += '.json'
+
+            # Save to file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(export_payload, f, indent=2, ensure_ascii=False)
+
+            QMessageBox.information(self, "Export", f"GA config exported to:\n{file_path}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", str(e))
+
     def _extract_cell_text(self, table, row, col):
         """Return a string representation of the cell's content for export."""
         try:
@@ -1165,6 +1274,12 @@ class GAOptimizationMixin:
         self.export_benchmark_button.setEnabled(False)  # Initially disabled until data is available
         self.export_benchmark_button.clicked.connect(self.export_ga_benchmark_data)
         button_layout.addWidget(self.export_benchmark_button)
+
+        # Export GA Config - saves current bounds/settings
+        self.export_ga_config_button = QPushButton("Export GA Config")
+        self.export_ga_config_button.setToolTip("Export current GA config (bounds and settings) to a JSON file")
+        self.export_ga_config_button.clicked.connect(self.export_ga_config)
+        button_layout.addWidget(self.export_ga_config_button)
 
         # Import GA Config - applies saved bounds/settings
         self.import_ga_config_button = QPushButton("Import GA Config")
@@ -2917,6 +3032,7 @@ class GAOptimizationMixin:
                 'category_w_operational': float(self.cat_w_operational_box.value()),
                 'benefit_weight_start': float(self.benefit_weight_start_box.value()),
                 'benefit_weight_end': float(self.benefit_weight_end_box.value()),
+                'generation_ratio': float(self.generation_ratio_box.value()),
                 'dva_category_map': {self.ga_param_table.item(r,0).text(): self.ga_param_table.cellWidget(r,6).currentText().lower() for r in range(self.ga_param_table.rowCount()) if isinstance(self.ga_param_table.cellWidget(r,6), QComboBox) and self.ga_param_table.cellWidget(r,6).currentText().lower() != 'auto'},
                 'results_summary': results_summary
             }
@@ -7289,6 +7405,26 @@ class GAOptimizationMixin:
                 'best_fitness': float(getattr(self, 'current_ga_best_fitness', 0.0) or 0.0),
                 'best_parameters': getattr(self, 'current_ga_best_params', {}),
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                # Include GA settings used for this run
+                'ga_settings': {
+                    'pop_size': int(self.ga_pop_size_box.value()),
+                    'generations': int(self.ga_num_generations_box.value()),
+                    'alpha': float(self.ga_alpha_box.value()),
+                    'percentage_error_scale': float(self.ga_percentage_error_scale_box.value()),
+                    'dva_activation_threshold': float(self.ga_activation_threshold_box.value()),
+                    'dva_activation_penalty': float(self.ga_activation_penalty_box.value()),
+                    'use_enhanced_cost': bool(self.enh_cost_enable_chk.isChecked()),
+                    'benefit_w_primary': float(self.benefit_w_primary_box.value()),
+                    'benefit_w_accuracy': float(self.benefit_w_accuracy_box.value()),
+                    'benefit_w_sparsity': float(self.benefit_w_sparsity_box.value()),
+                    'category_w_material': float(self.cat_w_material_box.value()),
+                    'category_w_manufacturing': float(self.cat_w_manufacturing_box.value()),
+                    'category_w_maintenance': float(self.cat_w_maintenance_box.value()),
+                    'category_w_operational': float(self.cat_w_operational_box.value()),
+                    'benefit_weight_start': float(self.benefit_weight_start_box.value()),
+                    'benefit_weight_end': float(self.benefit_weight_end_box.value()),
+                    'generation_ratio': float(self.generation_ratio_box.value()),
+                }
             }
 
             # Add additional results if available
