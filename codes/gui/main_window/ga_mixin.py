@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -60,7 +60,9 @@ class GAOptimizationMixin:
             pass
     
     def _get_ga_parameters_from_table(self):
-        """Read GA parameters table into a list of dicts: name, fixed, fixed_value, low, high."""
+        """Read GA parameters table into a list of dicts with per-category costs.
+        Returns entries with keys: name, fixed, fixed_value, low, high, costs{material,manufacturing,maintenance,operational}.
+        """
         params = []
         try:
             tbl = self.ga_param_table
@@ -73,16 +75,27 @@ class GAOptimizationMixin:
                 fixed_val = tbl.cellWidget(r, 2)
                 low_spin = tbl.cellWidget(r, 3)
                 high_spin = tbl.cellWidget(r, 4)
+                cost_material = tbl.cellWidget(r, 5) if tbl.columnCount() > 5 else None
+                cost_manuf = tbl.cellWidget(r, 6) if tbl.columnCount() > 6 else None
+                cost_maint = tbl.cellWidget(r, 7) if tbl.columnCount() > 7 else None
+                cost_oper = tbl.cellWidget(r, 8) if tbl.columnCount() > 8 else None
                 fixed = bool(fixed_chk.isChecked()) if fixed_chk is not None else False
                 fixed_value = float(fixed_val.value()) if fixed_val is not None else 0.0
                 low = float(low_spin.value()) if low_spin is not None else 0.0
                 high = float(high_spin.value()) if high_spin is not None else 0.0
+                costs = {
+                    'material': float(cost_material.value()) if cost_material is not None else 0.0,
+                    'manufacturing': float(cost_manuf.value()) if cost_manuf is not None else 0.0,
+                    'maintenance': float(cost_maint.value()) if cost_maint is not None else 0.0,
+                    'operational': float(cost_oper.value()) if cost_oper is not None else 0.0,
+                }
                 params.append({
                     'name': name,
                     'fixed': fixed,
                     'fixed_value': fixed_value,
                     'low': low,
                     'high': high,
+                    'costs': costs,
                     'row': r,
                 })
         except Exception:
@@ -137,6 +150,19 @@ class GAOptimizationMixin:
                 'tol': float(self.ga_tol_box.value()),
                 'alpha': float(self.ga_alpha_box.value()),
                 'percentage_error_scale': float(self.ga_percentage_error_scale_box.value()),
+                'dva_activation_threshold': float(self.ga_activation_threshold_box.value()),
+                'dva_activation_penalty': float(self.ga_activation_penalty_box.value()),
+                'use_enhanced_cost': bool(self.enh_cost_enable_chk.isChecked()),
+                'benefit_w_primary': float(self.benefit_w_primary_box.value()),
+                'benefit_w_accuracy': float(self.benefit_w_accuracy_box.value()),
+                'benefit_w_sparsity': float(self.benefit_w_sparsity_box.value()),
+                'category_w_material': float(self.cat_w_material_box.value()),
+                'category_w_manufacturing': float(self.cat_w_manufacturing_box.value()),
+                'category_w_maintenance': float(self.cat_w_maintenance_box.value()),
+                'category_w_operational': float(self.cat_w_operational_box.value()),
+                'benefit_weight_start': float(self.benefit_weight_start_box.value()),
+                'benefit_weight_end': float(self.benefit_weight_end_box.value()),
+                'generation_ratio': float(self.generation_ratio_box.value()),
                 'adaptive_rates': bool(self.adaptive_rates_checkbox.isChecked()),
                 'stagnation_limit': int(self.stagnation_limit_box.value()),
                 'cxpb_min': float(self.cxpb_min_box.value()),
@@ -183,7 +209,13 @@ class GAOptimizationMixin:
                         'fixed': False,
                         'fixed_value': float(p['fixed_value']),
                         'low': float(lo),
-                        'high': float(hi)
+                        'high': float(hi),
+                        'costs': p.get('costs', {
+                            'material': 0.0,
+                            'manufacturing': 0.0,
+                            'maintenance': 0.0,
+                            'operational': 0.0,
+                        }),
                     })
                 else:
                     cfg_params.append({
@@ -191,7 +223,13 @@ class GAOptimizationMixin:
                         'fixed': bool(p['fixed']),
                         'fixed_value': float(p['fixed_value']),
                         'low': float(p['low']),
-                        'high': float(p['high'])
+                        'high': float(p['high']),
+                        'costs': p.get('costs', {
+                            'material': 0.0,
+                            'manufacturing': 0.0,
+                            'maintenance': 0.0,
+                            'operational': 0.0,
+                        }),
                     })
             cfg['parameters'] = cfg_params
             cfg['export_timestamp'] = QDateTime.currentDateTime().toString(Qt.ISODate)
@@ -225,6 +263,19 @@ class GAOptimizationMixin:
                 if 'tol' in s: self.ga_tol_box.setValue(float(s['tol']))
                 if 'alpha' in s: self.ga_alpha_box.setValue(float(s['alpha']))
                 if 'percentage_error_scale' in s: self.ga_percentage_error_scale_box.setValue(float(s['percentage_error_scale']))
+                if 'dva_activation_threshold' in s: self.ga_activation_threshold_box.setValue(float(s['dva_activation_threshold']))
+                if 'dva_activation_penalty' in s: self.ga_activation_penalty_box.setValue(float(s['dva_activation_penalty']))
+                if 'use_enhanced_cost' in s: self.enh_cost_enable_chk.setChecked(bool(s['use_enhanced_cost']))
+                if 'benefit_w_primary' in s: self.benefit_w_primary_box.setValue(float(s['benefit_w_primary']))
+                if 'benefit_w_accuracy' in s: self.benefit_w_accuracy_box.setValue(float(s['benefit_w_accuracy']))
+                if 'benefit_w_sparsity' in s: self.benefit_w_sparsity_box.setValue(float(s['benefit_w_sparsity']))
+                if 'category_w_material' in s: self.cat_w_material_box.setValue(float(s['category_w_material']))
+                if 'category_w_manufacturing' in s: self.cat_w_manufacturing_box.setValue(float(s['category_w_manufacturing']))
+                if 'category_w_maintenance' in s: self.cat_w_maintenance_box.setValue(float(s['category_w_maintenance']))
+                if 'category_w_operational' in s: self.cat_w_operational_box.setValue(float(s['category_w_operational']))
+                if 'benefit_weight_start' in s: self.benefit_weight_start_box.setValue(float(s['benefit_weight_start']))
+                if 'benefit_weight_end' in s: self.benefit_weight_end_box.setValue(float(s['benefit_weight_end']))
+                if 'generation_ratio' in s: self.generation_ratio_box.setValue(float(s['generation_ratio']))
                 if 'adaptive_rates' in s: self.adaptive_rates_checkbox.setChecked(bool(s['adaptive_rates']))
                 if 'stagnation_limit' in s: self.stagnation_limit_box.setValue(int(s['stagnation_limit']))
                 if 'cxpb_min' in s: self.cxpb_min_box.setValue(float(s['cxpb_min']))
@@ -246,6 +297,47 @@ class GAOptimizationMixin:
                 except Exception:
                     continue
             self._apply_ranges_to_ga_table(ranges_by_name)
+            # Apply parameter costs/categories if provided
+            try:
+                costs_by_name = {}
+                for p in cfg.get('parameters', []):
+                    name = p.get('name')
+                    if name is None:
+                        continue
+                    # New format: nested 'costs'
+                    if 'costs' in p and isinstance(p['costs'], dict):
+                        costs_by_name[name] = {
+                            'material': float(p['costs'].get('material', 0.0) or 0.0),
+                            'manufacturing': float(p['costs'].get('manufacturing', 0.0) or 0.0),
+                            'maintenance': float(p['costs'].get('maintenance', 0.0) or 0.0),
+                            'operational': float(p['costs'].get('operational', 0.0) or 0.0),
+                        }
+                    # Backward compatibility: single 'cost' + optional 'category'
+                    elif 'cost' in p:
+                        cat = str(p.get('category', 'operational')).lower()
+                        if cat not in ('material','manufacturing','maintenance','operational'):
+                            cat = 'operational'
+                        costs_by_name[name] = {
+                            'material': 0.0,
+                            'manufacturing': 0.0,
+                            'maintenance': 0.0,
+                            'operational': 0.0,
+                        }
+                        costs_by_name[name][cat] = float(p['cost'])
+                # Apply costs to table
+                for r in range(self.ga_param_table.rowCount()):
+                    try:
+                        name = self.ga_param_table.item(r, 0).text()
+                        if name in costs_by_name:
+                            vals = costs_by_name[name]
+                            for ci, key in zip(range(5,9), ['material','manufacturing','maintenance','operational']):
+                                w = self.ga_param_table.cellWidget(r, ci)
+                                if w is not None:
+                                    w.setValue(float(vals.get(key, 0.0)))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             QMessageBox.information(self, "Import", "GA config applied.")
         except Exception as e:
             QMessageBox.critical(self, "Import Error", str(e))
@@ -459,6 +551,21 @@ class GAOptimizationMixin:
         self.ga_percentage_error_scale_box.setSingleStep(100.0)
         self.ga_percentage_error_scale_box.setValue(1000.0)
         self.ga_percentage_error_scale_box.setToolTip("Scaling factor for percentage error in fitness calculation (higher = less influence)")
+
+        # New: Activation threshold and penalty per active DVA parameter
+        self.ga_activation_threshold_box = QDoubleSpinBox()
+        self.ga_activation_threshold_box.setRange(0.0, 1e9)
+        self.ga_activation_threshold_box.setDecimals(6)
+        self.ga_activation_threshold_box.setSingleStep(0.001)
+        self.ga_activation_threshold_box.setValue(0.0)
+        self.ga_activation_threshold_box.setToolTip("Threshold magnitude above which a DVA parameter is considered 'active' for penalty and cost")
+
+        self.ga_activation_penalty_box = QDoubleSpinBox()
+        self.ga_activation_penalty_box.setRange(0.0, 1e6)
+        self.ga_activation_penalty_box.setDecimals(6)
+        self.ga_activation_penalty_box.setSingleStep(0.1)
+        self.ga_activation_penalty_box.setValue(0.0)
+        self.ga_activation_penalty_box.setToolTip("Penalty added per active DVA parameter (encourages fewer active parameters)")
         
         # Add benchmarking runs box
         self.ga_benchmark_runs_box = QSpinBox()
@@ -565,6 +672,70 @@ class GAOptimizationMixin:
         ga_hyper_layout.addRow("Tolerance (tol):", self.ga_tol_box)
         ga_hyper_layout.addRow("Sparsity Penalty (alpha):", self.ga_alpha_box)
         ga_hyper_layout.addRow("Percentage Error Scale:", self.ga_percentage_error_scale_box)
+        ga_hyper_layout.addRow("Activation Threshold:", self.ga_activation_threshold_box)
+        ga_hyper_layout.addRow("Activation Penalty per DVA:", self.ga_activation_penalty_box)
+
+        # Enhanced Cost-Benefit group
+        enh_group = QGroupBox("Enhanced Cost-Benefit")
+        enh_form = QFormLayout(enh_group)
+        self.enh_cost_enable_chk = QCheckBox("Enable Enhanced Cost-Benefit Analysis")
+        self.enh_cost_enable_chk.setChecked(True)
+        enh_form.addRow(self.enh_cost_enable_chk)
+
+        # Ensure the group is visible and expanded
+        enh_group.setVisible(True)
+
+        # Benefit weights (primary, accuracy, sparsity)
+        self.benefit_w_primary_box = QDoubleSpinBox(); self.benefit_w_primary_box.setRange(0.0, 1.0); self.benefit_w_primary_box.setSingleStep(0.05); self.benefit_w_primary_box.setValue(0.6)
+        self.benefit_w_accuracy_box = QDoubleSpinBox(); self.benefit_w_accuracy_box.setRange(0.0, 1.0); self.benefit_w_accuracy_box.setSingleStep(0.05); self.benefit_w_accuracy_box.setValue(0.3)
+        self.benefit_w_sparsity_box = QDoubleSpinBox(); self.benefit_w_sparsity_box.setRange(0.0, 1.0); self.benefit_w_sparsity_box.setSingleStep(0.05); self.benefit_w_sparsity_box.setValue(0.1)
+        bw_row = QWidget(); bw_l = QHBoxLayout(bw_row); bw_l.setContentsMargins(0,0,0,0)
+        bw_l.addWidget(QLabel("Primary:")); bw_l.addWidget(self.benefit_w_primary_box)
+        bw_l.addWidget(QLabel("Accuracy:")); bw_l.addWidget(self.benefit_w_accuracy_box)
+        bw_l.addWidget(QLabel("Sparsity:")); bw_l.addWidget(self.benefit_w_sparsity_box)
+        enh_form.addRow("Benefit Weights:", bw_row)
+
+        # Category weights (material, manufacturing, maintenance, operational)
+        self.cat_w_material_box = QDoubleSpinBox(); self.cat_w_material_box.setRange(0.0, 1.0); self.cat_w_material_box.setSingleStep(0.05); self.cat_w_material_box.setValue(0.4)
+        self.cat_w_manufacturing_box = QDoubleSpinBox(); self.cat_w_manufacturing_box.setRange(0.0, 1.0); self.cat_w_manufacturing_box.setSingleStep(0.05); self.cat_w_manufacturing_box.setValue(0.35)
+        self.cat_w_maintenance_box = QDoubleSpinBox(); self.cat_w_maintenance_box.setRange(0.0, 1.0); self.cat_w_maintenance_box.setSingleStep(0.05); self.cat_w_maintenance_box.setValue(0.15)
+        self.cat_w_operational_box = QDoubleSpinBox(); self.cat_w_operational_box.setRange(0.0, 1.0); self.cat_w_operational_box.setSingleStep(0.05); self.cat_w_operational_box.setValue(0.10)
+        cw_row = QWidget(); cw_l = QHBoxLayout(cw_row); cw_l.setContentsMargins(0,0,0,0)
+        cw_l.addWidget(QLabel("Material:")); cw_l.addWidget(self.cat_w_material_box)
+        cw_l.addWidget(QLabel("Manufacturing:")); cw_l.addWidget(self.cat_w_manufacturing_box)
+        cw_l.addWidget(QLabel("Maintenance:")); cw_l.addWidget(self.cat_w_maintenance_box)
+        cw_l.addWidget(QLabel("Operational:")); cw_l.addWidget(self.cat_w_operational_box)
+        enh_form.addRow("Category Weights:", cw_row)
+
+        # Benefit weight schedule (start->end)
+        self.benefit_weight_start_box = QDoubleSpinBox(); self.benefit_weight_start_box.setRange(0.0, 1.0); self.benefit_weight_start_box.setSingleStep(0.05); self.benefit_weight_start_box.setValue(0.3)
+        self.benefit_weight_end_box = QDoubleSpinBox(); self.benefit_weight_end_box.setRange(0.0, 1.0); self.benefit_weight_end_box.setSingleStep(0.05); self.benefit_weight_end_box.setValue(0.7)
+        bw_sched_row = QWidget(); bws_l = QHBoxLayout(bw_sched_row); bws_l.setContentsMargins(0,0,0,0)
+        bws_l.addWidget(QLabel("Start:")); bws_l.addWidget(self.benefit_weight_start_box)
+        bws_l.addWidget(QLabel("End:")); bws_l.addWidget(self.benefit_weight_end_box)
+        enh_form.addRow("Benefit Weight Schedule:", bw_sched_row)
+
+        # Generation ratio control
+        self.generation_ratio_box = QDoubleSpinBox()
+        self.generation_ratio_box.setRange(0.0, 1.0)
+        self.generation_ratio_box.setSingleStep(0.01)
+        self.generation_ratio_box.setValue(0.5)
+        self.generation_ratio_box.setDecimals(3)
+        self.generation_ratio_box.setToolTip("Generation ratio for adaptive cost-benefit weighting (0.0 = early optimization, 1.0 = late optimization)")
+        self.generation_ratio_box.setVisible(True)  # Ensure it's visible
+        self.generation_ratio_box.setMinimumWidth(100)  # Ensure minimum width
+        self.generation_ratio_box.setMaximumWidth(200)  # Ensure maximum width
+        # Add generation ratio at the end of the form
+        enh_form.addRow("Generation Ratio:", self.generation_ratio_box)
+
+        # Add some spacing at the end to ensure visibility
+        enh_form.addRow("", QWidget())
+
+        ga_hyper_layout.addRow(enh_group)
+
+        # Ensure the layout is properly updated
+        enh_group.updateGeometry()
+        ga_hyper_layout.update()
         ga_hyper_layout.addRow("Benchmark Runs:", self.ga_benchmark_runs_box)
         ga_hyper_layout.addRow("", self.adaptive_rates_checkbox)
         ga_hyper_layout.addRow("", self.adaptive_rates_options)
@@ -657,22 +828,22 @@ class GAOptimizationMixin:
         self.rl_alpha_box.setRange(0.0, 1.0)
         self.rl_alpha_box.setDecimals(3)
         self.rl_alpha_box.setValue(0.1)
-        rl_form.addRow("RL α (learning rate):", self.rl_alpha_box)
+        rl_form.addRow("RL Î± (learning rate):", self.rl_alpha_box)
         self.rl_gamma_box = QDoubleSpinBox()
         self.rl_gamma_box.setRange(0.0, 1.0)
         self.rl_gamma_box.setDecimals(3)
         self.rl_gamma_box.setValue(0.9)
-        rl_form.addRow("RL γ (discount):", self.rl_gamma_box)
+        rl_form.addRow("RL Î³ (discount):", self.rl_gamma_box)
         self.rl_epsilon_box = QDoubleSpinBox()
         self.rl_epsilon_box.setRange(0.0, 1.0)
         self.rl_epsilon_box.setDecimals(3)
         self.rl_epsilon_box.setValue(0.2)
-        rl_form.addRow("RL ε (explore):", self.rl_epsilon_box)
+        rl_form.addRow("RL Îµ (explore):", self.rl_epsilon_box)
         self.rl_decay_box = QDoubleSpinBox()
         self.rl_decay_box.setRange(0.0, 1.0)
         self.rl_decay_box.setDecimals(3)
         self.rl_decay_box.setValue(0.95)
-        rl_form.addRow("RL ε decay:", self.rl_decay_box)
+        rl_form.addRow("RL Îµ decay:", self.rl_decay_box)
         # RL stagnation boost controls
         self.rl_stag_chk = QCheckBox("Boost exploration on stagnation")
         self.rl_stag_chk.setChecked(True)
@@ -752,19 +923,19 @@ class GAOptimizationMixin:
         beta_layout.addWidget(self.neural_beta_min)
         beta_layout.addWidget(QLabel("Max:"))
         beta_layout.addWidget(self.neural_beta_max)
-        neural_form.addRow("β (UCB range):", beta_row)
+        neural_form.addRow("Î² (UCB range):", beta_row)
 
         self.neural_eps = QDoubleSpinBox()
         self.neural_eps.setRange(0.0, 0.9)
         self.neural_eps.setSingleStep(0.05)
         self.neural_eps.setValue(0.1)
-        neural_form.addRow("Exploration fraction ε:", self.neural_eps)
+        neural_form.addRow("Exploration fraction Îµ:", self.neural_eps)
 
         self.neural_pool_mult = QDoubleSpinBox()
         self.neural_pool_mult.setRange(1.0, 20.0)
         self.neural_pool_mult.setSingleStep(0.5)
         self.neural_pool_mult.setValue(3.0)
-        neural_form.addRow("Pool size × pop:", self.neural_pool_mult)
+        neural_form.addRow("Pool size Ã— pop:", self.neural_pool_mult)
 
         self.neural_ensemble = QSpinBox()
         self.neural_ensemble.setRange(1, 9)
@@ -839,7 +1010,7 @@ class GAOptimizationMixin:
         self.best_pool_mult.setRange(1.0, 50.0)
         self.best_pool_mult.setSingleStep(0.5)
         self.best_pool_mult.setValue(5.0)
-        best_form.addRow("Pool size × pop:", self.best_pool_mult)
+        best_form.addRow("Pool size Ã— pop:", self.best_pool_mult)
 
         self.best_diversity_frac = QDoubleSpinBox()
         self.best_diversity_frac.setRange(0.0, 1.0)
@@ -895,9 +1066,12 @@ class GAOptimizationMixin:
             *[f"nu_{i}" for i in range(1,16)]
         ]
         self.ga_param_table.setRowCount(len(dva_parameters))
-        self.ga_param_table.setColumnCount(5)
+        self.ga_param_table.setColumnCount(9)
         self.ga_param_table.setHorizontalHeaderLabels(
-            ["Parameter", "Fixed", "Fixed Value", "Lower Bound", "Upper Bound"]
+            [
+                "Parameter", "Fixed", "Fixed Value", "Lower Bound", "Upper Bound",
+                "Cost (Material)", "Cost (Manufacturing)", "Cost (Maintenance)", "Cost (Operational)"
+            ]
         )
         self.ga_param_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.ga_param_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -932,6 +1106,14 @@ class GAOptimizationMixin:
             upper_bound_spin.setValue(1.0)  # Set to 1
             upper_bound_spin.setEnabled(False)  # Disable because fixed is checked
             self.ga_param_table.setCellWidget(row, 4, upper_bound_spin)
+
+            for ci, default_val in zip(range(5, 9), [0.0, 0.0, 0.0, 0.0]):
+                cost_spin = QDoubleSpinBox()
+                cost_spin.setRange(0.0, 1e12)
+                cost_spin.setDecimals(6)
+                cost_spin.setValue(default_val)
+                cost_spin.setEnabled(True)
+                self.ga_param_table.setCellWidget(row, ci, cost_spin)
 
         # Attach export context menu to parameters table
         self._attach_table_export(self.ga_param_table, "ga_parameters")
@@ -1334,9 +1516,9 @@ class GAOptimizationMixin:
         self.rv_alpha_box.setToolTip(
             "<b>Alpha (sparsity penalty)</b><br>"
             "Weight for penalizing large parameter magnitudes in the fitness function.<br>"
-            "Fitness = |singular_response - 1| + α · Σ|params| + (percentage_error_sum)/1000.<br>"
-            "- Higher α favors simpler (smaller-magnitude) parameter sets.<br>"
-            "- Set α = 0 to disable sparsity penalty.<br>"
+            "Fitness = |singular_response - 1| + Î± Â· Î£|params| + (percentage_error_sum)/1000.<br>"
+            "- Higher Î± favors simpler (smaller-magnitude) parameter sets.<br>"
+            "- Set Î± = 0 to disable sparsity penalty.<br>"
             "Uses the same definition as in GA optimization."
         )
         self.rv_alpha_box.setWhatsThis(self.rv_alpha_box.toolTip())
@@ -1572,6 +1754,22 @@ class GAOptimizationMixin:
                      fixed_flags,
                      fixed_values,
                      alpha,
+                     percentage_error_scale,
+                     dva_activation_threshold,
+                     dva_activation_penalty,
+                     dva_costs,
+                     dva_costs_by_category,
+                     use_enhanced_cost,
+                     benefit_w_primary,
+                     benefit_w_accuracy,
+                     benefit_w_sparsity,
+                     cat_w_material,
+                     cat_w_manufacturing,
+                     cat_w_maintenance,
+                     cat_w_operational,
+                     benefit_weight_start,
+                     benefit_weight_end,
+                     dva_category_map,
                      method,
                      num_samples,
                      seed,
@@ -1588,6 +1786,27 @@ class GAOptimizationMixin:
             self.fixed_flags = fixed_flags
             self.fixed_values = fixed_values
             self.alpha = alpha
+            self.percentage_error_scale = percentage_error_scale
+            self.dva_activation_threshold = dva_activation_threshold
+            self.dva_activation_penalty = dva_activation_penalty
+            self.dva_costs = dict(dva_costs) if isinstance(dva_costs, dict) else {}
+            self.dva_costs_by_category = {
+                'material': dict(dva_costs_by_category.get('material', {})) if isinstance(dva_costs_by_category, dict) else {},
+                'manufacturing': dict(dva_costs_by_category.get('manufacturing', {})) if isinstance(dva_costs_by_category, dict) else {},
+                'maintenance': dict(dva_costs_by_category.get('maintenance', {})) if isinstance(dva_costs_by_category, dict) else {},
+                'operational': dict(dva_costs_by_category.get('operational', {})) if isinstance(dva_costs_by_category, dict) else {},
+            }
+            self.use_enhanced_cost = bool(use_enhanced_cost)
+            self.benefit_w_primary = float(benefit_w_primary)
+            self.benefit_w_accuracy = float(benefit_w_accuracy)
+            self.benefit_w_sparsity = float(benefit_w_sparsity)
+            self.cat_w_material = float(cat_w_material)
+            self.cat_w_manufacturing = float(cat_w_manufacturing)
+            self.cat_w_maintenance = float(cat_w_maintenance)
+            self.cat_w_operational = float(cat_w_operational)
+            self.benefit_weight_start = float(benefit_weight_start)
+            self.benefit_weight_end = float(benefit_weight_end)
+            self.dva_category_map = dict(dva_category_map) if isinstance(dva_category_map, dict) else {}
             self.method = method
             self.num_samples = num_samples
             self.seed = seed if seed is not None and seed >= 0 else None
@@ -1644,6 +1863,9 @@ class GAOptimizationMixin:
                 target_values = self.target_values
                 weights = self.weights
                 alpha = self.alpha
+                pe_scale = float(self.percentage_error_scale) if self.percentage_error_scale else 1000.0
+                thr = float(self.dva_activation_threshold) if self.dva_activation_threshold is not None else 0.0
+                pen_per = float(self.dva_activation_penalty) if self.dva_activation_penalty is not None else 0.0
 
                 for i in range(n):
                     if self.abort:
@@ -1684,18 +1906,120 @@ class GAOptimizationMixin:
                                 for _mk, pdiffs in res['percentage_differences'].items():
                                     for _crit, p in pdiffs.items():
                                         perror_sum += abs(float(p))
-                            fitness = primary + sparsity + perror_sum / 1000.0
+                            # Activation penalty and enhanced cost-benefit analysis
+                            try:
+                                vals = X[i, :]
+                                active_flags = [abs(float(v)) >= thr for v in vals]
+                            except Exception:
+                                active_flags = [False] * len(self.param_names)
+                            activation_count = int(sum(1 for f in active_flags if f))
+                            activation_penalty = activation_count * pen_per if np.isfinite(pen_per) else 0.0
+                            # Enhanced cost term (RV version)
+                            cost_term = 0.0
+                            # Prepare fallback sums
+                            cost_sum_active = 0.0
+                            denom = 0.0
+                            try:
+                                for j, name in enumerate(self.param_names):
+                                    c = float(self.dva_costs.get(name, 0.0))
+                                    if np.isfinite(c):
+                                        denom += c
+                                        if j < len(active_flags) and active_flags[j]:
+                                            cost_sum_active += c
+                            except Exception:
+                                pass
+                            denom = denom if denom and denom > 0 else 1.0
+                            try:
+                                if not self.use_enhanced_cost:
+                                    cost_term = cost_sum_active / denom if denom > 0 else 0.0
+                                else:
+                                    # 1. Benefit metrics with UI weights
+                                    bw_sum = max(1e-12, (self.benefit_w_primary + self.benefit_w_accuracy + self.benefit_w_sparsity))
+                                    bwp = self.benefit_w_primary / bw_sum
+                                    bwa = self.benefit_w_accuracy / bw_sum
+                                    bws = self.benefit_w_sparsity / bw_sum
+                                    benefit_primary = abs(float(singular) - 1.0)
+                                    benefit_accuracy = perror_sum / 100.0
+                                    benefit_sparsity = sparsity
+                                    total_benefit = (bwp * benefit_primary + bwa * benefit_accuracy + bws * benefit_sparsity)
+
+                                    # 2. Hierarchical cost categories with UI weights
+                                    cw_sum = max(1e-12, (self.cat_w_material + self.cat_w_manufacturing + self.cat_w_maintenance + self.cat_w_operational))
+                                    cw_material = self.cat_w_material / cw_sum
+                                    cw_manufacturing = self.cat_w_manufacturing / cw_sum
+                                    cw_maintenance = self.cat_w_maintenance / cw_sum
+                                    cw_operational = self.cat_w_operational / cw_sum
+                                    cost_categories = {
+                                        'material': {'params': [], 'weight': cw_material, 'total': 0.0, 'active': 0.0},
+                                        'manufacturing': {'params': [], 'weight': cw_manufacturing, 'total': 0.0, 'active': 0.0},
+                                        'maintenance': {'params': [], 'weight': cw_maintenance, 'total': 0.0, 'active': 0.0},
+                                        'operational': {'params': [], 'weight': cw_operational, 'total': 0.0, 'active': 0.0}
+                                    }
+                                    for j, is_active in enumerate(active_flags):
+                                        if j >= len(self.param_names):
+                                            continue
+                                        pname = self.param_names[j]
+                                        cval = float(self.dva_costs.get(pname, 0.0))
+                                        if not np.isfinite(cval):
+                                            continue
+                                        # Mapping override if provided
+                                        cat_map_val = self.dva_category_map.get(pname, None)
+                                        if isinstance(cat_map_val, str) and cat_map_val.lower() in cost_categories:
+                                            category = cat_map_val.lower()
+                                        else:
+                                            category = 'operational'
+                                            pname_lower = pname.lower()
+                                            if any(keyword in pname_lower for keyword in ['k', 'stiff', 'spring']):
+                                                category = 'material'
+                                            elif any(keyword in pname_lower for keyword in ['c', 'damp', 'viscous']):
+                                                category = 'manufacturing'
+                                            elif any(keyword in pname_lower for keyword in ['m', 'mass', 'weight']):
+                                                category = 'maintenance'
+                                        cost_categories[category]['params'].append(pname)
+                                        cost_categories[category]['total'] += cval
+                                        if is_active:
+                                            cost_categories[category]['active'] += cval
+
+                                    # 4. Category totals and cost weighting
+                                    total_weighted_cost = 0.0
+                                    for cat_name, cat_data in cost_categories.items():
+                                        if cat_data['total'] > 0:
+                                            normalized_cat_cost = cat_data['active'] / cat_data['total']
+                                            total_weighted_cost += cat_data['weight'] * normalized_cat_cost
+                                        else:
+                                            total_weighted_cost += cat_data['weight'] * (1.0 if cat_data['active'] > 0 else 0.0)
+
+                                    # 5. Use start of schedule in RV (no generations)
+                                    benefit_weight = min(1.0, max(0.0, float(self.benefit_weight_start)))
+                                    cost_weight = 1.0 - benefit_weight
+
+                                    # 6. Combined cost-benefit term
+                                    if total_benefit > 1e-10:
+                                        overall_bcr = total_benefit / max(total_weighted_cost, 1e-10)
+                                        benefit_cost_ratio = 1.0 / overall_bcr
+                                    else:
+                                        benefit_cost_ratio = 1e6
+                                    cost_term = cost_weight * total_weighted_cost + benefit_weight * benefit_cost_ratio
+                            except Exception:
+                                # Fallback to normalized active cost
+                                cost_term = cost_sum_active / denom if denom > 0 else 0.0
+
+                            fitness = primary + sparsity + perror_sum / pe_scale + activation_penalty + cost_term
                     except Exception:
                         fitness = 1e6
                         primary = np.nan
                         sparsity = np.nan
                         perror_sum = np.nan
+                        activation_penalty = np.nan
+                        cost_term = np.nan
 
                     row = {name: X[i, j] for j, name in enumerate(self.param_names)}
                     row.update({
                         'primary_objective': primary,
                         'sparsity_penalty': sparsity,
                         'percentage_error_sum': perror_sum,
+                        'activation_penalty': activation_penalty,
+                        'cost_term': cost_term,
                         'fitness': fitness,
                     })
                     rows.append(row)
@@ -1776,7 +2100,7 @@ class GAOptimizationMixin:
             QMessageBox.information(self, "Random Validation", "Validation is already running.")
             return
         if self.omega_start_box.value() >= self.omega_end_box.value():
-            QMessageBox.warning(self, "Input Error", "Ω Start must be less than Ω End.")
+            QMessageBox.warning(self, "Input Error", "Î© Start must be less than Î© End.")
             return
         try:
             target_values, weights = self.get_target_values_weights()
@@ -1804,6 +2128,24 @@ class GAOptimizationMixin:
         alpha = self.rv_alpha_box.value()
         respect_fixed = self.rv_respect_fixed_chk.isChecked()
 
+        # Build DVA costs mapping for RV
+        dva_costs_by_category = {'material':{}, 'manufacturing':{}, 'maintenance':{}, 'operational':{}}
+        dva_costs_by_category = {'material':{}, 'manufacturing':{}, 'maintenance':{}, 'operational':{}}
+        try:
+            for r in range(self.ga_param_table.rowCount()):
+                name = self.ga_param_table.item(r, 0).text()
+                cmat = self.ga_param_table.cellWidget(r, 5)
+                cman = self.ga_param_table.cellWidget(r, 6)
+                cmai = self.ga_param_table.cellWidget(r, 7)
+                copr = self.ga_param_table.cellWidget(r, 8)
+                dva_costs[name] = float(cmat.value()) if cmat is not None else 0.0  # legacy approx
+                dva_costs_by_category['material'][name] = float(cmat.value()) if cmat is not None else 0.0
+                dva_costs_by_category['manufacturing'][name] = float(cman.value()) if cman is not None else 0.0
+                dva_costs_by_category['maintenance'][name] = float(cmai.value()) if cmai is not None else 0.0
+                dva_costs_by_category['operational'][name] = float(copr.value()) if copr is not None else 0.0
+        except Exception:
+            pass
+
         self._rv_worker = self.RandomValidationWorker(
             main_params=main_params,
             omega_start=self.omega_start_box.value(),
@@ -1816,6 +2158,22 @@ class GAOptimizationMixin:
             fixed_flags=fixed_flags,
             fixed_values=fixed_values,
             alpha=alpha,
+            percentage_error_scale=self.ga_percentage_error_scale_box.value(),
+            dva_activation_threshold=self.ga_activation_threshold_box.value(),
+            dva_activation_penalty=self.ga_activation_penalty_box.value(),
+            dva_costs=dva_costs,
+            dva_costs_by_category=dva_costs_by_category,
+            use_enhanced_cost=self.enh_cost_enable_chk.isChecked(),
+            benefit_w_primary=self.benefit_w_primary_box.value(),
+            benefit_w_accuracy=self.benefit_w_accuracy_box.value(),
+            benefit_w_sparsity=self.benefit_w_sparsity_box.value(),
+            cat_w_material=self.cat_w_material_box.value(),
+            cat_w_manufacturing=self.cat_w_manufacturing_box.value(),
+            cat_w_maintenance=self.cat_w_maintenance_box.value(),
+            cat_w_operational=self.cat_w_operational_box.value(),
+            benefit_weight_start=self.benefit_weight_start_box.value(),
+            benefit_weight_end=self.benefit_weight_end_box.value(),
+            
             method=method,
             num_samples=num_samples,
             seed=seed,
@@ -1894,13 +2252,20 @@ class GAOptimizationMixin:
         s_std = float(df['sparsity_penalty'].std())
         e_mean = float(df['percentage_error_sum'].mean())
         e_std = float(df['percentage_error_sum'].std())
+        a_mean = float(df['activation_penalty'].mean()) if 'activation_penalty' in df.columns else 0.0
+        a_std = float(df['activation_penalty'].std()) if 'activation_penalty' in df.columns else 0.0
+        c_mean = float(df['cost_term'].mean()) if 'cost_term' in df.columns else 0.0
+        c_std = float(df['cost_term'].std()) if 'cost_term' in df.columns else 0.0
 
         if mean_v > 1e-12:
+            pe_scale = float(self.ga_percentage_error_scale_box.value()) if hasattr(self, 'ga_percentage_error_scale_box') else 1000.0
             pct_primary = 100.0 * p_mean / mean_v
             pct_sparsity = 100.0 * s_mean / mean_v
-            pct_perror = 100.0 * (e_mean / 1000.0) / mean_v
+            pct_perror = 100.0 * (e_mean / pe_scale) / mean_v
+            pct_activation = 100.0 * a_mean / mean_v
+            pct_cost = 100.0 * c_mean / mean_v
         else:
-            pct_primary = pct_sparsity = pct_perror = float('nan')
+            pct_primary = pct_sparsity = pct_perror = pct_activation = pct_cost = float('nan')
 
         seed_text = str(seed) if isinstance(seed, (int,)) and seed >= 0 else 'None'
         elapsed_text = f" | Time: {elapsed:.2f}s" if elapsed is not None else ""
@@ -1914,8 +2279,8 @@ class GAOptimizationMixin:
             f"Min: {min_v:.6f} | Q05: {q05:.6f} | Q25: {q25:.6f} | Q75: {q75:.6f} | Q95: {q95:.6f} | Max: {max_v:.6f}<br>"
             f"Within tolerance: {n_pass} / {n} = {pct:.1f}% | Invalid>=1e6: {n_invalid} | NaN: {n_nan} | Inf: {n_inf}<br><br>"
             f"<b>Component Averages</b><br>"
-            f"Primary: {p_mean:.6f} ± {p_std:.6f} | Sparsity: {s_mean:.6f} ± {s_std:.6f} | %Error sum: {e_mean:.6f} ± {e_std:.6f}<br>"
-            f"Approx. contribution to mean fitness: Primary {pct_primary:.1f}%, Sparsity {pct_sparsity:.1f}%, %Error {(pct_perror):.1f}%"
+            f"Primary: {p_mean:.6f} ± {p_std:.6f} | Sparsity: {s_mean:.6f} ± {s_std:.6f} | %Error sum: {e_mean:.6f} ± {e_std:.6f} | Activation: {a_mean:.6f} ± {a_std:.6f} | Cost: {c_mean:.6f} ± {c_std:.6f}<br>"
+            f"Approx. contribution to mean fitness: Primary {pct_primary:.1f}%, Sparsity {pct_sparsity:.1f}%, %Error {(pct_perror):.1f}%, Activation {pct_activation:.1f}%, Cost {pct_cost:.1f}%"
         )
         self.rv_summary_label.setText(html)
 
@@ -1939,10 +2304,10 @@ class GAOptimizationMixin:
         fig1.tight_layout()
         self._render_figure_into_widget(self.rv_fitdist_plot, fig1)
 
-        fig2 = Figure(figsize=(10, 3))
-        axes = fig2.subplots(1, 3)
-        comp_cols = ['primary_objective', 'sparsity_penalty', 'percentage_error_sum']
-        titles = ['Primary Objective', 'Sparsity Penalty', 'Percentage Error Sum']
+        fig2 = Figure(figsize=(14, 3))
+        axes = fig2.subplots(1, 5)
+        comp_cols = ['primary_objective', 'sparsity_penalty', 'percentage_error_sum', 'activation_penalty', 'cost_term']
+        titles = ['Primary Objective', 'Sparsity Penalty', 'Percentage Error Sum', 'Activation Penalty', 'Cost Term']
         for ax, col, title in zip(axes, comp_cols, titles):
             # Draw histogram bars (green)
             sns.histplot(
@@ -1988,7 +2353,7 @@ class GAOptimizationMixin:
         self.update_random_validation_scatter()
 
         cols = [c for c in df.columns if c.startswith('beta_') or c.startswith('lambda_') or c.startswith('mu_') or c.startswith('nu_')] + \
-               ['primary_objective', 'sparsity_penalty', 'percentage_error_sum', 'fitness', 'pass']
+               ['primary_objective', 'sparsity_penalty', 'percentage_error_sum', 'activation_penalty', 'cost_term', 'fitness', 'pass']
         self.rv_table.setColumnCount(len(cols))
         self.rv_table.setRowCount(len(df))
         self.rv_table.setHorizontalHeaderLabels(cols)
@@ -2176,7 +2541,7 @@ class GAOptimizationMixin:
             return
             
         if self.omega_start_box.value() >= self.omega_end_box.value():
-            QMessageBox.warning(self, "Input Error", "Ω Start must be less than Ω End.")
+            QMessageBox.warning(self, "Input Error", "Î© Start must be less than Î© End.")
             return
 
         target_values, weights = self.get_target_values_weights()
@@ -2189,6 +2554,10 @@ class GAOptimizationMixin:
         tolerance = self.ga_tol_box.value()
         alpha = self.ga_alpha_box.value()
         percentage_error_scale = self.ga_percentage_error_scale_box.value()
+        dva_activation_threshold = self.ga_activation_threshold_box.value()
+        dva_activation_penalty = self.ga_activation_penalty_box.value()
+        dva_activation_threshold = self.ga_activation_threshold_box.value()
+        dva_activation_penalty = self.ga_activation_penalty_box.value()
 
         # Get number of benchmark runs
         self.benchmark_runs = self.ga_benchmark_runs_box.value()
@@ -2202,6 +2571,7 @@ class GAOptimizationMixin:
         
         # Get DVA parameter bounds
         dva_bounds = {}
+        dva_costs_by_category = {'material':{}, 'manufacturing':{}, 'maintenance':{}, 'operational':{}}
         EPSILON = 1e-6
         for row in range(self.ga_param_table.rowCount()):
             param_item = self.ga_param_table.item(row, 0)
@@ -2210,6 +2580,19 @@ class GAOptimizationMixin:
             fixed_widget = self.ga_param_table.cellWidget(row, 1)
             fixed = fixed_widget.isChecked()
             
+            # Read per-category costs
+            try:
+                mat_w = self.ga_param_table.cellWidget(row, 5)
+                man_w = self.ga_param_table.cellWidget(row, 6)
+                mai_w = self.ga_param_table.cellWidget(row, 7)
+                opr_w = self.ga_param_table.cellWidget(row, 8)
+                dva_costs_by_category['material'][param_name] = float(mat_w.value()) if mat_w is not None else 0.0
+                dva_costs_by_category['manufacturing'][param_name] = float(man_w.value()) if man_w is not None else 0.0
+                dva_costs_by_category['maintenance'][param_name] = float(mai_w.value()) if mai_w is not None else 0.0
+                dva_costs_by_category['operational'][param_name] = float(opr_w.value()) if opr_w is not None else 0.0
+            except Exception:
+                pass
+
             if fixed:
                 fixed_value_widget = self.ga_param_table.cellWidget(row, 2)
                 fixed_value = fixed_value_widget.value()
@@ -2342,6 +2725,22 @@ class GAOptimizationMixin:
             ga_parameter_data=ga_parameter_data,
             alpha=alpha,
             percentage_error_scale=percentage_error_scale,
+            dva_activation_threshold=dva_activation_threshold,
+            dva_activation_penalty=dva_activation_penalty,
+            dva_costs=dva_costs,
+            dva_costs_by_category=dva_costs_by_category,
+            # Enhanced cost-benefit options
+            use_enhanced_cost=self.enh_cost_enable_chk.isChecked(),
+            benefit_w_primary=self.benefit_w_primary_box.value(),
+            benefit_w_accuracy=self.benefit_w_accuracy_box.value(),
+            benefit_w_sparsity=self.benefit_w_sparsity_box.value(),
+            cat_w_material=self.cat_w_material_box.value(),
+            cat_w_manufacturing=self.cat_w_manufacturing_box.value(),
+            cat_w_maintenance=self.cat_w_maintenance_box.value(),
+            cat_w_operational=self.cat_w_operational_box.value(),
+            benefit_weight_start=self.benefit_weight_start_box.value(),
+            benefit_weight_end=self.benefit_weight_end_box.value(),
+            generation_ratio=self.generation_ratio_box.value(),
             track_metrics=True,  # Enable metrics tracking for visualization
             adaptive_rates=bool(use_adaptive and not (use_ml or use_rl)),  # ensure mutual exclusivity
             stagnation_limit=self.stagnation_limit_box.value(),  # Get stagnation limit from UI
@@ -2504,6 +2903,21 @@ class GAOptimizationMixin:
                 'best_solution': list(best_ind),
                 'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', []),
                 'alpha': getattr(self, '_alpha_used_for_run', None),
+                'percentage_error_scale': float(self.ga_percentage_error_scale_box.value()) if hasattr(self, 'ga_percentage_error_scale_box') else None,
+                'dva_activation_threshold': float(self.ga_activation_threshold_box.value()) if hasattr(self, 'ga_activation_threshold_box') else None,
+                'dva_activation_penalty': float(self.ga_activation_penalty_box.value()) if hasattr(self, 'ga_activation_penalty_box') else None,
+                'dva_costs': {self.ga_param_table.item(r,0).text(): float(self.ga_param_table.cellWidget(r,5).value()) if self.ga_param_table.cellWidget(r,5) is not None else 0.0 for r in range(self.ga_param_table.rowCount())} if hasattr(self, 'ga_param_table') and self.ga_param_table.columnCount() > 5 else {},
+                'use_enhanced_cost': bool(self.enh_cost_enable_chk.isChecked()),
+                'benefit_w_primary': float(self.benefit_w_primary_box.value()),
+                'benefit_w_accuracy': float(self.benefit_w_accuracy_box.value()),
+                'benefit_w_sparsity': float(self.benefit_w_sparsity_box.value()),
+                'category_w_material': float(self.cat_w_material_box.value()),
+                'category_w_manufacturing': float(self.cat_w_manufacturing_box.value()),
+                'category_w_maintenance': float(self.cat_w_maintenance_box.value()),
+                'category_w_operational': float(self.cat_w_operational_box.value()),
+                'benefit_weight_start': float(self.benefit_weight_start_box.value()),
+                'benefit_weight_end': float(self.benefit_weight_end_box.value()),
+                'dva_category_map': {self.ga_param_table.item(r,0).text(): self.ga_param_table.cellWidget(r,6).currentText().lower() for r in range(self.ga_param_table.rowCount()) if isinstance(self.ga_param_table.cellWidget(r,6), QComboBox) and self.ga_param_table.cellWidget(r,6).currentText().lower() != 'auto'},
                 'results_summary': results_summary
             }
             
@@ -2558,6 +2972,20 @@ class GAOptimizationMixin:
                 'best_solution': list(best_ind),
                 'parameter_names': parameter_names, 'active_parameters': getattr(self, 'ga_active_parameters', []),
                 'alpha': getattr(self, '_alpha_used_for_run', None),
+                'percentage_error_scale': float(self.ga_percentage_error_scale_box.value()) if hasattr(self, 'ga_percentage_error_scale_box') else None,
+                'dva_activation_threshold': float(self.ga_activation_threshold_box.value()) if hasattr(self, 'ga_activation_threshold_box') else None,
+                'dva_activation_penalty': float(self.ga_activation_penalty_box.value()) if hasattr(self, 'ga_activation_penalty_box') else None,
+                'dva_costs': {self.ga_param_table.item(r,0).text(): float(self.ga_param_table.cellWidget(r,5).value()) if self.ga_param_table.cellWidget(r,5) is not None else 0.0 for r in range(self.ga_param_table.rowCount())} if hasattr(self, 'ga_param_table') and self.ga_param_table.columnCount() > 5 else {},
+                'use_enhanced_cost': bool(self.enh_cost_enable_chk.isChecked()),
+                'benefit_w_primary': float(self.benefit_w_primary_box.value()),
+                'benefit_w_accuracy': float(self.benefit_w_accuracy_box.value()),
+                'benefit_w_sparsity': float(self.benefit_w_sparsity_box.value()),
+                'category_w_material': float(self.cat_w_material_box.value()),
+                'category_w_manufacturing': float(self.cat_w_manufacturing_box.value()),
+                'category_w_maintenance': float(self.cat_w_maintenance_box.value()),
+                'category_w_operational': float(self.cat_w_operational_box.value()),
+                'benefit_weight_start': float(self.benefit_weight_start_box.value()),
+                'benefit_weight_end': float(self.benefit_weight_end_box.value()),
                 'results_summary': results_summary
             }
             
@@ -2680,8 +3108,9 @@ class GAOptimizationMixin:
         self.resume_ga_button.setEnabled(False)
         self.stop_ga_button.setEnabled(True)
 
-        # Get DVA parameter bounds
+        # Get DVA parameter bounds and costs
         dva_bounds = {}
+        dva_costs_by_category = {'material':{}, 'manufacturing':{}, 'maintenance':{}, 'operational':{}}
         EPSILON = 1e-6
         for row in range(self.ga_param_table.rowCount()):
             param_item = self.ga_param_table.item(row, 0)
@@ -2689,6 +3118,18 @@ class GAOptimizationMixin:
             
             fixed_widget = self.ga_param_table.cellWidget(row, 1)
             fixed = fixed_widget.isChecked()
+            # Read per-category costs
+            try:
+                mat_w = self.ga_param_table.cellWidget(row, 5)
+                man_w = self.ga_param_table.cellWidget(row, 6)
+                mai_w = self.ga_param_table.cellWidget(row, 7)
+                opr_w = self.ga_param_table.cellWidget(row, 8)
+                dva_costs_by_category['material'][param_name] = float(mat_w.value()) if mat_w is not None else 0.0
+                dva_costs_by_category['manufacturing'][param_name] = float(man_w.value()) if man_w is not None else 0.0
+                dva_costs_by_category['maintenance'][param_name] = float(mai_w.value()) if mai_w is not None else 0.0
+                dva_costs_by_category['operational'][param_name] = float(opr_w.value()) if opr_w is not None else 0.0
+            except Exception:
+                pass
             
             if fixed:
                 fixed_value_widget = self.ga_param_table.cellWidget(row, 2)
@@ -2699,7 +3140,7 @@ class GAOptimizationMixin:
                 upper_bound_widget = self.ga_param_table.cellWidget(row, 4)
                 lower = lower_bound_widget.value()
                 upper = upper_bound_widget.value()
-                dva_bounds[param_name] = (lower, upper)
+            dva_bounds[param_name] = (lower, upper)
         
         # Get main system parameters
         main_params = (
@@ -2768,6 +3209,10 @@ class GAOptimizationMixin:
             ga_parameter_data=ga_parameter_data,
             alpha=alpha,
             percentage_error_scale=percentage_error_scale,
+            dva_activation_threshold=dva_activation_threshold,
+            dva_activation_penalty=dva_activation_penalty,
+            dva_costs_by_category=dva_costs_by_category,
+            generation_ratio=self.generation_ratio_box.value(),
             track_metrics=True,  # Enable metrics tracking for visualization
             adaptive_rates=bool(use_adaptive and not (use_ml or use_rl)),  # ensure mutual exclusivity
             stagnation_limit=self.stagnation_limit_box.value(),  # Get stagnation limit from UI
@@ -2808,6 +3253,17 @@ class GAOptimizationMixin:
             surrogate_pool_factor=self.surr_pool_factor_box.value(),
             surrogate_k=self.surr_k_box.value(),
             surrogate_explore_frac=self.surr_explore_frac_box.value(),
+            # Enhanced cost-benefit options
+            use_enhanced_cost=self.enh_cost_enable_chk.isChecked(),
+            benefit_w_primary=self.benefit_w_primary_box.value(),
+            benefit_w_accuracy=self.benefit_w_accuracy_box.value(),
+            benefit_w_sparsity=self.benefit_w_sparsity_box.value(),
+            cat_w_material=self.cat_w_material_box.value(),
+            cat_w_manufacturing=self.cat_w_manufacturing_box.value(),
+            cat_w_maintenance=self.cat_w_maintenance_box.value(),
+            cat_w_operational=self.cat_w_operational_box.value(),
+            benefit_weight_start=self.benefit_weight_start_box.value(),
+            benefit_weight_end=self.benefit_weight_end_box.value(),
             # Seeding (ensure benchmark runs respect chosen method)
             seeding_method=(
                 "random" if self.seeding_method_combo.currentText().lower().startswith("random") else
@@ -3596,7 +4052,7 @@ class GAOptimizationMixin:
                 "Metric": "Fitness 95% CI",
                 "Min": f"[{fitness_ci[0]:.6f},",
                 "Max": f"{fitness_ci[1]:.6f}]",
-                "Mean": f"±{fitness_ci[1] - fitness_mean:.6f}",
+                "Mean": f"Â±{fitness_ci[1] - fitness_mean:.6f}",
                 "Std": f"SE: {fitness_se:.6f}",
                 "Median": f"n = {fitness_n}",
                 "Q1": "-",
@@ -3789,7 +4245,7 @@ class GAOptimizationMixin:
                         """
                         Very limited band using only the top `frac` fraction of runs by fitness
                         and taking a narrow central interval around the median with total width
-                        equal to `bandwidth` (e.g., Q47.5–Q52.5 for bandwidth=0.05).
+                        equal to `bandwidth` (e.g., Q47.5â€“Q52.5 for bandwidth=0.05).
 
                         Fallbacks to IQR on the full sample if inputs are insufficient.
                         """
@@ -3830,13 +4286,13 @@ class GAOptimizationMixin:
                         return float(max(v.min(), lo)), float(min(v.max(), hi))
 
                     criteria_funcs = {
-                        "IQR (Q1–Q3)": _iqr_range,
-                        "P5–P95": _p5_p95,
+                        "IQR (Q1â€“Q3)": _iqr_range,
+                        "P5â€“P95": _p5_p95,
                         "Tukey (no outliers)": _tukey_whisker,
                         "Shortest 68%": lambda x: _shortest_interval(x, 0.68),
-                        "Top 25% P5–P95": lambda x: _top_quantile_p5_p95(x, fitness_series, 0.25),
-                        "Top 10% Narrow Q47.5–Q52.5": lambda x: _top_fraction_narrow(x, fitness_series, 0.10, 0.05),
-                        "TrimmedMean ± 1.5*MAD": _trimmed_mean_mad,
+                        "Top 25% P5â€“P95": lambda x: _top_quantile_p5_p95(x, fitness_series, 0.25),
+                        "Top 10% Narrow Q47.5â€“Q52.5": lambda x: _top_fraction_narrow(x, fitness_series, 0.10, 0.05),
+                        "TrimmedMean Â± 1.5*MAD": _trimmed_mean_mad,
                     }
 
                     # Pre-compute ranges: dict[criterion][param] = (lo, hi)
@@ -3860,13 +4316,13 @@ class GAOptimizationMixin:
 
                     # Colors for criteria in plots
                     crit_colors = {
-                        "IQR (Q1–Q3)": "#1f77b4",
-                        "P5–P95": "#ff7f0e",
+                        "IQR (Q1â€“Q3)": "#1f77b4",
+                        "P5â€“P95": "#ff7f0e",
                         "Tukey (no outliers)": "#2ca02c",
                         "Shortest 68%": "#d62728",
-                        "Top 25% P5–P95": "#9467bd",
-                        "Top 10% Narrow Q47.5–Q52.5": "#17becf",
-                        "TrimmedMean ± 1.5*MAD": "#8c564b",
+                        "Top 25% P5â€“P95": "#9467bd",
+                        "Top 10% Narrow Q47.5â€“Q52.5": "#17becf",
+                        "TrimmedMean Â± 1.5*MAD": "#8c564b",
                     }
 
                     # Build the Parameter Ranges tab UI
@@ -4439,7 +4895,7 @@ class GAOptimizationMixin:
         return compare_button
         try:
             # Create a stylish comparison button
-            comparison_button = QPushButton("🔬 Advanced Multi-Parameter Analysis")
+            comparison_button = QPushButton("ðŸ”¬ Advanced Multi-Parameter Analysis")
             comparison_button.setStyleSheet("""
                 QPushButton {
                     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -5770,7 +6226,7 @@ class GAOptimizationMixin:
             
             # Add statistics text
             stats_text = (f"Correlation: {correlation:.4f}\n"
-                         f"R²: {r_squared:.4f}\n"
+                         f"RÂ²: {r_squared:.4f}\n"
                          f"Trend slope: {z[0]:.6f}\n"
                          f"Mean: {np.mean(values):.4f}\n"
                          f"Std Dev: {np.std(values):.4f}\n"
@@ -6045,11 +6501,11 @@ class GAOptimizationMixin:
                 # Add correlation information to the plot
                 corr_text = (
                     f"Correlations:\n"
-                    f"• Pearson (r): {pearson_corr:.3f}\n"
+                    f"â€¢ Pearson (r): {pearson_corr:.3f}\n"
                     f"  p-value: {pearson_p:.3e}\n"
-                    f"• Spearman (ρ): {spearman_corr:.3f}\n"
+                    f"â€¢ Spearman (Ï): {spearman_corr:.3f}\n"
                     f"  p-value: {spearman_p:.3e}\n"
-                    f"• R² Score: {r_squared:.3f}"
+                    f"â€¢ RÂ² Score: {r_squared:.3f}"
                 )
                 
                 # Add trend line equation
@@ -6251,7 +6707,7 @@ class GAOptimizationMixin:
                 line_x = np.array([theoretical_quantiles.min(), theoretical_quantiles.max()])
                 line_y = slope * line_x + intercept
                 ax.plot(line_x, line_y, 'g-', linewidth=2, alpha=0.8, 
-                       label=f'Regression Line (R²={r_value**2:.3f})')
+                       label=f'Regression Line (RÂ²={r_value**2:.3f})')
                 
                 # Perform comprehensive normality tests
                 shapiro_test = stats.shapiro(values)
@@ -6268,7 +6724,7 @@ class GAOptimizationMixin:
                     ad_result = "Non-normal"
                     for j, (cv, sl) in enumerate(zip(ad_critical_values, ad_significance_levels)):
                         if anderson_test.statistic < cv:
-                            ad_result = f"Normal (α={sl}%)"
+                            ad_result = f"Normal (Î±={sl}%)"
                             break
                     
                 except Exception as e:
@@ -6449,10 +6905,10 @@ class GAOptimizationMixin:
             <h2>Statistical Equations and Explanations</h2>
             
             <h3>Basic Statistics</h3>
-            <p><b>Mean (μ):</b> μ = (1/n) Σ(xi) - Average value of the parameter</p>
-            <p><b>Standard Deviation (σ):</b> σ = √[(1/n) Σ(xi - μ)²] - Measure of spread</p>
-            <p><b>Variance (σ²):</b> σ² = (1/n) Σ(xi - μ)² - Square of standard deviation</p>
-            <p><b>Standard Error of Mean:</b> SE = σ/√n - Standard error of the sample mean</p>
+            <p><b>Mean (Î¼):</b> Î¼ = (1/n) Î£(xi) - Average value of the parameter</p>
+            <p><b>Standard Deviation (Ïƒ):</b> Ïƒ = âˆš[(1/n) Î£(xi - Î¼)Â²] - Measure of spread</p>
+            <p><b>Variance (ÏƒÂ²):</b> ÏƒÂ² = (1/n) Î£(xi - Î¼)Â² - Square of standard deviation</p>
+            <p><b>Standard Error of Mean:</b> SE = Ïƒ/âˆšn - Standard error of the sample mean</p>
             
             <h3>Percentiles and Quartiles</h3>
             <p><b>Quartiles:</b> Q1 (25th percentile), Q2 (50th percentile = median), Q3 (75th percentile)</p>
@@ -6473,11 +6929,11 @@ class GAOptimizationMixin:
             </ul>
             
             <h3>Variability Measures</h3>
-            <p><b>Coefficient of Variation (CV):</b> CV = (σ/μ) × 100% - Relative variability</p>
+            <p><b>Coefficient of Variation (CV):</b> CV = (Ïƒ/Î¼) Ã— 100% - Relative variability</p>
             <p><b>Range:</b> Range = Max - Min - Total spread of the data</p>
             
             <h3>Correlation</h3>
-            <p><b>Pearson Correlation:</b> r = Σ[(xi - x̄)(yi - ȳ)] / √[Σ(xi - x̄)²Σ(yi - ȳ)²]</p>
+            <p><b>Pearson Correlation:</b> r = Î£[(xi - xÌ„)(yi - È³)] / âˆš[Î£(xi - xÌ„)Â²Î£(yi - È³)Â²]</p>
             <p><b>Spearman Correlation:</b> Rank-based correlation coefficient</p>
             <p><b>Kendall's Tau:</b> Alternative rank-based correlation measure</p>
             
@@ -6494,7 +6950,7 @@ class GAOptimizationMixin:
                 <li>Shapiro-Wilk: Tests if data comes from normal distribution</li>
                 <li>Kolmogorov-Smirnov: Compares sample to normal distribution</li>
                 <li>p > 0.05: Data likely normal</li>
-                <li>p ≤ 0.05: Data likely not normal</li>
+                <li>p â‰¤ 0.05: Data likely not normal</li>
             </ul>
             """
             equations_text.setHtml(equations_html)
@@ -7833,7 +8289,7 @@ class GAOptimizationMixin:
             ax2.plot(gens, epsilons, 'c-', marker='s')
             ax2.set_title('Epsilon Decay')
             ax2.set_xlabel('Generation')
-            ax2.set_ylabel('ε')
+            ax2.set_ylabel('Îµ')
             ax2.grid(True, alpha=0.3)
         else:
             ax1.text(0.5, 0.5, 'No RL reward history', ha='center', va='center', transform=ax1.transAxes)
@@ -8325,7 +8781,7 @@ class GAOptimizationMixin:
                 final_value = param_values[-1]
                 change = final_value - initial_value
                 
-                basic_info = f'''📍 Parameter: {selected_param}
+                basic_info = f'''ðŸ“ Parameter: {selected_param}
 Initial: {initial_value:.6f}
 Final: {final_value:.6f}
 Change: {change:+.6f}'''
@@ -8491,7 +8947,7 @@ Change: {change:+.6f}'''
                                color='red', alpha=0.6, linewidth=1)
                     
                     # Enhanced title with behavior indicator
-                    behavior_icons = {"Active": "🔄", "Converged": "✅", "Static": "⏸️"}
+                    behavior_icons = {"Active": "ðŸ”„", "Converged": "âœ…", "Static": "â¸ï¸"}
                     # Title color: use a fixed, readable color to avoid NumPy array comparisons
                     ax.set_title(f'{behavior_icons[behavior]} {param_name}', 
                                fontsize=10, fontweight='bold', 
@@ -8721,10 +9177,10 @@ Std: {param_std:.4f}'''
                         ax_summary.axis('off')
                         ax_summary.set_title('Overall Summary', fontsize=10, fontweight='bold')
                         
-                        summary_text = f'''📊 Parameter Summary
-🔄 Active: {active_params}
-✅ Converged: {converged_params}
-⏸️ Static: {static_params}
+                        summary_text = f'''ðŸ“Š Parameter Summary
+ðŸ”„ Active: {active_params}
+âœ… Converged: {converged_params}
+â¸ï¸ Static: {static_params}
 Total: {num_params} parameters
 Generations: {len(generations)}
 
@@ -8835,7 +9291,7 @@ Stat = Static'''
                             
                             # Add statistics text with better formatting
                             stats = param_stats[param_name]
-                            stats_text = f"Δ: {stats['change']:+.3f}\nσ: {stats['std']:.3f}"
+                            stats_text = f"Î”: {stats['change']:+.3f}\nÏƒ: {stats['std']:.3f}"
                             ax_mini.text(0.02, 0.98, stats_text, transform=ax_mini.transAxes,
                                        verticalalignment='top', fontsize=8,
                                        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
@@ -8882,15 +9338,15 @@ Stat = Static'''
                 else:
                     # No parameters selected
                     ax = fig.add_subplot(111)
-                    ax.text(0.5, 0.5, '''❌ No Parameters Selected
+                    ax.text(0.5, 0.5, '''âŒ No Parameters Selected
                     
 Please select parameters to compare using the dialog.
 
-💡 Tip: Use "Compare Multiple" mode to:
-• Select 2-8 parameters for optimal visualization
-• Compare normalized parameter evolution
-• See individual parameter details
-• View comprehensive statistics''', 
+ðŸ’¡ Tip: Use "Compare Multiple" mode to:
+â€¢ Select 2-8 parameters for optimal visualization
+â€¢ Compare normalized parameter evolution
+â€¢ See individual parameter details
+â€¢ View comprehensive statistics''', 
                            ha='center', va='center', transform=ax.transAxes, fontsize=14,
                            bbox=dict(boxstyle='round,pad=1', facecolor='lightcoral', alpha=0.3))
                     
@@ -8958,7 +9414,7 @@ Please select parameters to compare using the dialog.
                         
                         # Activity rank indicator
                         activity_rank = plot_idx + 1
-                        rank_icons = {1: "🥇", 2: "🥈", 3: "🥉"}
+                        rank_icons = {1: "ðŸ¥‡", 2: "ðŸ¥ˆ", 3: "ðŸ¥‰"}
                         rank_icon = rank_icons.get(activity_rank, f"#{activity_rank}")
                         
                         ax.set_title(f'{rank_icon} {param_name}', fontsize=11, fontweight='bold', 
@@ -8985,7 +9441,7 @@ Please select parameters to compare using the dialog.
                             volatility = "High"
                             vol_color = "lightcoral"
                         
-                        stats_text = f'''📊 Statistics
+                        stats_text = f'''ðŸ“Š Statistics
 Final: {final_value:.4f}
 Change: {change:+.4f}
 Range: {param_range:.4f}
@@ -9044,30 +9500,30 @@ Volatility: {volatility}'''
                         top_3 = active_params[:3]
                         top_3_text = "\n".join([f"{i+1}. {name}" for i, (_, name, _, _) in enumerate(top_3)])
                         
-                        summary_text = f'''🎯 Activity Summary
+                        summary_text = f'''ðŸŽ¯ Activity Summary
 
-📊 Active Parameters: {num_active}/{total_params}
-📈 Activity Rate: {activity_percentage:.1f}%
-📋 Avg Activity Score: {avg_activity:.6f}
+ðŸ“Š Active Parameters: {num_active}/{total_params}
+ðŸ“ˆ Activity Rate: {activity_percentage:.1f}%
+ðŸ“‹ Avg Activity Score: {avg_activity:.6f}
 
-🏆 Top 3 Most Active:
+ðŸ† Top 3 Most Active:
 {top_3_text}
 
-🎨 Color Legend:
-• Darker = More Active
-• Larger markers = Bigger changes
-• Red dashed = Trend line
+ðŸŽ¨ Color Legend:
+â€¢ Darker = More Active
+â€¢ Larger markers = Bigger changes
+â€¢ Red dashed = Trend line
 
-💡 Volatility Levels:
-🟢 Low (σ < 0.01)
-🟡 Medium (0.01 ≤ σ < 0.1)  
-🔴 High (σ ≥ 0.1)'''
+ðŸ’¡ Volatility Levels:
+ðŸŸ¢ Low (Ïƒ < 0.01)
+ðŸŸ¡ Medium (0.01 â‰¤ Ïƒ < 0.1)  
+ðŸ”´ High (Ïƒ â‰¥ 0.1)'''
                         
                         ax_summary.text(0.05, 0.95, summary_text, transform=ax_summary.transAxes,
                                       verticalalignment='top', fontsize=9,
                                       bbox=dict(boxstyle='round,pad=0.5', facecolor='lightcyan', 
                                               alpha=0.9, edgecolor='steelblue'))
-                        ax_summary.set_title('📈 Analysis Summary', fontsize=12, fontweight='bold')
+                        ax_summary.set_title('ðŸ“ˆ Analysis Summary', fontsize=12, fontweight='bold')
                 
                 else:
                     # No active parameters found
@@ -9075,22 +9531,22 @@ Volatility: {volatility}'''
                     ax = fig.add_subplot(111)
                     
                     # Create an informative display even when no active parameters exist
-                    ax.text(0.5, 0.6, '''⏸️ No Active Parameters Found
+                    ax.text(0.5, 0.6, '''â¸ï¸ No Active Parameters Found
                     
 All parameters remain constant during optimization.''', 
                            ha='center', va='center', transform=ax.transAxes, fontsize=16,
                            bbox=dict(boxstyle='round,pad=0.8', facecolor='lightgray', alpha=0.8))
                     
                     # Show parameter values table
-                    ax.text(0.5, 0.3, f'''📋 Parameter Values (All Constant):
+                    ax.text(0.5, 0.3, f'''ðŸ“‹ Parameter Values (All Constant):
 
-{chr(10).join([f"• {name}: {param_data[0, i]:.6f}" for i, name in enumerate(param_names[:10])])}
+{chr(10).join([f"â€¢ {name}: {param_data[0, i]:.6f}" for i, name in enumerate(param_names[:10])])}
 {"..." if len(param_names) > 10 else ""}
 
-💡 This indicates the optimization may have:
-• Converged very quickly
-• Been initialized at optimal values  
-• Encountered constraints preventing parameter changes''', 
+ðŸ’¡ This indicates the optimization may have:
+â€¢ Converged very quickly
+â€¢ Been initialized at optimal values  
+â€¢ Encountered constraints preventing parameter changes''', 
                            ha='center', va='center', transform=ax.transAxes, fontsize=12,
                            bbox=dict(boxstyle='round,pad=0.5', facecolor='wheat', alpha=0.8))
                     
@@ -9133,10 +9589,10 @@ All parameters remain constant during optimization.''',
                     
                     # Comparison analysis
                     analysis_label = QLabel()
-                    analysis_text = f"""🔍 <b>Comparison Analysis</b><br/>
+                    analysis_text = f"""ðŸ” <b>Comparison Analysis</b><br/>
 <b>Selected:</b> {len(selected_params)} parameters | <b>Normalization:</b> 0-1 scale per parameter<br/>
-📈 <b>Most Active:</b> {most_active_param} | 📉 <b>Least Active:</b> {least_active_param}<br/>
-📊 <b>Average Range:</b> {avg_range_val:.6f} | 💡 <i>Dashed lines show trends</i>"""
+ðŸ“ˆ <b>Most Active:</b> {most_active_param} | ðŸ“‰ <b>Least Active:</b> {least_active_param}<br/>
+ðŸ“Š <b>Average Range:</b> {avg_range_val:.6f} | ðŸ’¡ <i>Dashed lines show trends</i>"""
                     analysis_label.setText(analysis_text)
                     analysis_label.setStyleSheet("""
                         QLabel {
@@ -9252,7 +9708,7 @@ All parameters remain constant during optimization.''',
                            color=color, markeredgecolor='black', markeredgewidth=1, zorder=5)
                     
                     # Add annotation with smart positioning
-                    annotation_text = adaptation_type.replace('(', '\n(').replace('Increasing ', '↑').replace('Decreasing ', '↓')
+                    annotation_text = adaptation_type.replace('(', '\n(').replace('Increasing ', 'â†‘').replace('Decreasing ', 'â†“')
                     ax.annotate(annotation_text, 
                                xy=(gen, y_pos),
                                xytext=xytext, 
@@ -9427,6 +9883,59 @@ All parameters remain constant during optimization.''',
             # Compute components based on GAWorker's fitness function
             sparsity_penalty = alpha_value * sum(abs(param) for param in best_solution)
 
+            # Activation and cost terms
+            try:
+                thr = float(run_data.get('dva_activation_threshold', None))
+                if thr is None and isinstance(getattr(self, 'current_ga_full_results', None), dict):
+                    thr = float(self.current_ga_full_results.get('dva_activation_threshold', 0.0))
+            except Exception:
+                thr = float(self.ga_activation_threshold_box.value()) if hasattr(self, 'ga_activation_threshold_box') else 0.0
+            try:
+                pen_per = float(run_data.get('dva_activation_penalty', None))
+                if pen_per is None and isinstance(getattr(self, 'current_ga_full_results', None), dict):
+                    pen_per = float(self.current_ga_full_results.get('dva_activation_penalty', 0.0))
+            except Exception:
+                pen_per = float(self.ga_activation_penalty_box.value()) if hasattr(self, 'ga_activation_penalty_box') else 0.0
+            # Costs mapping
+            costs_map = {}
+            if isinstance(run_data.get('dva_costs', None), dict):
+                costs_map = dict(run_data['dva_costs'])
+            elif isinstance(getattr(self, 'current_ga_full_results', None), dict) and isinstance(self.current_ga_full_results.get('dva_costs'), dict):
+                costs_map = dict(self.current_ga_full_results['dva_costs'])
+            elif hasattr(self, 'ga_param_table') and self.ga_param_table is not None and self.ga_param_table.columnCount() > 5:
+                try:
+                    for r in range(self.ga_param_table.rowCount()):
+                        name = self.ga_param_table.item(r, 0).text()
+                        c = self.ga_param_table.cellWidget(r, 5)
+                        costs_map[name] = float(c.value()) if c is not None else 0.0
+                except Exception:
+                    costs_map = {}
+
+            try:
+                # Map param indices to names
+                param_names = run_data.get('parameter_names', [])
+                active_flags = [abs(float(v)) >= float(thr) for v in best_solution]
+                activation_penalty_term = float(sum(1 for f in active_flags if f)) * float(pen_per)
+                # Cost term normalized
+                denom = float(sum(float(costs_map.get(n, 0.0)) for n in param_names)) if param_names else float(sum(costs_map.values()))
+                if denom is None or denom <= 0 or not np.isfinite(denom):
+                    denom = 1.0
+                cost_sum_active = 0.0
+                for idx, is_active in enumerate(active_flags):
+                    if not is_active:
+                        continue
+                    name = param_names[idx] if idx < len(param_names) else None
+                    if name is None:
+                        continue
+                    try:
+                        cost_sum_active += float(costs_map.get(name, 0.0))
+                    except Exception:
+                        pass
+                cost_term = cost_sum_active / denom
+            except Exception:
+                activation_penalty_term = 0.0
+                cost_term = 0.0
+
             # Primary objective = |singular_response - 1.0| if available
             primary_objective = None
             if singular_response is not None:
@@ -9440,15 +9949,15 @@ All parameters remain constant during optimization.''',
             percentage_error_term = None
             # If we know primary, compute remainder as percentage term
             if primary_objective is not None:
-                percentage_error_term = max(0.0, best_fitness - primary_objective - sparsity_penalty)
+                percentage_error_term = max(0.0, best_fitness - primary_objective - sparsity_penalty - activation_penalty_term - cost_term)
             else:
                 # If primary unknown, assume remainder (after sparsity) is primary, percentage term 0
-                primary_objective = max(0.0, best_fitness - sparsity_penalty)
+                primary_objective = max(0.0, best_fitness - sparsity_penalty - activation_penalty_term - cost_term)
                 percentage_error_term = 0.0
 
             # Ensure non-negative and consistent totals
-            components = ['Primary Objective', 'Sparsity Penalty', 'Percentage Error']
-            raw_values = [primary_objective, sparsity_penalty, percentage_error_term]
+            components = ['Primary Objective', 'Sparsity Penalty', 'Percentage Error', 'Activation Penalty', 'Cost Term']
+            raw_values = [primary_objective, sparsity_penalty, percentage_error_term, activation_penalty_term, cost_term]
             values = [max(0.0, float(v)) for v in raw_values]
             total = sum(values)
 
@@ -9461,7 +9970,7 @@ All parameters remain constant during optimization.''',
                 else:
                     values_plot = values
                     denom = total
-                colors = ['#3498db', '#e74c3c', '#f1c40f']
+                colors = ['#3498db', '#e74c3c', '#f1c40f', '#9b59b6', '#2ecc71']
                 labels = [f"{name} ({(v/denom)*100:.1f}%)" for name, v in zip(components, values_plot)]
                 wedges, texts, autotexts = ax1.pie(
                     values_plot,
@@ -9610,15 +10119,15 @@ All parameters remain constant during optimization.''',
                 ax1.grid(True, alpha=0.3)
 
                 # Beta and epsilon
-                ax2.plot(gens, betas, 'tab:red', marker='o', linewidth=2, label='β (UCB)')
-                ax2.plot(gens, eps, 'tab:green', marker='s', linewidth=2, label='ε (explore)')
+                ax2.plot(gens, betas, 'tab:red', marker='o', linewidth=2, label='Î² (UCB)')
+                ax2.plot(gens, eps, 'tab:green', marker='s', linewidth=2, label='Îµ (explore)')
                 # Highlight adapted epsilon range if enabled
                 ns = metrics.get('neural_seeding', {})
                 if ns.get('adapt_epsilon'):
                     eps_min = float(ns.get('eps_min', np.nan))
                     eps_max = float(ns.get('eps_max', np.nan))
                     if eps_min == eps_min and eps_max == eps_max:
-                        ax2.fill_between(gens, [eps_min]*len(gens), [eps_max]*len(gens), color='green', alpha=0.08, label='ε bounds')
+                        ax2.fill_between(gens, [eps_min]*len(gens), [eps_max]*len(gens), color='green', alpha=0.08, label='Îµ bounds')
                 ax2.set_title('Acquisition Hyperparameters')
                 ax2.set_xlabel('Generation')
                 ax2.legend()
@@ -9628,7 +10137,7 @@ All parameters remain constant during optimization.''',
                 ax3.step(gens, poolm, where='mid', color='tab:purple')
                 ax3.set_title('Pool Size Multiplier per Generation')
                 ax3.set_xlabel('Generation')
-                ax3.set_ylabel('× Population')
+                ax3.set_ylabel('Ã— Population')
                 ax3.grid(True, alpha=0.3)
 
                 # Text summary
@@ -9644,8 +10153,8 @@ All parameters remain constant during optimization.''',
                 text = (
                     f"Method: Neural (Acq: {str(acq).upper()}) | Device: {device}\n"
                     f"Ensemble: {ens} | Hidden: {hdim} x {layers} | Dropout: {dout} | WD: {wd}\n"
-                    f"ε: {'adaptive' if adapt_eps else 'fixed'}\n"
-                    f"Tip: Lower training time → more budget for FRF. β↑ → explore; ε↑ → more random coverage."
+                    f"Îµ: {'adaptive' if adapt_eps else 'fixed'}\n"
+                    f"Tip: Lower training time â†’ more budget for FRF. Î²â†‘ â†’ explore; Îµâ†‘ â†’ more random coverage."
                 )
                 ax4.text(0.01, 0.95, text, va='top', ha='left')
             else:
@@ -10212,30 +10721,30 @@ All parameters remain constant during optimization.''',
                 mean_ref = df.iloc[0]['mean_ref_score'] 
                 worst_ref = df.iloc[0]['worst_ref_score']
                 ref_info = f"""
-🎯 REFERENCE RUNS (Clustering Centers):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🥇 Best Reference:  {best_ref:.6f}
-🥈 Mean Reference:  {mean_ref:.6f}
-🥉 Worst Reference: {worst_ref:.6f}
+ðŸŽ¯ REFERENCE RUNS (Clustering Centers):
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ¥‡ Best Reference:  {best_ref:.6f}
+ðŸ¥ˆ Mean Reference:  {mean_ref:.6f}
+ðŸ¥‰ Worst Reference: {worst_ref:.6f}
 
-ℹ️  Runs are grouped by closeness to these references
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â„¹ï¸  Runs are grouped by closeness to these references
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 """
             
             summary_content = f"""
-📊 BENCHMARK SUMMARY ({total_runs} runs)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🥇 Best Group:  {group_counts.get('Best', 0):>3} runs ({group_counts.get('Best', 0)/max(1,total_runs)*100:5.1f}%)
-🥈 Mid Group:   {group_counts.get('Mid', 0):>3} runs ({group_counts.get('Mid', 0)/max(1,total_runs)*100:5.1f}%)
-🥉 Worst Group: {group_counts.get('Worst', 0):>3} runs ({group_counts.get('Worst', 0)/max(1,total_runs)*100:5.1f}%)
+ðŸ“Š BENCHMARK SUMMARY ({total_runs} runs)
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ¥‡ Best Group:  {group_counts.get('Best', 0):>3} runs ({group_counts.get('Best', 0)/max(1,total_runs)*100:5.1f}%)
+ðŸ¥ˆ Mid Group:   {group_counts.get('Mid', 0):>3} runs ({group_counts.get('Mid', 0)/max(1,total_runs)*100:5.1f}%)
+ðŸ¥‰ Worst Group: {group_counts.get('Worst', 0):>3} runs ({group_counts.get('Worst', 0)/max(1,total_runs)*100:5.1f}%)
 
-📈 Ranking Metric: {metric_name}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ðŸ“ˆ Ranking Metric: {metric_name}
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 {ref_info}
             """
             summary_text.setPlainText(summary_content.strip())
             overview_layout.addWidget(summary_text)
-            plot_tabs.addTab(overview_tab, "📊 Overview")
+            plot_tabs.addTab(overview_tab, "ðŸ“Š Overview")
             
             # 2. KDE Distribution Tab
             kde_tab = QWidget()
@@ -10278,7 +10787,7 @@ All parameters remain constant during optimization.''',
             else:
                 kde_layout.addWidget(QLabel("No score data available for KDE plot"))
             
-            plot_tabs.addTab(kde_tab, "📈 KDE Distribution")
+            plot_tabs.addTab(kde_tab, "ðŸ“ˆ KDE Distribution")
             
             # 3. Violin Plot Tab
             violin_tab = QWidget()
@@ -10319,7 +10828,7 @@ All parameters remain constant during optimization.''',
             else:
                 violin_layout.addWidget(QLabel("No group or fitness data available for violin plot"))
             
-            plot_tabs.addTab(violin_tab, "🎻 Violin Plot")
+            plot_tabs.addTab(violin_tab, "ðŸŽ» Violin Plot")
             
             # 4. Box Plot Tab
             box_tab = QWidget()
@@ -10372,7 +10881,7 @@ All parameters remain constant during optimization.''',
             else:
                 box_layout.addWidget(QLabel("No metrics data available for box plot"))
             
-            plot_tabs.addTab(box_tab, "📦 Box Plot")
+            plot_tabs.addTab(box_tab, "ðŸ“¦ Box Plot")
             
             # 5. Scatter Plot Tab
             scatter_tab = QWidget()
@@ -10409,7 +10918,7 @@ All parameters remain constant during optimization.''',
             else:
                 scatter_layout.addWidget(QLabel("No run number, fitness, or group data available for scatter plot"))
             
-            plot_tabs.addTab(scatter_tab, "⚡ Scatter Plot")
+            plot_tabs.addTab(scatter_tab, "âš¡ Scatter Plot")
             
             # 6. Correlation Matrix Tab
             correlation_tab = QWidget()
@@ -10450,7 +10959,7 @@ All parameters remain constant during optimization.''',
             else:
                 correlation_layout.addWidget(QLabel("Not enough numeric columns for correlation matrix"))
             
-            plot_tabs.addTab(correlation_tab, "🔗 Correlation")
+            plot_tabs.addTab(correlation_tab, "ðŸ”— Correlation")
             
             # 7. Q-Q Plot Tab
             qq_tab = QWidget()
@@ -10472,7 +10981,7 @@ All parameters remain constant during optimization.''',
             else:
                 qq_layout.addWidget(QLabel("No fitness data available for Q-Q plot"))
             
-            plot_tabs.addTab(qq_tab, "📊 Q-Q Plot")
+            plot_tabs.addTab(qq_tab, "ðŸ“Š Q-Q Plot")
             
             # 8. Pie Chart Tab
             pie_tab = QWidget()
@@ -10501,7 +11010,7 @@ All parameters remain constant during optimization.''',
             else:
                 pie_layout.addWidget(QLabel("No group counts available for pie chart"))
             
-            plot_tabs.addTab(pie_tab, "🥧 Group Distribution")
+            plot_tabs.addTab(pie_tab, "ðŸ¥§ Group Distribution")
             
             # 9. Metrics Comparison Tab
             metrics_comp_tab = QWidget()
@@ -10558,7 +11067,7 @@ All parameters remain constant during optimization.''',
             else:
                 metrics_comp_layout.addWidget(QLabel("No group counts available for metrics comparison"))
             
-            plot_tabs.addTab(metrics_comp_tab, "📈 Metrics Comparison")
+            plot_tabs.addTab(metrics_comp_tab, "ðŸ“ˆ Metrics Comparison")
             
             # 10. Trends Tab
             trends_tab = QWidget()
@@ -10591,7 +11100,7 @@ All parameters remain constant during optimization.''',
             else:
                 trends_layout.addWidget(QLabel("Not enough run data for trends analysis"))
             
-            plot_tabs.addTab(trends_tab, "📉 Performance Trends")
+            plot_tabs.addTab(trends_tab, "ðŸ“‰ Performance Trends")
             
             # 11. Distribution Analysis Tab
             dist_analysis_tab = QWidget()
@@ -10719,9 +11228,9 @@ All parameters remain constant during optimization.''',
                         
                         # Add distribution parameters to legend
                         if best_name == 'Normal':
-                            param_str = f'μ={best_params[0]:.4f}, σ={best_params[1]:.4f}'
+                            param_str = f'Î¼={best_params[0]:.4f}, Ïƒ={best_params[1]:.4f}'
                         elif best_name == 'Skew Normal':
-                            param_str = f'a={best_params[0]:.3f}, μ={best_params[1]:.4f}, σ={best_params[2]:.4f}'
+                            param_str = f'a={best_params[0]:.3f}, Î¼={best_params[1]:.4f}, Ïƒ={best_params[2]:.4f}'
                         elif best_name in ['Gamma', 'Log Normal']:
                             param_str = f'shape={best_params[0]:.3f}, scale={best_params[2]:.4f}' if len(best_params) > 2 else f'shape={best_params[0]:.3f}'
                         else:
@@ -10733,7 +11242,7 @@ All parameters remain constant during optimization.''',
                         # Fallback to simple normal if all fits fail
                         y_norm = stats.norm.pdf(x_range, mu, sigma)
                         ax_main.plot(x_range, y_norm, 'red', linewidth=2, alpha=0.8, linestyle='--',
-                                   label=f'Normal Fit (μ={mu:.4f}, σ={sigma:.4f})')
+                                   label=f'Normal Fit (Î¼={mu:.4f}, Ïƒ={sigma:.4f})')
                         
                 except Exception as e:
                     # Fallback to basic statistics
@@ -10843,28 +11352,28 @@ All parameters remain constant during optimization.''',
                     fit_quality = ""
                     if 'best_name' in locals() and best_name:
                         if best_name == 'Normal':
-                            fit_quality = "✅ Normal distribution fits well"
+                            fit_quality = "âœ… Normal distribution fits well"
                         elif best_name == 'Skew Normal':
-                            fit_quality = "⚠️ Data is skewed (asymmetric)"
+                            fit_quality = "âš ï¸ Data is skewed (asymmetric)"
                         elif best_name in ['Gamma', 'Log Normal']:
-                            fit_quality = "📊 Right-skewed distribution"
+                            fit_quality = "ðŸ“Š Right-skewed distribution"
                         elif best_name == 'Beta':
-                            fit_quality = "🔄 Bounded distribution"
+                            fit_quality = "ðŸ”„ Bounded distribution"
                         else:
-                            fit_quality = f"📈 Best fit: {best_name}"
+                            fit_quality = f"ðŸ“ˆ Best fit: {best_name}"
                     
                     # Create compact analysis text for plot overlay
-                    analysis_text = f"""📊 DISTRIBUTION ANALYSIS
-📈 Skewness: {skewness:.3f} ({skew_desc})
-📊 Kurtosis: {kurtosis:.3f} ({kurt_desc})
+                    analysis_text = f"""ðŸ“Š DISTRIBUTION ANALYSIS
+ðŸ“ˆ Skewness: {skewness:.3f} ({skew_desc})
+ðŸ“Š Kurtosis: {kurtosis:.3f} ({kurt_desc})
 {fit_quality if fit_quality else ""}
-🎯 Most data in: {df['group'].mode().iloc[0] if not df['group'].mode().empty else 'Unknown'} group
-📏 Range: {scores.min():.4f} - {scores.max():.4f}
+ðŸŽ¯ Most data in: {df['group'].mode().iloc[0] if not df['group'].mode().empty else 'Unknown'} group
+ðŸ“ Range: {scores.min():.4f} - {scores.max():.4f}
 
-🔍 LEGEND:
-• Purple: Actual data shape (KDE)  • Red dashed: Best fit
-• Green bars: Best region  • Orange bars: Mid region  • Red bars: Worst region
-• Solid lines: References  • Dashed lines: Boundaries"""
+ðŸ” LEGEND:
+â€¢ Purple: Actual data shape (KDE)  â€¢ Red dashed: Best fit
+â€¢ Green bars: Best region  â€¢ Orange bars: Mid region  â€¢ Red bars: Worst region
+â€¢ Solid lines: References  â€¢ Dashed lines: Boundaries"""
                     
                     # Position the text box on the right side of the plot
                     ax_main.text(0.98, 0.98, analysis_text.strip(), transform=ax_main.transAxes,
@@ -10884,7 +11393,7 @@ All parameters remain constant during optimization.''',
             else:
                 dist_analysis_layout.addWidget(QLabel("Not enough score data for distribution analysis (minimum 5 runs required)"))
             
-            plot_tabs.addTab(dist_analysis_tab, "📊 Distribution Analysis")
+            plot_tabs.addTab(dist_analysis_tab, "ðŸ“Š Distribution Analysis")
             
             # 12. Statistics Table Tab
             stats_tab = QWidget()
@@ -10927,7 +11436,7 @@ All parameters remain constant during optimization.''',
             export_btn.clicked.connect(lambda: self._export_table_via_dialog(stats_table, "group_summary_statistics"))
             stats_layout.addWidget(export_btn)
             
-            plot_tabs.addTab(stats_tab, "📋 Statistics Table")
+            plot_tabs.addTab(stats_tab, "ðŸ“‹ Statistics Table")
             
         except Exception as e:
             print(f"Error building comprehensive group summary: {str(e)}")
@@ -10976,3 +11485,11 @@ All parameters remain constant during optimization.''',
                 
         except Exception as e:
             print(f"Error exporting table: {str(e)}")
+
+
+
+
+
+
+
+

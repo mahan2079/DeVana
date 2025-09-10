@@ -1,4 +1,4 @@
-"""
+﻿"""
 Comprehensive Flow Chart & Feature Overview of GAWorker.py
 
 [1] Imports & Dependencies
@@ -217,7 +217,7 @@ import threading
 
 # Imagine you have a function that does something with the DEAP library (which is used for evolutionary algorithms).
 # Sometimes, DEAP can get into a weird state (for example, if you try to register the same class twice), and your function might crash.
-# This helper function is a "decorator" – a special kind of function in Python that wraps around another function to add extra behavior.
+# This helper function is a "decorator" â€“ a special kind of function in Python that wraps around another function to add extra behavior.
 # In this case, the decorator tries to run your function, and if it fails, it will try up to 3 times.
 # If it fails, it also tries to "clean up" DEAP's global state by deleting certain attributes, so the next attempt has a better chance of working.
 # If it still fails after 3 tries, it gives up and raises the error.
@@ -421,7 +421,25 @@ class GAWorker(QThread):
         neural_eps_max=0.30,        # Maximum epsilon value
         # Best-of-Pool seeding options
         best_pool_mult=5.0,         # Candidate pool multiplier relative to population
-        best_diversity_frac=0.20    # Diversity stride fraction for selection
+        best_diversity_frac=0.20,   # Diversity stride fraction for selection
+        # DVA usage/cost extensions
+        dva_activation_threshold=0.0,  # Threshold for considering a DVA parameter as active
+        dva_activation_penalty=0.0,    # Penalty added per active DVA parameter
+        dva_costs=None,                # Dict mapping parameter name -> user-defined cost (legacy)
+        dva_costs_by_category=None,    # Dict of dicts: {category: {param: cost}}
+        # Enhanced cost-benefit controls
+        use_enhanced_cost=True,        # Enable enhanced cost-benefit analysis
+        benefit_w_primary=0.6,         # Weight for primary objective in benefit calculation
+        benefit_w_accuracy=0.3,        # Weight for accuracy (percentage error) in benefit calculation
+        benefit_w_sparsity=0.1,        # Weight for sparsity in benefit calculation
+        cat_w_material=0.4,            # Category weight: material
+        cat_w_manufacturing=0.35,      # Category weight: manufacturing
+        cat_w_maintenance=0.15,        # Category weight: maintenance
+        cat_w_operational=0.10,        # Category weight: operational
+        benefit_weight_start=0.3,      # Start value for benefit weight over generations (0..1)
+        benefit_weight_end=0.7,        # End value for benefit weight over generations (0..1)
+        generation_ratio=0.5,          # Fixed generation ratio for adaptive cost-benefit weighting (0..1)
+        dva_category_map=None          # Optional explicit mapping param_name -> category name
     ):
         # ------------------------------------------------------------------------
         # Genetic Algorithm Worker Initialization
@@ -576,6 +594,72 @@ class GAWorker(QThread):
         if not np.isfinite(self.alpha):
             self.alpha = 0.0
         self.percentage_error_scale = percentage_error_scale if percentage_error_scale is not None else 1000.0  # Scaling factor for percentage error in fitness calculation
+        # DVA activation/cost configuration
+        try:
+            self.dva_activation_threshold = float(dva_activation_threshold)
+        except Exception:
+            self.dva_activation_threshold = 0.0
+        try:
+            self.dva_activation_penalty = float(dva_activation_penalty)
+        except Exception:
+            self.dva_activation_penalty = 0.0
+        self.dva_costs = dict(dva_costs) if isinstance(dva_costs, dict) else {}
+        # Normalize category cost structure
+        if isinstance(dva_costs_by_category, dict):
+            self.dva_costs_by_category = {
+                'material': dict(dva_costs_by_category.get('material', {})) if isinstance(dva_costs_by_category.get('material', {}), dict) else {},
+                'manufacturing': dict(dva_costs_by_category.get('manufacturing', {})) if isinstance(dva_costs_by_category.get('manufacturing', {}), dict) else {},
+                'maintenance': dict(dva_costs_by_category.get('maintenance', {})) if isinstance(dva_costs_by_category.get('maintenance', {}), dict) else {},
+                'operational': dict(dva_costs_by_category.get('operational', {})) if isinstance(dva_costs_by_category.get('operational', {}), dict) else {},
+            }
+        else:
+            self.dva_costs_by_category = None
+        # Precompute denominator for cost normalization (avoid division by zero)
+        try:
+            self._dva_cost_denominator = float(sum(float(v) for v in self.dva_costs.values() if np.isfinite(float(v))))
+        except Exception:
+            self._dva_cost_denominator = 0.0
+        # Enhanced cost-benefit controls
+        self.use_enhanced_cost = bool(use_enhanced_cost)
+        # Benefit weights (normalize to sum 1)
+        try:
+            bw = [float(benefit_w_primary), float(benefit_w_accuracy), float(benefit_w_sparsity)]
+            bw_sum = sum(v for v in bw if np.isfinite(v))
+            if bw_sum <= 0:
+                self.benefit_weights = (0.6, 0.3, 0.1)
+            else:
+                self.benefit_weights = tuple(v / bw_sum for v in bw)
+        except Exception:
+            self.benefit_weights = (0.6, 0.3, 0.1)
+        # Category weights (normalize to sum 1)
+        try:
+            cw = [float(cat_w_material), float(cat_w_manufacturing), float(cat_w_maintenance), float(cat_w_operational)]
+            cw_sum = sum(v for v in cw if np.isfinite(v))
+            if cw_sum <= 0:
+                cw_norm = [0.25, 0.25, 0.25, 0.25]
+            else:
+                cw_norm = [v / cw_sum for v in cw]
+        except Exception:
+            cw_norm = [0.25, 0.25, 0.25, 0.25]
+        self.category_weights = {
+            'material': cw_norm[0],
+            'manufacturing': cw_norm[1],
+            'maintenance': cw_norm[2],
+            'operational': cw_norm[3],
+        }
+        try:
+            self.benefit_weight_start = min(1.0, max(0.0, float(benefit_weight_start)))
+        except Exception:
+            self.benefit_weight_start = 0.3
+        try:
+            self.benefit_weight_end = min(1.0, max(0.0, float(benefit_weight_end)))
+        except Exception:
+            self.benefit_weight_end = 0.7
+        try:
+            self.generation_ratio = min(1.0, max(0.0, float(generation_ratio)))
+        except Exception:
+            self.generation_ratio = 0.5
+        self.dva_category_map = dict(dva_category_map) if isinstance(dva_category_map, dict) else {}
         self.track_metrics = track_metrics      # Whether to track computational metrics
         
         # Adaptive rate parameters
@@ -1006,7 +1090,7 @@ class GAWorker(QThread):
         if self.use_ml_adaptive:
             self.update.emit(f"DEBUG: ML params: UCB c={self.ml_ucb_c:.2f}, pop_adapt={self.ml_adapt_population}, div_weight={self.ml_diversity_weight:.3f}, div_target={self.ml_diversity_target:.2f}, blending=[{self.ml_historical_weight:.2f}, {self.ml_current_weight:.2f}]")
         if self.use_surrogate:
-            self.update.emit(f"DEBUG: Surrogate screening enabled → pool_factor={self.surrogate_pool_factor:.2f}, k={self.surrogate_k}, explore_frac={self.surrogate_explore_frac:.2f}")
+            self.update.emit(f"DEBUG: Surrogate screening enabled â†’ pool_factor={self.surrogate_pool_factor:.2f}, k={self.surrogate_k}, explore_frac={self.surrogate_explore_frac:.2f}")
         
         # Start metrics tracking if enabled
         if self.track_metrics:
@@ -1181,7 +1265,28 @@ class GAWorker(QThread):
                     with cache_lock:
                         cached = frf_cache.get(dva_parameters_tuple)
                     if cached is not None:
-                        primary_objective, sparsity_penalty, percentage_error_component, fitness_value = cached
+                        # Support both legacy (4-tuple) and extended (6-tuple) cache formats
+                        if isinstance(cached, (list, tuple)):
+                            if len(cached) >= 6:
+                                primary_objective, sparsity_penalty, percentage_error_component, activation_penalty_term, cost_term, fitness_value = cached[:6]
+                                individual.activation_penalty = activation_penalty_term
+                                individual.cost_term = cost_term
+                            else:
+                                primary_objective, sparsity_penalty, percentage_error_component, fitness_value = cached[:4]
+                                individual.activation_penalty = 0.0
+                                individual.cost_term = 0.0
+                        elif isinstance(cached, dict):
+                            primary_objective = float(cached.get('primary_objective', 0.0))
+                            sparsity_penalty = float(cached.get('sparsity_penalty', 0.0))
+                            percentage_error_component = float(cached.get('percentage_error', 0.0))
+                            fitness_value = float(cached.get('fitness', 1e6))
+                            individual.activation_penalty = float(cached.get('activation_penalty', 0.0))
+                            individual.cost_term = float(cached.get('cost_term', 0.0))
+                        else:
+                            primary_objective = sparsity_penalty = percentage_error_component = 0.0
+                            fitness_value = 1e6
+                            individual.activation_penalty = 0.0
+                            individual.cost_term = 0.0
                         # Restore component attributes for reporting
                         individual.primary_objective = primary_objective
                         individual.sparsity_penalty = sparsity_penalty
@@ -1327,22 +1432,198 @@ class GAWorker(QThread):
                                 except Exception:
                                     continue
                     
+                    # Activation-based penalty and cost term
+                    try:
+                        thr = float(self.dva_activation_threshold)
+                    except Exception:
+                        thr = 0.0
+                    try:
+                        pen_per = float(self.dva_activation_penalty)
+                    except Exception:
+                        pen_per = 0.0
+                    active_flags = []
+                    try:
+                        for idx, val in enumerate(individual):
+                            try:
+                                active_flags.append(abs(float(val)) >= thr)
+                            except Exception:
+                                active_flags.append(False)
+                    except Exception:
+                        active_flags = [False] * len(individual)
+                    activation_count = int(sum(1 for f in active_flags if f))
+                    activation_penalty_term = float(activation_count) * pen_per if np.isfinite(pen_per) else 0.0
+
+                    # ENHANCED COST-BENEFIT ANALYSIS WITH HIERARCHICAL STRUCTURE
+                    cost_term = 0.0
+                    benefit_cost_ratio = 0.0
+                    # Precompute sums for fallback (normalized active cost)
+                    cost_sum_active = 0.0
+                    if self.dva_costs_by_category:
+                        try:
+                            name_to_idx = {n: i for i, n in enumerate(parameter_names)}
+                            total_all = 0.0
+                            active_all = 0.0
+                            for cat_map in self.dva_costs_by_category.values():
+                                if not isinstance(cat_map, dict):
+                                    continue
+                                for pname, cval in cat_map.items():
+                                    v = float(cval) if np.isfinite(float(cval)) else 0.0
+                                    total_all += v
+                                    idx = name_to_idx.get(pname, None)
+                                    if idx is not None and idx < len(active_flags) and active_flags[idx]:
+                                        active_all += v
+                            cost_sum_active = active_all
+                            denom = total_all if total_all > 0 else 1.0
+                        except Exception:
+                            denom = 1.0
+                    else:
+                        try:
+                            for idx, is_active in enumerate(active_flags):
+                                if not is_active:
+                                    continue
+                                pname = parameter_names[idx] if idx < len(parameter_names) else None
+                                if pname is None:
+                                    continue
+                                cval = float(self.dva_costs.get(pname, 0.0))
+                                if np.isfinite(cval):
+                                    cost_sum_active += cval
+                        except Exception:
+                            pass
+                        denom = float(self._dva_cost_denominator) if self._dva_cost_denominator and self._dva_cost_denominator > 0 else 1.0
+                    try:
+                        # If enhanced cost is disabled, fallback to normalized active cost
+                        if not self.use_enhanced_cost:
+                            cost_term = cost_sum_active / denom if denom > 0 else 0.0
+                        else:
+                            # 1. Calculate benefit metrics
+                            benefit_primary = abs(singular_response - 1.0)
+                            benefit_accuracy = percentage_error_sum / 100.0
+                            benefit_sparsity = sparsity_penalty
+                            bw_p, bw_a, bw_s = self.benefit_weights
+                            total_benefit = (bw_p * benefit_primary + bw_a * benefit_accuracy + bw_s * benefit_sparsity)
+
+                        # 2. Hierarchical cost categorization
+                        cost_categories = {
+                            'material': {'params': [], 'weight': 0.4, 'total': 0.0, 'active': 0.0},
+                            'manufacturing': {'params': [], 'weight': 0.35, 'total': 0.0, 'active': 0.0},
+                            'maintenance': {'params': [], 'weight': 0.15, 'total': 0.0, 'active': 0.0},
+                            'operational': {'params': [], 'weight': 0.1, 'total': 0.0, 'active': 0.0}
+                        }
+                        if self.dva_costs_by_category:
+                            name_to_idx = {n: i for i, n in enumerate(parameter_names)}
+                            for cat in cost_categories.keys():
+                                mapping = self.dva_costs_by_category.get(cat, {})
+                                if not isinstance(mapping, dict):
+                                    continue
+                                for pname, cval in mapping.items():
+                                    v = float(cval) if np.isfinite(float(cval)) else 0.0
+                                    cost_categories[cat]['params'].append(pname)
+                                    cost_categories[cat]['total'] += v
+                                    idx = name_to_idx.get(pname, None)
+                                    if idx is not None and idx < len(active_flags) and active_flags[idx]:
+                                        cost_categories[cat]['active'] += v
+                        else:
+                            # 3. Categorize parameters and calculate category costs (legacy)
+                            for idx, is_active in enumerate(active_flags):
+                                if idx >= len(parameter_names):
+                                    continue
+                                pname = parameter_names[idx]
+                                cval = float(self.dva_costs.get(pname, 0.0))
+                                if not np.isfinite(cval):
+                                    continue
+                                # Prefer explicit mapping if provided; otherwise heuristic
+                                cat_map_val = self.dva_category_map.get(pname, None)
+                                if isinstance(cat_map_val, str) and cat_map_val.lower() in cost_categories:
+                                    category = cat_map_val.lower()
+                                else:
+                                    category = 'operational'
+                                    pname_lower = pname.lower()
+                                    if any(keyword in pname_lower for keyword in ['k', 'stiff', 'spring']):
+                                        category = 'material'
+                                    elif any(keyword in pname_lower for keyword in ['c', 'damp', 'viscous']):
+                                        category = 'manufacturing'
+                                    elif any(keyword in pname_lower for keyword in ['m', 'mass', 'weight']):
+                                        category = 'maintenance'
+                                cost_categories[category]['params'].append(pname)
+                                cost_categories[category]['total'] += cval
+                                if is_active:
+                                    cost_categories[category]['active'] += cval
+
+                        # 4. Calculate category-specific benefit-cost ratios
+                        category_ratios = {}
+                        total_weighted_cost = 0.0
+                        for cat_name, cat_data in cost_categories.items():
+                            if cat_data['total'] > 0:
+                                cat_benefit = total_benefit * cat_data['weight']
+                                cat_ratio = cat_benefit / cat_data['total'] if cat_data['active'] > 0 else float('inf')
+                                category_ratios[cat_name] = cat_ratio
+                                normalized_cat_cost = cat_data['active'] / cat_data['total']
+                                total_weighted_cost += cat_data['weight'] * normalized_cat_cost
+                            else:
+                                category_ratios[cat_name] = float('inf')
+                                total_weighted_cost += cat_data['weight'] * (1.0 if cat_data['active'] > 0 else 0.0)
+
+                        # 5. Adaptive weighting based on user-defined generation ratio
+                        # Use the user-defined generation ratio instead of dynamic calculation
+                        generation_ratio = self.generation_ratio
+                        benefit_weight = float(self.benefit_weight_start) + (float(self.benefit_weight_end) - float(self.benefit_weight_start)) * generation_ratio; benefit_weight = min(1.0, max(0.0, benefit_weight))
+                        cost_weight = 1.0 - benefit_weight
+
+                        # 6. Combined cost-benefit term
+                        if total_benefit > 1e-10:
+                            overall_bcr = total_benefit / max(total_weighted_cost, 1e-10)
+                            benefit_cost_ratio = 1.0 / overall_bcr
+                        else:
+                            benefit_cost_ratio = 1e6
+                        cost_term = cost_weight * total_weighted_cost + benefit_weight * benefit_cost_ratio
+
+                        # Store detailed cost information
+                        individual.cost_categories = cost_categories
+                        individual.category_ratios = category_ratios
+                        individual.total_benefit = total_benefit
+                        individual.benefit_cost_ratio = benefit_cost_ratio
+                    except Exception as e:
+                        # Fallback to original normalized cost
+                        self.update.emit(f"Warning: Enhanced cost calculation failed: {str(e)}")
+                        cost_term = cost_sum_active / denom if denom > 0 else 0.0
+                        individual.cost_categories = {}
+                        individual.category_ratios = {}
+                        individual.total_benefit = 0.0
+                        individual.benefit_cost_ratio = 0.0
+
                     # Store the fitness components in the individual's attributes
                     # This allows us to access them later for detailed reporting
                     individual.primary_objective = primary_objective
                     individual.sparsity_penalty = sparsity_penalty
                     individual.percentage_error = percentage_error_sum/100.0
+                    individual.activation_penalty = activation_penalty_term
+                    individual.cost_term = cost_term
                     
-                    # Combine all three components to get final score:
+                    # Combine all components to get final score:
                     # 1. Primary objective: Distance from target value of 1.0
                     # 2. Sparsity penalty: Encourages simpler solutions
                     # 3. Percentage error sum: Sum of all percentage differences from target values (scaled by percentage_error_scale)
+                    # 4. Activation penalty term: Penalty per active parameter above threshold
+                    # 5. Cost term: Normalized cost of active parameters
                     # Lower score = better solution (like golf scoring)
-                    fitness = primary_objective + sparsity_penalty + percentage_error_sum/self.percentage_error_scale
+                    fitness = (
+                        primary_objective
+                        + sparsity_penalty
+                        + percentage_error_sum/self.percentage_error_scale
+                        + activation_penalty_term
+                        + cost_term
+                    )
                     # Memoize results for identical parameter vectors
                     try:
                         with cache_lock:
-                            frf_cache[dva_parameters_tuple] = (primary_objective, sparsity_penalty, individual.percentage_error, float(fitness))
+                            frf_cache[dva_parameters_tuple] = (
+                                primary_objective,
+                                sparsity_penalty,
+                                individual.percentage_error,
+                                activation_penalty_term,
+                                cost_term,
+                                float(fitness)
+                            )
                     except Exception:
                         pass
                     return (fitness,)
@@ -2009,7 +2290,7 @@ class GAWorker(QThread):
                             try:
                                 if self.adaptive_rates:
                                     # Linearly interpolate beta between min and max based on stagnation
-                                    # More stagnation → higher beta (more exploration)
+                                    # More stagnation â†’ higher beta (more exploration)
                                     beta = self.neural_beta_min + (
                                         (self.neural_beta_max - self.neural_beta_min) *
                                         min(1.0, max(0.0, self.stagnation_counter / max(1, self.stagnation_limit)))
@@ -2138,7 +2419,7 @@ class GAWorker(QThread):
                 def rl_update(state, action, reward, next_state):
                     """
                     Update the Q-table using the Q-learning rule:
-                    Q(s, a) ← Q(s, a) + α * [reward + γ * max_a' Q(s', a') - Q(s, a)]
+                    Q(s, a) â† Q(s, a) + Î± * [reward + Î³ * max_a' Q(s', a') - Q(s, a)]
                     - state: current state (int)
                     - action: action index taken (int)
                     - reward: observed reward (float)
@@ -2231,6 +2512,11 @@ class GAWorker(QThread):
             # This loop runs the genetic algorithm for a specified number of generations.
             # Each generation consists of selection, crossover, mutation, and evaluation steps.
             for gen in range(1, self.ga_num_generations + 1):
+                # Track current generation index for adaptive components
+                try:
+                    self._current_generation = int(gen)
+                except Exception:
+                    pass
                 # ----------------------------------------
                 # Early Exit or Pause Handling
                 # ----------------------------------------
@@ -2742,24 +3028,24 @@ class GAWorker(QThread):
                             self.current_cxpb = max(self.cxpb_min, self.current_cxpb * 0.90)
                             # Also widen mutation step size
                             self.mutation_scale = min(self.mutation_scale_max, self.mutation_scale * 1.25)
-                            adaptation_type = "Exploration boost: ↑mutation prob/scale, ↓crossover"
+                            adaptation_type = "Exploration boost: â†‘mutation prob/scale, â†“crossover"
                         elif norm_div > 0.35:
                             # High diversity: push exploitation
                             self.current_cxpb = min(self.cxpb_max, self.current_cxpb * 1.20)
                             self.current_mutpb = max(self.mutpb_min, self.current_mutpb * 0.90)
                             # Narrow mutation step size
                             self.mutation_scale = max(self.mutation_scale_min, self.mutation_scale * 0.90)
-                            adaptation_type = "Exploitation tilt: ↑crossover, ↓mutation prob/scale"
+                            adaptation_type = "Exploitation tilt: â†‘crossover, â†“mutation prob/scale"
                         else:
                             # Moderate diversity: gentle balancing with small moves
                             if gen % 2 == 0:
                                 self.current_cxpb = min(self.cxpb_max, self.current_cxpb * 1.08)
                                 self.current_mutpb = max(self.mutpb_min, self.current_mutpb * 0.97)
-                                adaptation_type = "Balanced: slight ↑crossover, slight ↓mutation"
+                                adaptation_type = "Balanced: slight â†‘crossover, slight â†“mutation"
                             else:
                                 self.current_mutpb = min(self.mutpb_max, self.current_mutpb * 1.08)
                                 self.current_cxpb = max(self.cxpb_min, self.current_cxpb * 0.97)
-                                adaptation_type = "Balanced: slight ↑mutation, slight ↓crossover"
+                                adaptation_type = "Balanced: slight â†‘mutation, slight â†“crossover"
 
                         # Clamp after changes
                         self.current_cxpb = min(self.cxpb_max, max(self.cxpb_min, self.current_cxpb))
@@ -2776,7 +3062,7 @@ class GAWorker(QThread):
                         cxpb_change = self.current_cxpb - old_cx
                         mutpb_change = self.current_mutpb - old_mu
                         self.update.emit(
-                            f"  ↳ Δcx={cxpb_change:+.4f}, Δmut={mutpb_change:+.4f}"
+                            f"  â†³ Î”cx={cxpb_change:+.4f}, Î”mut={mutpb_change:+.4f}"
                         )
 
                         # Reset stagnation gently only if changed
@@ -2810,18 +3096,20 @@ class GAWorker(QThread):
                         self.update.emit(f"  New best solution found! Fitness: {best_fitness_overall:.6f}")
 
                 if has_components and (gen == 1 or gen == self.ga_num_generations or getattr(self, 'log_component_table_every_n', 1) <= 1 or (gen % getattr(self, 'log_component_table_every_n', 1) == 0)):
-                    table_header = "  ┌───────────────────────┬───────────────┬───────────────┬───────────────┬───────────────┐"
-                    table_format = "  │ {0:<21} │ {1:>13} │ {2:>13} │ {3:>13} │ {4:>13} │"
-                    table_footer = "  └───────────────────────┴───────────────┴───────────────┴───────────────┴───────────────┘"
+                    table_header = "  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”"
+                    table_format = "  â”‚ {0:<21} â”‚ {1:>13} â”‚ {2:>13} â”‚ {3:>13} â”‚ {4:>13} â”‚"
+                    table_footer = "  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜"
                     
                     self.update.emit(table_header)
                     self.update.emit(table_format.format("Fitness Components", "Min", "Max", "Average", "Best"))
-                    self.update.emit(table_format.format("───────────────────────", "───────────────", "───────────────", "───────────────", "───────────────"))
+                    self.update.emit(table_format.format("â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€", "â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€", "â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€", "â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€", "â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€"))
                     
                     # Calculate component statistics
                     primary_objectives = [ind.primary_objective if hasattr(ind, 'primary_objective') else 0 for ind in population]
                     sparsity_penalties = [ind.sparsity_penalty if hasattr(ind, 'sparsity_penalty') else 0 for ind in population]
                     percentage_errors = [ind.percentage_error if hasattr(ind, 'percentage_error') else 0 for ind in population]
+                    activation_penalties = [getattr(ind, 'activation_penalty', 0.0) for ind in population]
+                    cost_terms = [getattr(ind, 'cost_term', 0.0) for ind in population]
                     
                     min_primary = min(primary_objectives) if primary_objectives else 0
                     max_primary = max(primary_objectives) if primary_objectives else 0
@@ -2842,6 +3130,10 @@ class GAWorker(QThread):
                     self.update.emit(table_format.format("Primary Objective", f"{min_primary:.6f}", f"{max_primary:.6f}", f"{avg_primary:.6f}", f"{best_primary:.6f}"))
                     self.update.emit(table_format.format("Sparsity Penalty", f"{min_sparsity:.6f}", f"{max_sparsity:.6f}", f"{avg_sparsity:.6f}", f"{best_sparsity:.6f}"))
                     self.update.emit(table_format.format("Percentage Error", f"{min_percentage:.6f}", f"{max_percentage:.6f}", f"{avg_percentage:.6f}", f"{best_percentage:.6f}"))
+                    if activation_penalties:
+                        self.update.emit(table_format.format("Activation Penalty", f"{min(activation_penalties):.6f}", f"{max(activation_penalties):.6f}", f"{(sum(activation_penalties)/len(activation_penalties)):.6f}", f"{getattr(best_individual,'activation_penalty',0.0):.6f}"))
+                    if cost_terms:
+                        self.update.emit(table_format.format("Cost Term", f"{min(cost_terms):.6f}", f"{max(cost_terms):.6f}", f"{(sum(cost_terms)/len(cost_terms)):.6f}", f"{getattr(best_individual,'cost_term',0.0):.6f}"))
                     self.update.emit(table_format.format("Total Fitness", f"{min_fit:.6f}", f"{max_fit:.6f}", f"{mean:.6f}", f"{min_fit:.6f}"))
                     self.update.emit(table_footer)
                     
@@ -2849,7 +3141,7 @@ class GAWorker(QThread):
                     if self.adaptive_rates:
                         # Instead of showing rates again, show an indicator of whether rates will be adapted
                         if self.stagnation_counter >= self.stagnation_limit - 1:
-                            self.update.emit(f"  ⚠️ Rates will adapt next generation due to stagnation ({self.stagnation_counter}/{self.stagnation_limit})")
+                            self.update.emit(f"  âš ï¸ Rates will adapt next generation due to stagnation ({self.stagnation_counter}/{self.stagnation_limit})")
                         else:
                             self.update.emit(f"  Stagnation counter: {self.stagnation_counter}/{self.stagnation_limit}")
                 else:
@@ -2861,7 +3153,7 @@ class GAWorker(QThread):
                         self.update.emit(f"  Std fitness: {std:.6f}")
                         if self.adaptive_rates:
                             if self.stagnation_counter >= self.stagnation_limit - 1:
-                                self.update.emit(f"  ⚠️ Rates will adapt next generation due to stagnation ({self.stagnation_counter}/{self.stagnation_limit})")
+                                self.update.emit(f"  âš ï¸ Rates will adapt next generation due to stagnation ({self.stagnation_counter}/{self.stagnation_limit})")
                             else:
                                 self.update.emit(f"  Stagnation counter: {self.stagnation_counter}/{self.stagnation_limit}")
 
@@ -2907,7 +3199,7 @@ class GAWorker(QThread):
                         if self.use_rl_controller:
                             # RL reward per LaTeX spec:
                             # R_t = w1 * max(0, f*_{t-1}-f*_t)/(1+|f*_t|) + w2 * (d_t - d_{t-1})/(1+d_{t-1})
-                            #       + w3 * (1/Δt) - w4 * |cv_t - cv*|
+                            #       + w3 * (1/Î”t) - w4 * |cv_t - cv*|
                             f_t = min_fit
                             f_prev = last_best if last_best is not None else f_t
                             term1 = self.rl_w1 * (max(0.0, (f_prev - f_t)) / (1.0 + abs(f_t)))
@@ -3116,6 +3408,51 @@ class GAWorker(QThread):
                         except Exception:
                             pass
                     
+                    # Attach run settings for front-end plots/components breakdown
+                    try:
+                        final_results['dva_activation_threshold'] = float(self.dva_activation_threshold)
+                    except Exception:
+                        pass
+                    try:
+                        final_results['dva_activation_penalty'] = float(self.dva_activation_penalty)
+                    except Exception:
+                        pass
+                    try:
+                        final_results['percentage_error_scale'] = float(self.percentage_error_scale)
+                    except Exception:
+                        pass
+                    try:
+                        # Provide cost mapping and denominator for normalization
+                        final_results['dva_costs'] = dict(self.dva_costs)
+                        final_results['dva_costs_total'] = sum(self.dva_costs.values()) if self.dva_costs else 0.0
+                        final_results['use_enhanced_cost'] = bool(self.use_enhanced_cost)
+                        try:
+                            bw_p, bw_a, bw_s = self.benefit_weights
+                            final_results['benefit_w_primary'] = float(bw_p)
+                            final_results['benefit_w_accuracy'] = float(bw_a)
+                            final_results['benefit_w_sparsity'] = float(bw_s)
+                        except Exception:
+                            pass
+                        try:
+                            final_results['category_w_material'] = float(self.category_weights.get('material', 0.25))
+                            final_results['category_w_manufacturing'] = float(self.category_weights.get('manufacturing', 0.25))
+                            final_results['category_w_maintenance'] = float(self.category_weights.get('maintenance', 0.25))
+                            final_results['category_w_operational'] = float(self.category_weights.get('operational', 0.25))
+                        except Exception:
+                            pass
+                        try:
+                            final_results['benefit_weight_start'] = float(self.benefit_weight_start)
+                            final_results['benefit_weight_end'] = float(self.benefit_weight_end)
+                        except Exception:
+                            pass
+                        try:
+                            final_results['dva_category_map'] = dict(self.dva_category_map)
+                        except Exception:
+                            pass
+                        final_results['_dva_cost_denominator'] = float(self._dva_cost_denominator)
+                    except Exception:
+                        pass
+
                     # Make sure to clean up after a successful run
                     self.cleanup()
                     self.finished.emit(final_results, best_ind, parameter_names, best_fitness)
@@ -3384,3 +3721,9 @@ class GAWorker(QThread):
             
         # Emit the complete metrics data
         self.benchmark_data.emit(self.metrics)
+
+
+
+
+
+
