@@ -254,8 +254,7 @@ def safe_deap_operation(func):
             except Exception as e:
                 # If an error occurs, check if we have more retries left
                 if attempt < max_retries - 1:
-                    # Print a message to let the user know we're retrying
-                    print(f"DEAP operation failed, retrying ({attempt+1}/{max_retries}): {str(e)}")
+                    # Suppress console output on retry; silently attempt cleanup and retry
                     # Try to clean up DEAP's global state, which might be causing the error
                     try:
                         # If the 'FitnessMin' class is registered in DEAP's creator, remove it
@@ -268,8 +267,7 @@ def safe_deap_operation(func):
                         # If cleanup itself fails, ignore the error and continue to the next retry
                         pass
                 else:
-                    # If we've used up all our retries, print a final error message and raise the exception
-                    print(f"DEAP operation failed after {max_retries} attempts: {str(e)}")
+                    # If we've used up all our retries, re-raise the exception without printing to console
                     raise  # Re-raise the last exception so the caller knows something went wrong
         # (No explicit return here; if all retries fail, the exception is raised)
 
@@ -355,6 +353,7 @@ class GAWorker(QThread):
         ga_parameter_data,          # Parameter metadata for optimization
         alpha=0.01,                 # Learning rate or step size (default: 0.01)
         percentage_error_scale=1000.0, # Scaling factor for percentage error in fitness calculation
+        cost_scale_factor=30.0, # Scaling factor for cost term in fitness calculation (higher = less influence)
         track_metrics=False,        # Enable tracking of computational metrics
         adaptive_rates=False,       # Enable adaptive crossover/mutation rates
         stagnation_limit=5,         # Generations without improvement before adapting rates
@@ -439,7 +438,10 @@ class GAWorker(QThread):
         benefit_weight_start=0.3,      # Start value for benefit weight over generations (0..1)
         benefit_weight_end=0.7,        # End value for benefit weight over generations (0..1)
         generation_ratio=0.5,          # Fixed generation ratio for adaptive cost-benefit weighting (0..1)
-        dva_category_map=None          # Optional explicit mapping param_name -> category name
+        dva_category_map=None,         # Optional explicit mapping param_name -> category name
+        # Performance/monitoring knobs
+        metrics_timer_interval=2000,   # ms between resource metric polls (higher = less overhead)
+        metrics_verbose=False          # emit verbose metrics updates to log
     ):
         # ------------------------------------------------------------------------
         # Genetic Algorithm Worker Initialization
@@ -497,6 +499,8 @@ class GAWorker(QThread):
             Step size for parameter updates (default: 0.01).
         percentage_error_scale : float, optional
             Scaling factor for percentage error component in fitness calculation (default: 1000.0).
+        cost_scale_factor : float, optional
+            Scaling factor for cost term component in fitness calculation (higher = less influence, default: 1.0).
         track_metrics : bool, optional
             If True, collect and report computational metrics.
         adaptive_rates : bool, optional
@@ -594,6 +598,7 @@ class GAWorker(QThread):
         if not np.isfinite(self.alpha):
             self.alpha = 0.0
         self.percentage_error_scale = percentage_error_scale if percentage_error_scale is not None else 1000.0  # Scaling factor for percentage error in fitness calculation
+        self.cost_scale_factor = max(0.1, float(cost_scale_factor)) if cost_scale_factor is not None else 30.0  # Scaling factor for cost term in fitness calculation
         # DVA activation/cost configuration
         try:
             self.dva_activation_threshold = float(dva_activation_threshold)
@@ -747,6 +752,10 @@ class GAWorker(QThread):
         self.surrogate_explore_frac = max(0.0, min(0.5, float(surrogate_explore_frac)))
         self._surrogate_X = []  # raw parameter vectors
         self._surrogate_y = []  # corresponding fitness values
+        # Maintain normalized cache to avoid re-normalizing entire history each generation
+        self._surrogate_Xn = []  # normalized parameter vectors (using current run's bounds)
+        self._surrogate_norm_lows = None
+        self._surrogate_norm_spans = None
         
         # Seeding configuration
         # Seeding config (allow legacy seeding_method but also a boolean flag)
@@ -905,10 +914,16 @@ class GAWorker(QThread):
         }
         self.metrics['neural_history'] = []
         
-        # Create metrics tracking timer
+        # Create metrics tracking timer (throttled to reduce CPU overhead)
         self.metrics_timer = QTimer()
-        self.metrics_timer_interval = 500  # milliseconds
-        self.metrics_verbose = False
+        self.metrics_timer_interval = int(metrics_timer_interval) if metrics_timer_interval else 2000
+        self.metrics_verbose = bool(metrics_verbose)
+        self._metrics_tick = 0
+        # Heavy metrics (per-core cpu, disk, net) every ~5s by default
+        try:
+            self._metrics_heavy_every = max(1, int(5000 / self.metrics_timer_interval))
+        except Exception:
+            self._metrics_heavy_every = 5
         self.log_component_table_every_n = 5
         # Persistent executor for parallel fitness evaluation (reduces per-call overhead)
         self._executor = None
@@ -1168,6 +1183,69 @@ class GAWorker(QThread):
             frf_cache = {}
             cache_lock = threading.Lock()
 
+            # Precompute arrays and maps used repeatedly (avoid per-evaluation overhead)
+            # Bounds arrays
+            lows_np = np.array([b[0] for b in parameter_bounds], dtype=float)
+            highs_np = np.array([b[1] for b in parameter_bounds], dtype=float)
+            spans_np = highs_np - lows_np
+            spans_np[~np.isfinite(spans_np)] = 0.0
+            # Fixed mask
+            fixed_mask_np = np.zeros(len(parameter_bounds), dtype=bool)
+            for _i in range(len(parameter_bounds)):
+                if _i in fixed_parameters:
+                    fixed_mask_np[_i] = True
+            # Name index map for cost/category lookup
+            name_to_idx = {n: i for i, n in enumerate(parameter_names)}
+
+            # Precompute category cost arrays if provided
+            cost_arrays = None
+            total_cost_all = 0.0
+            if self.dva_costs_by_category:
+                cost_arrays = {
+                    'material': np.zeros(len(parameter_names), dtype=float),
+                    'manufacturing': np.zeros(len(parameter_names), dtype=float),
+                    'maintenance': np.zeros(len(parameter_names), dtype=float),
+                    'operational': np.zeros(len(parameter_names), dtype=float),
+                }
+                for cat, cmap in self.dva_costs_by_category.items():
+                    if not isinstance(cmap, dict) or cat not in cost_arrays:
+                        continue
+                    arr = cost_arrays[cat]
+                    for pname, cval in cmap.items():
+                        j = name_to_idx.get(pname)
+                        if j is None or j >= arr.size:
+                            continue
+                        try:
+                            v = float(cval)
+                            if np.isfinite(v):
+                                arr[j] = v
+                        except Exception:
+                            pass
+                # Precompute total across all categories
+                total_cost_all = float(sum(a.sum() for a in cost_arrays.values()))
+
+            # Fallback flat cost array (legacy)
+            fallback_cost_arr = None
+            if not self.dva_costs_by_category and getattr(self, 'dva_costs', None):
+                fallback_cost_arr = np.zeros(len(parameter_names), dtype=float)
+                for pname, cval in self.dva_costs.items():
+                    j = name_to_idx.get(pname)
+                    if j is None or j >= fallback_cost_arr.size:
+                        continue
+                    try:
+                        v = float(cval)
+                        if np.isfinite(v):
+                            fallback_cost_arr[j] = v
+                    except Exception:
+                        pass
+
+            # Prepare surrogate normalization parameters for this run
+            self._surrogate_norm_lows = lows_np
+            # Avoid zeros in spans for normalization
+            _sp = spans_np.copy()
+            _sp[_sp == 0.0] = 1.0
+            self._surrogate_norm_spans = _sp
+
             # Define how to generate random parameter values
             # This is like having a recipe for creating new potential solutions
             def attr_float(i):
@@ -1270,7 +1348,7 @@ class GAWorker(QThread):
                             if len(cached) >= 6:
                                 primary_objective, sparsity_penalty, percentage_error_component, activation_penalty_term, cost_term, fitness_value = cached[:6]
                                 individual.activation_penalty = activation_penalty_term
-                                individual.cost_term = cost_term
+                                individual.cost_term = cost_term / self.cost_scale_factor
                             else:
                                 primary_objective, sparsity_penalty, percentage_error_component, fitness_value = cached[:4]
                                 individual.activation_penalty = 0.0
@@ -1281,7 +1359,7 @@ class GAWorker(QThread):
                             percentage_error_component = float(cached.get('percentage_error', 0.0))
                             fitness_value = float(cached.get('fitness', 1e6))
                             individual.activation_penalty = float(cached.get('activation_penalty', 0.0))
-                            individual.cost_term = float(cached.get('cost_term', 0.0))
+                            individual.cost_term = float(cached.get('cost_term', 0.0)) / self.cost_scale_factor
                         else:
                             primary_objective = sparsity_penalty = percentage_error_component = 0.0
                             fitness_value = 1e6
@@ -1391,27 +1469,14 @@ class GAWorker(QThread):
                     # Example: If singular_response is 1.2, primary_objective will be 0.2
                     primary_objective = abs(singular_response - 1.0)
                     
-                    # Calculate how complex our solution is
-                    # We sum up all parameter values and multiply by a weight (self.alpha)
-                    # This penalizes solutions that use too many parameters
-                    # Guard against NaNs in alpha and parameter values
+                    # Calculate sparsity penalty quickly with NumPy
                     try:
-                        if not np.isfinite(self.alpha):
-                            alpha_eff = 0.0
-                        else:
-                            alpha_eff = float(self.alpha)
+                        alpha_eff = float(self.alpha) if np.isfinite(self.alpha) else 0.0
                     except Exception:
                         alpha_eff = 0.0
-                    # Replace any non-finite parameter contributions with zero
-                    penalty_sum = 0.0
-                    for param in individual:
-                        try:
-                            v = float(param)
-                            if np.isfinite(v):
-                                penalty_sum += abs(v)
-                        except Exception:
-                            continue
-                    sparsity_penalty = alpha_eff * penalty_sum
+                    ind_np = np.asarray(individual, dtype=float)
+                    ind_np[~np.isfinite(ind_np)] = 0.0
+                    sparsity_penalty = float(alpha_eff * np.sum(np.abs(ind_np)))
                     
                     # Calculate sum of percentage differences
                     # percent_diff is defined as the value in the nested dictionary structure:
@@ -1441,113 +1506,70 @@ class GAWorker(QThread):
                         pen_per = float(self.dva_activation_penalty)
                     except Exception:
                         pen_per = 0.0
-                    active_flags = []
+                    # Vectorized activation mask and penalty
                     try:
-                        for idx, val in enumerate(individual):
-                            try:
-                                active_flags.append(abs(float(val)) >= thr)
-                            except Exception:
-                                active_flags.append(False)
+                        active_mask = np.abs(ind_np) >= thr
+                        activation_count = int(np.count_nonzero(active_mask))
                     except Exception:
-                        active_flags = [False] * len(individual)
-                    activation_count = int(sum(1 for f in active_flags if f))
+                        active_mask = np.zeros_like(ind_np, dtype=bool)
+                        activation_count = 0
                     activation_penalty_term = float(activation_count) * pen_per if np.isfinite(pen_per) else 0.0
 
                     # ENHANCED COST-BENEFIT ANALYSIS WITH HIERARCHICAL STRUCTURE
                     cost_term = 0.0
                     benefit_cost_ratio = 0.0
-                    # Precompute sums for fallback (normalized active cost)
-                    cost_sum_active = 0.0
-                    if self.dva_costs_by_category:
+                    # Fast normalized active-cost baseline
+                    if 'cost_arrays' in locals() and cost_arrays is not None:
                         try:
-                            name_to_idx = {n: i for i, n in enumerate(parameter_names)}
-                            total_all = 0.0
+                            active_all = float(sum(np.sum(arr[active_mask]) for arr in cost_arrays.values()))
+                        except Exception:
                             active_all = 0.0
-                            for cat_map in self.dva_costs_by_category.values():
-                                if not isinstance(cat_map, dict):
-                                    continue
-                                for pname, cval in cat_map.items():
-                                    v = float(cval) if np.isfinite(float(cval)) else 0.0
-                                    total_all += v
-                                    idx = name_to_idx.get(pname, None)
-                                    if idx is not None and idx < len(active_flags) and active_flags[idx]:
-                                        active_all += v
-                            cost_sum_active = active_all
-                            denom = total_all if total_all > 0 else 1.0
-                        except Exception:
-                            denom = 1.0
+                        cost_sum_active = active_all
+                        denom = total_cost_all if total_cost_all > 0 else 1.0
                     else:
-                        try:
-                            for idx, is_active in enumerate(active_flags):
-                                if not is_active:
-                                    continue
-                                pname = parameter_names[idx] if idx < len(parameter_names) else None
-                                if pname is None:
-                                    continue
-                                cval = float(self.dva_costs.get(pname, 0.0))
-                                if np.isfinite(cval):
-                                    cost_sum_active += cval
-                        except Exception:
-                            pass
-                        denom = float(self._dva_cost_denominator) if self._dva_cost_denominator and self._dva_cost_denominator > 0 else 1.0
+                        if 'fallback_cost_arr' in locals() and fallback_cost_arr is not None:
+                            try:
+                                cost_sum_active = float(np.sum(fallback_cost_arr[active_mask]))
+                            except Exception:
+                                cost_sum_active = 0.0
+                            denom = float(self._dva_cost_denominator) if getattr(self, '_dva_cost_denominator', 0.0) else 1.0
+                        else:
+                            cost_sum_active = 0.0
+                            denom = 1.0
                     try:
                         # If enhanced cost is disabled, fallback to normalized active cost
                         if not self.use_enhanced_cost:
                             cost_term = cost_sum_active / denom if denom > 0 else 0.0
                         else:
                             # 1. Calculate benefit metrics
-                            benefit_primary = abs(singular_response - 1.0)
-                            benefit_accuracy = percentage_error_sum / 100.0
-                            benefit_sparsity = sparsity_penalty
+                            benefit_primary = 1- abs(singular_response - 1.0)
+                            benefit_accuracy = 1- percentage_error_sum / 100.0
+                            benefit_sparsity = 1- sparsity_penalty
                             bw_p, bw_a, bw_s = self.benefit_weights
                             total_benefit = (bw_p * benefit_primary + bw_a * benefit_accuracy + bw_s * benefit_sparsity)
 
-                        # 2. Hierarchical cost categorization
+                        # 2. Hierarchical cost categorization (vectorized)
                         cost_categories = {
                             'material': {'params': [], 'weight': 0.4, 'total': 0.0, 'active': 0.0},
                             'manufacturing': {'params': [], 'weight': 0.35, 'total': 0.0, 'active': 0.0},
                             'maintenance': {'params': [], 'weight': 0.15, 'total': 0.0, 'active': 0.0},
                             'operational': {'params': [], 'weight': 0.1, 'total': 0.0, 'active': 0.0}
                         }
-                        if self.dva_costs_by_category:
-                            name_to_idx = {n: i for i, n in enumerate(parameter_names)}
-                            for cat in cost_categories.keys():
-                                mapping = self.dva_costs_by_category.get(cat, {})
-                                if not isinstance(mapping, dict):
-                                    continue
-                                for pname, cval in mapping.items():
-                                    v = float(cval) if np.isfinite(float(cval)) else 0.0
-                                    cost_categories[cat]['params'].append(pname)
-                                    cost_categories[cat]['total'] += v
-                                    idx = name_to_idx.get(pname, None)
-                                    if idx is not None and idx < len(active_flags) and active_flags[idx]:
-                                        cost_categories[cat]['active'] += v
+                        if 'cost_arrays' in locals() and cost_arrays is not None:
+                            for cat, arr in cost_arrays.items():
+                                try:
+                                    cost_categories[cat]['total'] = float(np.sum(arr))
+                                    cost_categories[cat]['active'] = float(np.sum(arr[active_mask]))
+                                except Exception:
+                                    pass
                         else:
-                            # 3. Categorize parameters and calculate category costs (legacy)
-                            for idx, is_active in enumerate(active_flags):
-                                if idx >= len(parameter_names):
-                                    continue
-                                pname = parameter_names[idx]
-                                cval = float(self.dva_costs.get(pname, 0.0))
-                                if not np.isfinite(cval):
-                                    continue
-                                # Prefer explicit mapping if provided; otherwise heuristic
-                                cat_map_val = self.dva_category_map.get(pname, None)
-                                if isinstance(cat_map_val, str) and cat_map_val.lower() in cost_categories:
-                                    category = cat_map_val.lower()
-                                else:
-                                    category = 'operational'
-                                    pname_lower = pname.lower()
-                                    if any(keyword in pname_lower for keyword in ['k', 'stiff', 'spring']):
-                                        category = 'material'
-                                    elif any(keyword in pname_lower for keyword in ['c', 'damp', 'viscous']):
-                                        category = 'manufacturing'
-                                    elif any(keyword in pname_lower for keyword in ['m', 'mass', 'weight']):
-                                        category = 'maintenance'
-                                cost_categories[category]['params'].append(pname)
-                                cost_categories[category]['total'] += cval
-                                if is_active:
-                                    cost_categories[category]['active'] += cval
+                            if 'fallback_cost_arr' in locals() and fallback_cost_arr is not None:
+                                cat = 'operational'
+                                try:
+                                    cost_categories[cat]['total'] = float(np.sum(fallback_cost_arr))
+                                    cost_categories[cat]['active'] = float(np.sum(fallback_cost_arr[active_mask]))
+                                except Exception:
+                                    pass
 
                         # 4. Calculate category-specific benefit-cost ratios
                         category_ratios = {}
@@ -1597,21 +1619,25 @@ class GAWorker(QThread):
                     individual.sparsity_penalty = sparsity_penalty
                     individual.percentage_error = percentage_error_sum/100.0
                     individual.activation_penalty = activation_penalty_term
-                    individual.cost_term = cost_term
-                    
+                    # Store scaled cost term for consistency with fitness calculation
+                    individual.cost_term = cost_term / self.cost_scale_factor
+
                     # Combine all components to get final score:
                     # 1. Primary objective: Distance from target value of 1.0
                     # 2. Sparsity penalty: Encourages simpler solutions
                     # 3. Percentage error sum: Sum of all percentage differences from target values (scaled by percentage_error_scale)
                     # 4. Activation penalty term: Penalty per active parameter above threshold
-                    # 5. Cost term: Normalized cost of active parameters
+                    # 5. Cost term: Normalized cost of active parameters (scaled by cost_scale_factor)
                     # Lower score = better solution (like golf scoring)
+
+                    # Debug output suppressed to avoid console noise during optimization
+
                     fitness = (
                         primary_objective
                         + sparsity_penalty
                         + percentage_error_sum/self.percentage_error_scale
                         + activation_penalty_term
-                        + cost_term
+                        + individual.cost_term
                     )
                     # Memoize results for identical parameter vectors
                     try:
@@ -1660,14 +1686,16 @@ class GAWorker(QThread):
                     # Leave one core free for UI/OS
                     workers = max(1, cpu_n - 1)
                     self._eval_workers = workers
-                if workers <= 1:
+                # Avoid oversubscription when evaluating small batches
+                eff_workers = min(workers, max(1, len(individuals)))
+                if eff_workers <= 1:
                     return [toolbox.evaluate(ind) for ind in individuals]
                 # Reuse a persistent executor to avoid per-call creation overhead
                 if self._executor is None:
                     try:
-                        self._executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="gaeval")
+                        self._executor = ThreadPoolExecutor(max_workers=eff_workers, thread_name_prefix="gaeval")
                     except Exception:
-                        self._executor = ThreadPoolExecutor(max_workers=workers)
+                        self._executor = ThreadPoolExecutor(max_workers=eff_workers)
                 return list(self._executor.map(toolbox.evaluate, individuals))
             toolbox.register("mate", tools.cxBlend, alpha=0.5)  # Blend two solutions together
 
@@ -2060,8 +2088,21 @@ class GAWorker(QThread):
             # Seed surrogate dataset with initial evaluations so screening can engage
             if self.use_surrogate:
                 try:
-                    self._surrogate_X.extend([list(ind) for ind in population])
-                    self._surrogate_y.extend([float(f[0]) for f in fitnesses])
+                    xs = [list(ind) for ind in population]
+                    ys = [float(f[0]) for f in fitnesses]
+                    self._surrogate_X.extend(xs)
+                    self._surrogate_y.extend(ys)
+                    # Maintain normalized cache
+                    if self._surrogate_norm_lows is not None and self._surrogate_norm_spans is not None:
+                        Xn = (np.array(xs, dtype=float) - self._surrogate_norm_lows) / self._surrogate_norm_spans
+                        self._surrogate_Xn.extend([row.tolist() for row in Xn])
+                    # Trim to cap
+                    if len(self._surrogate_X) > self.surrogate_dataset_max:
+                        keep = self.surrogate_dataset_max
+                        self._surrogate_X = self._surrogate_X[-keep:]
+                        self._surrogate_y = self._surrogate_y[-keep:]
+                        if self._surrogate_Xn:
+                            self._surrogate_Xn = self._surrogate_Xn[-keep:]
                 except Exception:
                     pass
 
@@ -2347,8 +2388,19 @@ class GAWorker(QThread):
                                     ind.fitness.values = fit
                                 if self.use_surrogate:
                                     try:
-                                        self._surrogate_X.extend([list(ind) for ind in need_eval])
-                                        self._surrogate_y.extend([float(f[0]) for f in fits_new])
+                                        xs_add = [list(ind) for ind in need_eval]
+                                        ys_add = [float(f[0]) for f in fits_new]
+                                        self._surrogate_X.extend(xs_add)
+                                        self._surrogate_y.extend(ys_add)
+                                        if self._surrogate_norm_lows is not None and self._surrogate_norm_spans is not None:
+                                            Xn_add = (np.array(xs_add, dtype=float) - self._surrogate_norm_lows) / self._surrogate_norm_spans
+                                            self._surrogate_Xn.extend([row.tolist() for row in Xn_add])
+                                        if len(self._surrogate_X) > self.surrogate_dataset_max:
+                                            keep = self.surrogate_dataset_max
+                                            self._surrogate_X = self._surrogate_X[-keep:]
+                                            self._surrogate_y = self._surrogate_y[-keep:]
+                                            if self._surrogate_Xn:
+                                                self._surrogate_Xn = self._surrogate_Xn[-keep:]
                                     except Exception:
                                         pass
                         else:
@@ -2496,8 +2548,19 @@ class GAWorker(QThread):
                                     ind.fitness.values = fit
                                 if self.use_surrogate:
                                     try:
-                                        self._surrogate_X.extend([list(ind) for ind in need_eval])
-                                        self._surrogate_y.extend([float(f[0]) for f in fits_new])
+                                        xs_add = [list(ind) for ind in need_eval]
+                                        ys_add = [float(f[0]) for f in fits_new]
+                                        self._surrogate_X.extend(xs_add)
+                                        self._surrogate_y.extend(ys_add)
+                                        if self._surrogate_norm_lows is not None and self._surrogate_norm_spans is not None:
+                                            Xn_add = (np.array(xs_add, dtype=float) - self._surrogate_norm_lows) / self._surrogate_norm_spans
+                                            self._surrogate_Xn.extend([row.tolist() for row in Xn_add])
+                                        if len(self._surrogate_X) > self.surrogate_dataset_max:
+                                            keep = self.surrogate_dataset_max
+                                            self._surrogate_X = self._surrogate_X[-keep:]
+                                            self._surrogate_y = self._surrogate_y[-keep:]
+                                            if self._surrogate_Xn:
+                                                self._surrogate_Xn = self._surrogate_Xn[-keep:]
                                     except Exception:
                                         pass
                         else:
@@ -2771,11 +2834,18 @@ class GAWorker(QThread):
                                     break
 
                         # Vectorized surrogate normalization and KNN prediction
-                        lows = np.array([b[0] for b in parameter_bounds], dtype=float)
-                        highs = np.array([b[1] for b in parameter_bounds], dtype=float)
-                        spans = highs - lows
-                        spans[spans == 0.0] = 1.0
-                        if self._surrogate_X:
+                        # Reuse precomputed normalization if available
+                        lows = self._surrogate_norm_lows if self._surrogate_norm_lows is not None else np.array([b[0] for b in parameter_bounds], dtype=float)
+                        spans = self._surrogate_norm_spans if self._surrogate_norm_spans is not None else (np.array([b[1] for b in parameter_bounds], dtype=float) - lows)
+                        if isinstance(spans, np.ndarray):
+                            spans = spans.copy()
+                            spans[spans == 0.0] = 1.0
+                        if self._surrogate_Xn:
+                            try:
+                                Xn_np = np.array(self._surrogate_Xn, dtype=float)
+                            except Exception:
+                                Xn_np = np.empty((0, len(parameter_bounds)), dtype=float)
+                        elif self._surrogate_X:
                             try:
                                 Xn_np = (np.array(self._surrogate_X, dtype=float) - lows) / spans
                             except Exception:
@@ -2826,8 +2896,19 @@ class GAWorker(QThread):
                         # Update surrogate dataset with evaluated chosen
                         if self.use_surrogate:
                             try:
-                                self._surrogate_X.extend([list(ind) for ind in chosen])
-                                self._surrogate_y.extend([float(ind.fitness.values[0]) for ind in chosen])
+                                xs_add = [list(ind) for ind in chosen]
+                                ys_add = [float(ind.fitness.values[0]) for ind in chosen]
+                                self._surrogate_X.extend(xs_add)
+                                self._surrogate_y.extend(ys_add)
+                                if self._surrogate_norm_lows is not None and self._surrogate_norm_spans is not None:
+                                    Xn_add = (np.array(xs_add, dtype=float) - self._surrogate_norm_lows) / self._surrogate_norm_spans
+                                    self._surrogate_Xn.extend([row.tolist() for row in Xn_add])
+                                if len(self._surrogate_X) > self.surrogate_dataset_max:
+                                    keep = self.surrogate_dataset_max
+                                    self._surrogate_X = self._surrogate_X[-keep:]
+                                    self._surrogate_y = self._surrogate_y[-keep:]
+                                    if self._surrogate_Xn:
+                                        self._surrogate_Xn = self._surrogate_Xn[-keep:]
                             except Exception:
                                 pass
 
@@ -2858,8 +2939,19 @@ class GAWorker(QThread):
                         # Update surrogate dataset
                         if self.use_surrogate:
                             try:
-                                self._surrogate_X.extend([list(ind) for ind in invalid_ind])
-                                self._surrogate_y.extend([float(f[0]) for f in fitnesses])
+                                xs_add = [list(ind) for ind in invalid_ind]
+                                ys_add = [float(f[0]) for f in fitnesses]
+                                self._surrogate_X.extend(xs_add)
+                                self._surrogate_y.extend(ys_add)
+                                if self._surrogate_norm_lows is not None and self._surrogate_norm_spans is not None:
+                                    Xn_add = (np.array(xs_add, dtype=float) - self._surrogate_norm_lows) / self._surrogate_norm_spans
+                                    self._surrogate_Xn.extend([row.tolist() for row in Xn_add])
+                                if len(self._surrogate_X) > self.surrogate_dataset_max:
+                                    keep = self.surrogate_dataset_max
+                                    self._surrogate_X = self._surrogate_X[-keep:]
+                                    self._surrogate_y = self._surrogate_y[-keep:]
+                                    if self._surrogate_Xn:
+                                        self._surrogate_Xn = self._surrogate_Xn[-keep:]
                             except Exception:
                                 pass
 
@@ -2942,21 +3034,19 @@ class GAWorker(QThread):
                 min_fit = min(fits)
                 max_fit = max(fits)
 
-                # Gene diversity: average normalized std across genes
+                # Gene diversity: average normalized std across genes (vectorized)
                 try:
                     if length > 0 and len(population[0]) > 0:
-                        gene_divs = []
-                        for j in range(len(population[0])):
-                            vals = [ind[j] for ind in population]
-                            lo, hi = parameter_bounds[j]
-                            span = (hi - lo) if hi != lo else 1.0
-                            if span == 0:
-                                continue
-                            vmean = sum(vals) / len(vals)
-                            vsum2 = sum((v ** 2) for v in vals)
-                            vstd = abs(vsum2 / len(vals) - vmean ** 2) ** 0.5
-                            gene_divs.append(min(1.0, max(0.0, vstd / span)))
-                        gene_diversity = (sum(gene_divs) / len(gene_divs)) if gene_divs else 0.0
+                        pop_mat = np.asarray(population, dtype=float)
+                        # Avoid div-by-zero on fixed genes
+                        spans_nonzero = spans_np.copy()
+                        spans_nonzero[spans_nonzero == 0.0] = 1.0
+                        col_std = np.std(pop_mat, axis=0)
+                        norm_std = np.clip(col_std / spans_nonzero, 0.0, 1.0)
+                        if norm_std.size > 0:
+                            gene_diversity = float(np.mean(norm_std))
+                        else:
+                            gene_diversity = 0.0
                     else:
                         gene_diversity = 0.0
                 except Exception:
@@ -3426,6 +3516,17 @@ class GAWorker(QThread):
                         final_results['dva_costs'] = dict(self.dva_costs)
                         final_results['dva_costs_total'] = sum(self.dva_costs.values()) if self.dva_costs else 0.0
                         final_results['use_enhanced_cost'] = bool(self.use_enhanced_cost)
+                        # Add fitness component information
+                        final_results['cost_scale_factor'] = float(self.cost_scale_factor)
+                        final_results['primary_objective'] = float(getattr(best_ind, 'primary_objective', 0.0))
+                        final_results['sparsity_penalty'] = float(getattr(best_ind, 'sparsity_penalty', 0.0))
+                        final_results['percentage_error'] = float(getattr(best_ind, 'percentage_error', 0.0))
+                        final_results['activation_penalty'] = float(getattr(best_ind, 'activation_penalty', 0.0))
+                        # Calculate raw cost from scaled cost
+                        scaled_cost = float(getattr(best_ind, 'cost_term', 0.0))
+                        final_results['cost_term_raw'] = scaled_cost * self.cost_scale_factor
+                        final_results['cost_term'] = scaled_cost  # Scaled cost used in fitness
+                        final_results['fitness'] = float(best_fitness)
                         try:
                             bw_p, bw_a, bw_s = self.benefit_weights
                             final_results['benefit_w_primary'] = float(bw_p)
@@ -3580,6 +3681,12 @@ class GAWorker(QThread):
             return
             
         try:
+            # tick counter to throttle heavy metrics
+            try:
+                self._metrics_tick += 1
+            except Exception:
+                self._metrics_tick = 1
+            heavy = (self._metrics_tick % getattr(self, '_metrics_heavy_every', 5) == 0)
             # Log that metrics collection is happening (throttled)
             if getattr(self, 'metrics_verbose', False):
                 self.update.emit("Collecting resource metrics...")
@@ -3598,66 +3705,70 @@ class GAWorker(QThread):
             if getattr(self, 'metrics_verbose', False):
                 self.update.emit(f"CPU: {cpu_percent}%, Memory: {memory_usage_mb:.2f} MB")
             
-            # Get per-core CPU usage
-            per_core_cpu = psutil.cpu_percent(interval=None, percpu=True)
-            self.metrics['cpu_per_core'].append(per_core_cpu)
+            # Get per-core CPU usage (heavy)
+            if heavy:
+                per_core_cpu = psutil.cpu_percent(interval=None, percpu=True)
+                self.metrics['cpu_per_core'].append(per_core_cpu)
             
             # Get detailed memory information
             memory_details = {
                 'rss': memory_info.rss / (1024 * 1024),  # Resident Set Size in MB
                 'vms': memory_info.vms / (1024 * 1024),  # Virtual Memory Size in MB
                 'shared': getattr(memory_info, 'shared', 0) / (1024 * 1024),  # Shared memory in MB
-                'system_total': psutil.virtual_memory().total / (1024 * 1024),  # Total system memory in MB
-                'system_available': psutil.virtual_memory().available / (1024 * 1024),  # Available system memory in MB
-                'system_percent': psutil.virtual_memory().percent,  # System memory usage percentage
+                'system_total': psutil.virtual_memory().total / (1024 * 1024) if heavy else None,
+                'system_available': psutil.virtual_memory().available / (1024 * 1024) if heavy else None,
+                'system_percent': psutil.virtual_memory().percent if heavy else None,
             }
             self.metrics['memory_details'].append(memory_details)
             
             # Get I/O counters
-            try:
-                io_counters = process.io_counters()
-                io_data = {
-                    'read_count': io_counters.read_count,
-                    'write_count': io_counters.write_count,
-                    'read_bytes': io_counters.read_bytes,
-                    'write_bytes': io_counters.write_bytes,
-                }
-                self.metrics['io_counters'].append(io_data)
-                
-                # Log I/O metrics for debugging (throttled)
-                if getattr(self, 'metrics_verbose', False):
-                    self.update.emit(f"I/O - Read: {io_counters.read_count}, Write: {io_counters.write_count}")
-            except (AttributeError, psutil.AccessDenied) as e:
-                # Some platforms might not support this
-                self.update.emit(f"Warning: Unable to collect I/O metrics: {str(e)}")
-                pass
+            if heavy:
+                try:
+                    io_counters = process.io_counters()
+                    io_data = {
+                        'read_count': io_counters.read_count,
+                        'write_count': io_counters.write_count,
+                        'read_bytes': io_counters.read_bytes,
+                        'write_bytes': io_counters.write_bytes,
+                    }
+                    self.metrics['io_counters'].append(io_data)
+                    
+                    # Log I/O metrics for debugging (throttled)
+                    if getattr(self, 'metrics_verbose', False):
+                        self.update.emit(f"I/O - Read: {io_counters.read_count}, Write: {io_counters.write_count}")
+                except (AttributeError, psutil.AccessDenied) as e:
+                    # Some platforms might not support this
+                    self.update.emit(f"Warning: Unable to collect I/O metrics: {str(e)}")
+                    pass
             
             # Get disk usage
-            try:
-                disk_usage = {
-                    'total': psutil.disk_usage('/').total / (1024 * 1024 * 1024),  # GB
-                    'used': psutil.disk_usage('/').used / (1024 * 1024 * 1024),    # GB
-                    'free': psutil.disk_usage('/').free / (1024 * 1024 * 1024),    # GB
-                    'percent': psutil.disk_usage('/').percent
-                }
-                self.metrics['disk_usage'].append(disk_usage)
-            except Exception as disk_err:
-                self.update.emit(f"Warning: Unable to collect disk metrics: {str(disk_err)}")
-                pass
+            if heavy:
+                try:
+                    disk_usage = {
+                        'total': psutil.disk_usage('/').total / (1024 * 1024 * 1024),  # GB
+                        'used': psutil.disk_usage('/').used / (1024 * 1024 * 1024),    # GB
+                        'free': psutil.disk_usage('/').free / (1024 * 1024 * 1024),    # GB
+                        'percent': psutil.disk_usage('/').percent
+                    }
+                    self.metrics['disk_usage'].append(disk_usage)
+                except Exception as disk_err:
+                    self.update.emit(f"Warning: Unable to collect disk metrics: {str(disk_err)}")
+                    pass
             
             # Get network usage (bytes sent/received)
-            try:
-                net_io = psutil.net_io_counters()
-                net_data = {
-                    'bytes_sent': net_io.bytes_sent,
-                    'bytes_recv': net_io.bytes_recv,
-                    'packets_sent': net_io.packets_sent,
-                    'packets_recv': net_io.packets_recv,
-                }
-                self.metrics['network_usage'].append(net_data)
-            except Exception as net_err:
-                self.update.emit(f"Warning: Unable to collect network metrics: {str(net_err)}")
-                pass
+            if heavy:
+                try:
+                    net_io = psutil.net_io_counters()
+                    net_data = {
+                        'bytes_sent': net_io.bytes_sent,
+                        'bytes_recv': net_io.bytes_recv,
+                        'packets_sent': net_io.packets_sent,
+                        'packets_recv': net_io.packets_recv,
+                    }
+                    self.metrics['network_usage'].append(net_data)
+                except Exception as net_err:
+                    self.update.emit(f"Warning: Unable to collect network metrics: {str(net_err)}")
+                    pass
             
             # Get thread count
             self.metrics['thread_count'].append(process.num_threads())
@@ -3665,7 +3776,7 @@ class GAWorker(QThread):
             # Emit current metrics for real-time monitoring with enhanced data
             current_metrics = {
                 'cpu': cpu_percent,
-                'cpu_per_core': per_core_cpu,
+                'cpu_per_core': per_core_cpu if heavy else None,
                 'memory': memory_usage_mb,
                 'memory_details': memory_details,
                 'thread_count': process.num_threads(),
@@ -3687,6 +3798,12 @@ class GAWorker(QThread):
         self.metrics['start_time'] = time.time()
         # Set up the metrics timer to collect data regularly
         self.metrics_timer.timeout.connect(self._update_resource_metrics)
+        try:
+            self._metrics_tick = 0
+            self._metrics_heavy_every = max(1, int(5000 / self.metrics_timer_interval))
+        except Exception:
+            self._metrics_heavy_every = 5
+            self._metrics_tick = 0
         self.metrics_timer.start(self.metrics_timer_interval)
         self.update.emit(f"Started metrics tracking with interval: {self.metrics_timer_interval}ms")
         
@@ -3721,9 +3838,3 @@ class GAWorker(QThread):
             
         # Emit the complete metrics data
         self.benchmark_data.emit(self.metrics)
-
-
-
-
-
-
