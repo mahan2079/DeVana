@@ -38,6 +38,8 @@ from PyQt5.QtWidgets import (
     QApplication,
     QToolBar,
     QAction,
+    QListWidget,
+    QListWidgetItem,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QDateTime
 from PyQt5.QtGui import QBrush, QColor
@@ -45,11 +47,664 @@ import os
 import time
 from computational_metrics_new import visualize_all_metrics, ensure_all_visualizations_visible
 from modules.plotwindow import PlotWindow
-from workers.GAWorker import GAWorker
+from workers.GAWorker import GAWorker, build_random_validation_payload
 from modules.FRF import frf
 from scipy.stats import qmc
 
 class GAOptimizationMixin:
+    # ===================== Group Summary: FRF Overlay helpers =====================
+    def _ensure_frf_overlay_state(self):
+        """Initialize state containers for the FRF Overlay tab if missing."""
+        if not hasattr(self, '_frf_group_cache'):
+            # Cache per run index: { mass_key: (omega: np.ndarray, mag: np.ndarray) }
+            self._frf_group_cache = {}
+        if not hasattr(self, '_frf_overlay_regions'):
+            # List of dicts: {name, start_x, end_x, color, text, text_color, font_size}
+            self._frf_overlay_regions = []
+        # Selected runs order (list of run_number ints)
+        if not hasattr(self, '_frf_selected_runs'):
+            self._frf_selected_runs = []
+        # Baseline (no-DVA) cache per mass_key
+        if not hasattr(self, '_frf_baseline_cache'):
+            self._frf_baseline_cache = {}
+
+    def _build_group_frf_overlay_tab(self, plot_tabs, df):
+        """Create FRF Overlay sub-tab under Group Summary and wire interactions."""
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+        from PyQt5.QtWidgets import (
+            QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QComboBox,
+            QSpinBox, QPushButton, QCheckBox, QTableWidget, QTableWidgetItem,
+            QHeaderView
+        )
+        from PyQt5.QtCore import Qt
+        from PyQt5.QtGui import QColor
+        import numpy as np
+
+        self._ensure_frf_overlay_state()
+
+        frf_tab = QWidget()
+        frf_layout = QVBoxLayout(frf_tab)
+
+        # -------- Controls row --------
+        ctrl_group = QGroupBox("FRF Overlay Settings")
+        ctrl_layout = QHBoxLayout(ctrl_group)
+
+        # Mass selection
+        ctrl_layout.addWidget(QLabel("Mass:"))
+        self.frf_mass_combo = QComboBox()
+        self.frf_mass_combo.addItems([f"mass_{i}" for i in range(1, 6)])
+        ctrl_layout.addWidget(self.frf_mass_combo)
+
+        # Top-K per group
+        ctrl_layout.addWidget(QLabel("Top Best:"))
+        self.frf_best_count = QSpinBox()
+        self.frf_best_count.setRange(0, 99)
+        self.frf_best_count.setValue(3)
+        ctrl_layout.addWidget(self.frf_best_count)
+
+        ctrl_layout.addWidget(QLabel("Top Mid:"))
+        self.frf_mid_count = QSpinBox()
+        self.frf_mid_count.setRange(0, 99)
+        self.frf_mid_count.setValue(3)
+        ctrl_layout.addWidget(self.frf_mid_count)
+
+        ctrl_layout.addWidget(QLabel("Top Worst:"))
+        self.frf_worst_count = QSpinBox()
+        self.frf_worst_count.setRange(0, 99)
+        self.frf_worst_count.setValue(3)
+        ctrl_layout.addWidget(self.frf_worst_count)
+
+        # Auto limit to 9 curves
+        self.frf_limit_nine_chk = QCheckBox("Limit total to 9")
+        self.frf_limit_nine_chk.setChecked(True)
+        ctrl_layout.addWidget(self.frf_limit_nine_chk)
+
+        # Legend toggle
+        self.frf_show_legend_chk = QCheckBox("Show legend")
+        self.frf_show_legend_chk.setChecked(True)
+        ctrl_layout.addWidget(self.frf_show_legend_chk)
+
+        # Baseline (No-DVA) toggle
+        self.frf_show_baseline_chk = QCheckBox("Show No-DVA Baseline")
+        self.frf_show_baseline_chk.setChecked(True)
+        ctrl_layout.addWidget(self.frf_show_baseline_chk)
+
+        ctrl_layout.addStretch(1)
+        frf_layout.addWidget(ctrl_group)
+
+        # -------- Selected runs management --------
+        runs_group = QGroupBox("Selected Runs (overlay order)")
+        runs_layout = QVBoxLayout(runs_group)
+
+        self.frf_selected_runs_table = QTableWidget()
+        self.frf_selected_runs_table.setColumnCount(3)
+        self.frf_selected_runs_table.setHorizontalHeaderLabels(["Run #", "Group", "Score"])
+        self.frf_selected_runs_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.frf_selected_runs_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.frf_selected_runs_table.setSelectionMode(QTableWidget.SingleSelection)
+        runs_layout.addWidget(self.frf_selected_runs_table)
+
+        btn_row = QWidget()
+        btn_row_layout = QHBoxLayout(btn_row)
+        btn_row_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.frf_reset_topk_btn = QPushButton("Reset to Top-K")
+        self.frf_add_run_btn = QPushButton("Add Run…")
+        self.frf_remove_run_btn = QPushButton("Remove")
+        self.frf_move_up_btn = QPushButton("Move Up")
+        self.frf_move_down_btn = QPushButton("Move Down")
+
+        for b in [self.frf_reset_topk_btn, self.frf_add_run_btn, self.frf_remove_run_btn, self.frf_move_up_btn, self.frf_move_down_btn]:
+            btn_row_layout.addWidget(b)
+        btn_row_layout.addStretch(1)
+        runs_layout.addWidget(btn_row)
+
+        frf_layout.addWidget(runs_group)
+
+        # -------- Regions management --------
+        regions_group = QGroupBox("Regions (shaded with labels)")
+        regions_layout = QVBoxLayout(regions_group)
+
+        self.frf_region_table = QTableWidget()
+        self.frf_region_table.setColumnCount(7)
+        self.frf_region_table.setHorizontalHeaderLabels(["Name", "Start", "End", "Fill Color", "Text", "Text Color", "Font Size"])
+        self.frf_region_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        regions_layout.addWidget(self.frf_region_table)
+
+        reg_btn_row = QWidget()
+        reg_btn_layout = QHBoxLayout(reg_btn_row)
+        reg_btn_layout.setContentsMargins(0, 0, 0, 0)
+        self.frf_add_region_btn = QPushButton("Add Region")
+        self.frf_remove_region_btn = QPushButton("Remove Selected")
+        self.frf_clear_regions_btn = QPushButton("Clear All")
+        for b in [self.frf_add_region_btn, self.frf_remove_region_btn, self.frf_clear_regions_btn]:
+            reg_btn_layout.addWidget(b)
+        reg_btn_layout.addStretch(1)
+        regions_layout.addWidget(reg_btn_row)
+
+        frf_layout.addWidget(regions_group)
+
+        # -------- Plot canvas --------
+        self.frf_overlay_fig = Figure(figsize=(10, 6), tight_layout=True)
+        self.frf_overlay_canvas = FigureCanvas(self.frf_overlay_fig)
+        self.frf_overlay_toolbar = NavigationToolbar(self.frf_overlay_canvas, frf_tab)
+        self._attach_open_in_new_window(self.frf_overlay_toolbar, self.frf_overlay_fig, "FRF Overlay")
+        frf_layout.addWidget(self.frf_overlay_canvas)
+        frf_layout.addWidget(self.frf_overlay_toolbar)
+
+        # Add tab now so user sees it immediately
+        plot_tabs.addTab(frf_tab, "FRF Overlay")
+
+        # --- Wiring ---
+        def _on_counts_changed():
+            self._frf_auto_select_runs_from_df(df)
+            self._refresh_frf_selected_runs_table(df)
+            self._update_group_frf_overlay_plot(df)
+        self.frf_best_count.valueChanged.connect(_on_counts_changed)
+        self.frf_mid_count.valueChanged.connect(_on_counts_changed)
+        self.frf_worst_count.valueChanged.connect(_on_counts_changed)
+        self.frf_limit_nine_chk.stateChanged.connect(_on_counts_changed)
+        self.frf_mass_combo.currentIndexChanged.connect(lambda _=None: self._update_group_frf_overlay_plot(df))
+        self.frf_show_legend_chk.stateChanged.connect(lambda _=None: self._update_group_frf_overlay_plot(df))
+        self.frf_show_baseline_chk.stateChanged.connect(lambda _=None: self._update_group_frf_overlay_plot(df))
+
+        self.frf_reset_topk_btn.clicked.connect(lambda: (_on_counts_changed()))
+        self.frf_add_run_btn.clicked.connect(lambda: self._frf_add_run_via_dialog(df))
+        self.frf_remove_run_btn.clicked.connect(lambda: self._frf_remove_selected_run(df))
+        self.frf_move_up_btn.clicked.connect(lambda: self._frf_move_selected_row(-1, df))
+        self.frf_move_down_btn.clicked.connect(lambda: self._frf_move_selected_row(1, df))
+
+        self.frf_region_table.itemChanged.connect(lambda _=None: self._sync_regions_from_table_and_replot(df))
+        try:
+            self.frf_region_table.cellDoubleClicked.connect(self._on_frf_region_cell_double_clicked)
+        except Exception:
+            pass
+        self.frf_add_region_btn.clicked.connect(lambda: self._frf_add_region_and_replot(df))
+        self.frf_remove_region_btn.clicked.connect(lambda: self._frf_remove_selected_region_and_replot(df))
+        self.frf_clear_regions_btn.clicked.connect(lambda: self._frf_clear_regions_and_replot(df))
+
+        # Initial population
+        self._frf_auto_select_runs_from_df(df)
+        self._refresh_frf_selected_runs_table(df)
+        self._refresh_frf_region_table()
+        self._update_group_frf_overlay_plot(df)
+
+    def _frf_auto_select_runs_from_df(self, df):
+        """Fill self._frf_selected_runs based on Top-K per group settings and 9-cap if enabled."""
+        import numpy as np
+        groups = ['Best', 'Mid', 'Worst']
+        counts = {
+            'Best': int(self.frf_best_count.value()) if hasattr(self, 'frf_best_count') else 3,
+            'Mid': int(self.frf_mid_count.value()) if hasattr(self, 'frf_mid_count') else 3,
+            'Worst': int(self.frf_worst_count.value()) if hasattr(self, 'frf_worst_count') else 3,
+        }
+        selected = []
+        try:
+            if 'group' in df.columns:
+                for g in groups:
+                    sub = df[df['group'] == g].copy()
+                    if 'score' in sub.columns:
+                        sub = sub.sort_values('score', ascending=True)
+                    elif 'best_fitness' in sub.columns:
+                        sub = sub.sort_values('best_fitness', ascending=True)
+                    pick = sub.head(max(0, counts.get(g, 0)))
+                    selected.extend([int(r) for r in pick.get('run_number', [])])
+        except Exception:
+            selected = []
+
+        # Fallback: if nothing selected (no groups or no matches), pick top-N overall by score/fitness
+        if not selected:
+            try:
+                sub = df.copy()
+                if 'score' in sub.columns:
+                    sub = sub.sort_values('score', ascending=True)
+                elif 'best_fitness' in sub.columns:
+                    sub = sub.sort_values('best_fitness', ascending=True)
+                limit = 9 if (hasattr(self, 'frf_limit_nine_chk') and self.frf_limit_nine_chk.isChecked()) else len(sub)
+                selected = [int(r) for r in sub.get('run_number', []).head(limit)]
+            except Exception:
+                selected = []
+
+        if hasattr(self, 'frf_limit_nine_chk') and self.frf_limit_nine_chk.isChecked() and selected:
+            selected = selected[:9]
+        self._frf_selected_runs = selected
+
+    def _refresh_frf_selected_runs_table(self, df):
+        from PyQt5.QtWidgets import QTableWidgetItem
+        from PyQt5.QtCore import Qt
+        # Build map from run_number to row record
+        by_run = {int(rn): rec for rn, rec in zip(df['run_number'], df.to_dict('records'))}
+        tbl = self.frf_selected_runs_table
+        tbl.blockSignals(True)
+        tbl.setRowCount(len(self._frf_selected_runs))
+        for i, rn in enumerate(self._frf_selected_runs):
+            rec = by_run.get(int(rn), {})
+            it0 = QTableWidgetItem(str(rn))
+            it0.setTextAlignment(Qt.AlignCenter)
+            it1 = QTableWidgetItem(str(rec.get('group', '')))
+            it1.setTextAlignment(Qt.AlignCenter)
+            score_val = rec.get('score', rec.get('best_fitness', ''))
+            try:
+                it2 = QTableWidgetItem(f"{float(score_val):.6f}")
+            except Exception:
+                it2 = QTableWidgetItem(str(score_val))
+            it2.setTextAlignment(Qt.AlignCenter)
+            tbl.setItem(i, 0, it0)
+            tbl.setItem(i, 1, it1)
+            tbl.setItem(i, 2, it2)
+        tbl.blockSignals(False)
+
+    def _frf_move_selected_row(self, delta, df):
+        row = self.frf_selected_runs_table.currentRow()
+        if row < 0 or row >= len(self._frf_selected_runs):
+            return
+        new_row = row + int(delta)
+        if new_row < 0 or new_row >= len(self._frf_selected_runs):
+            return
+        self._frf_selected_runs[row], self._frf_selected_runs[new_row] = self._frf_selected_runs[new_row], self._frf_selected_runs[row]
+        self._refresh_frf_selected_runs_table(df)
+        self.frf_selected_runs_table.selectRow(new_row)
+        self._update_group_frf_overlay_plot(df)
+
+    def _frf_remove_selected_run(self, df):
+        row = self.frf_selected_runs_table.currentRow()
+        if row < 0 or row >= len(self._frf_selected_runs):
+            return
+        del self._frf_selected_runs[row]
+        self._refresh_frf_selected_runs_table(df)
+        self._update_group_frf_overlay_plot(df)
+
+    def _frf_add_run_via_dialog(self, df):
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QComboBox, QDialogButtonBox
+        # Determine available runs not already selected
+        all_runs = [int(x) for x in df['run_number'].tolist()]
+        avail = [rn for rn in all_runs if rn not in self._frf_selected_runs]
+        if not avail:
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Add Run to FRF Overlay")
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel("Choose a run to add:"))
+        combo = QComboBox()
+        combo.addItems([str(rn) for rn in avail])
+        lay.addWidget(combo)
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        lay.addWidget(btns)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        if dlg.exec_() == QDialog.Accepted:
+            try:
+                choice = int(combo.currentText())
+                self._frf_selected_runs.append(choice)
+                if hasattr(self, 'frf_limit_nine_chk') and self.frf_limit_nine_chk.isChecked() and len(self._frf_selected_runs) > 9:
+                    self._frf_selected_runs = self._frf_selected_runs[:9]
+                self._refresh_frf_selected_runs_table(df)
+                self._update_group_frf_overlay_plot(df)
+            except Exception:
+                pass
+
+    def _frf_region_row_to_dict(self, row):
+        # Helper to read a row from region table into dict
+        def _val(col, cast=float, default=None):
+            it = self.frf_region_table.item(row, col)
+            if it is None:
+                return default
+            try:
+                return cast(it.text()) if cast else it.text()
+            except Exception:
+                return default
+        name = _val(0, cast=str, default='Region')
+        start_x = _val(1, cast=float, default=0.0)
+        end_x = _val(2, cast=float, default=0.0)
+        color_item = self.frf_region_table.item(row, 3)
+        color = color_item.text() if color_item else '#ffcc00'
+        text = _val(4, cast=str, default='')
+        text_color_item = self.frf_region_table.item(row, 5)
+        text_color = text_color_item.text() if text_color_item else '#000000'
+        font_size = _val(6, cast=float, default=10.0)
+        return {'name': name, 'start_x': start_x, 'end_x': end_x, 'color': color, 'text': text, 'text_color': text_color, 'font_size': font_size}
+
+    def _refresh_frf_region_table(self):
+        from PyQt5.QtWidgets import QTableWidgetItem
+        from PyQt5.QtCore import Qt
+        tbl = self.frf_region_table
+        tbl.blockSignals(True)
+        tbl.setRowCount(len(self._frf_overlay_regions))
+        for r, reg in enumerate(self._frf_overlay_regions):
+            items = [
+                QTableWidgetItem(str(reg.get('name', 'Region'))),
+                QTableWidgetItem(f"{float(reg.get('start_x', 0.0)):.6g}"),
+                QTableWidgetItem(f"{float(reg.get('end_x', 0.0)):.6g}"),
+                QTableWidgetItem(str(reg.get('color', '#ffcc00'))),
+                QTableWidgetItem(str(reg.get('text', ''))),
+                QTableWidgetItem(str(reg.get('text_color', '#000000'))),
+                QTableWidgetItem(f"{float(reg.get('font_size', 10.0)):.3g}"),
+            ]
+            for c, it in enumerate(items):
+                it.setTextAlignment(Qt.AlignCenter)
+                tbl.setItem(r, c, it)
+        tbl.blockSignals(False)
+
+    def _sync_regions_from_table_and_replot(self, df):
+        regs = []
+        for r in range(self.frf_region_table.rowCount()):
+            regs.append(self._frf_region_row_to_dict(r))
+        self._frf_overlay_regions = regs
+        self._update_group_frf_overlay_plot(df)
+
+    def _frf_add_region_and_replot(self, df):
+        self._frf_overlay_regions.append({'name': 'Region', 'start_x': 0.0, 'end_x': 1.0, 'color': '#ffcc00', 'text': '', 'text_color': '#000000', 'font_size': 10.0})
+        self._refresh_frf_region_table()
+        self._update_group_frf_overlay_plot(df)
+
+    def _frf_remove_selected_region_and_replot(self, df):
+        row = self.frf_region_table.currentRow()
+        if row >= 0 and row < len(self._frf_overlay_regions):
+            del self._frf_overlay_regions[row]
+            self._refresh_frf_region_table()
+            self._update_group_frf_overlay_plot(df)
+
+    def _frf_clear_regions_and_replot(self, df):
+        self._frf_overlay_regions = []
+        self._refresh_frf_region_table()
+        self._update_group_frf_overlay_plot(df)
+
+    def _on_frf_region_cell_double_clicked(self, row, col):
+        # Allow picking colors via dialog for Fill Color (3) and Text Color (5)
+        try:
+            from PyQt5.QtWidgets import QColorDialog
+            if col in (3, 5):
+                current = self.frf_region_table.item(row, col)
+                cur_hex = current.text() if current else '#ffffff'
+                c = QColorDialog.getColor(QColor(cur_hex), self, options=QColorDialog.DontUseNativeDialog)
+                if c.isValid():
+                    if current is None:
+                        from PyQt5.QtWidgets import QTableWidgetItem
+                        current = QTableWidgetItem()
+                        self.frf_region_table.setItem(row, col, current)
+                    current.setText(c.name())
+                    # Sync and replot
+                    # We don't have df here; find it from last built data if needed.
+                    # As a simple approach, trigger table-changed handler which will replot.
+                    self._sync_regions_from_table_and_replot(getattr(self, '_last_group_summary_df', None) or self._last_group_summary_df_placeholder())
+        except Exception:
+            pass
+
+    def _last_group_summary_df_placeholder(self):
+        # Fallback if df is not remembered; build from current ga_benchmark_data if possible
+        try:
+            if hasattr(self, 'ga_benchmark_data') and isinstance(self.ga_benchmark_data, list) and self.ga_benchmark_data:
+                import pandas as pd
+                return pd.DataFrame(self.ga_benchmark_data)
+        except Exception:
+            pass
+        import pandas as pd
+        return pd.DataFrame()
+
+    def _get_main_params_targets_weights(self):
+        """Fetch or construct main system parameters, target values, and weights from current UI."""
+        try:
+            # If previously captured during validation/benchmark, prefer those
+            if all(hasattr(self, attr) for attr in ('main_params', 'target_values', 'omega_start', 'omega_end', 'omega_points')):
+                main_params = self.main_params
+                target_values, weights = self.target_values, self.get_target_values_weights()[1]
+                omega_start, omega_end, omega_points = self.omega_start, self.omega_end, self.omega_points
+            else:
+                # Build from UI controls
+                target_values, weights = self.get_target_values_weights()
+                main_params = (
+                    self.mu_box.value(),
+                    *[b.value() for b in self.landa_boxes],
+                    *[b.value() for b in self.nu_boxes],
+                    self.a_low_box.value(),
+                    self.a_up_box.value(),
+                    self.f_1_box.value(),
+                    self.f_2_box.value(),
+                    self.omega_dc_box.value(),
+                    self.zeta_dc_box.value(),
+                )
+                omega_start = self.omega_start_box.value()
+                omega_end = self.omega_end_box.value()
+                omega_points = self.omega_points_box.value()
+            return main_params, target_values, weights, float(omega_start), float(omega_end), int(omega_points)
+        except Exception:
+            # Fallback minimally
+            try:
+                target_values, weights = self.get_target_values_weights()
+                main_params = (
+                    self.mu_box.value(),
+                    *[b.value() for b in self.landa_boxes],
+                    *[b.value() for b in self.nu_boxes],
+                    self.a_low_box.value(),
+                    self.a_up_box.value(),
+                    self.f_1_box.value(),
+                    self.f_2_box.value(),
+                    self.omega_dc_box.value(),
+                    self.zeta_dc_box.value(),
+                )
+                omega_start = self.omega_start_box.value()
+                omega_end = self.omega_end_box.value()
+                omega_points = self.omega_points_box.value()
+                return main_params, target_values, weights, float(omega_start), float(omega_end), int(omega_points)
+            except Exception:
+                return None, None, None, 0.0, 1.0, 100
+
+    def _get_frf_mag_for_run_and_mass(self, run_record, mass_key):
+        """Compute or fetch cached FRF magnitude curve for a run and mass."""
+        import numpy as np
+        from modules.FRF import frf as frf_func
+        rn = int(run_record.get('run_number'))
+        cache = self._frf_group_cache.setdefault(rn, {})
+        if mass_key in cache:
+            return cache[mass_key]
+        main_params, target_values, weights, omega_start, omega_end, omega_points = self._get_main_params_targets_weights()
+        if main_params is None or target_values is None or weights is None:
+            try:
+                self._frf_last_error = 'Missing system parameters or targets.'
+            except Exception:
+                pass
+            return None
+
+    def _get_frf_mag_for_zero_dva(self, mass_key):
+        """Compute or fetch cached baseline FRF (all DVA values = 0) for a mass."""
+        import numpy as np
+        from modules.FRF import frf as frf_func
+        if mass_key in self._frf_baseline_cache:
+            return self._frf_baseline_cache[mass_key]
+        main_params, target_values, weights, omega_start, omega_end, omega_points = self._get_main_params_targets_weights()
+        if main_params is None or target_values is None or weights is None:
+            return None
+        # Expected DVA parameter count (beta 15 + lambda 15 + mu 3 + nu 15)
+        ZERO_DVA_LEN = 48
+        dva_tuple = tuple(0.0 for _ in range(ZERO_DVA_LEN))
+        try:
+            res = frf_func(
+                main_system_parameters=main_params,
+                dva_parameters=dva_tuple,
+                omega_start=omega_start,
+                omega_end=omega_end,
+                omega_points=int(omega_points),
+                target_values_mass1=target_values['mass_1'],
+                weights_mass1=weights['mass_1'],
+                target_values_mass2=target_values['mass_2'],
+                weights_mass2=weights['mass_2'],
+                target_values_mass3=target_values['mass_3'],
+                weights_mass3=weights['mass_3'],
+                target_values_mass4=target_values['mass_4'],
+                weights_mass4=weights['mass_4'],
+                target_values_mass5=target_values['mass_5'],
+                weights_mass5=weights['mass_5'],
+                plot_figure=False,
+                show_peaks=False,
+                show_slopes=False,
+            )
+            omega = np.linspace(float(omega_start), float(omega_end), int(omega_points))
+            mass_rec = res.get(mass_key, {}) if isinstance(res, dict) else {}
+            mag = np.array(mass_rec.get('magnitude', np.zeros_like(omega)))
+            self._frf_baseline_cache[mass_key] = (omega, mag)
+            return self._frf_baseline_cache[mass_key]
+        except Exception:
+            return None
+        vals = run_record.get('best_solution', []) or []
+        try:
+            vals = [float(v) for v in vals]
+        except Exception:
+            vals = []
+        # Ensure the tuple matches expected length (48)
+        EXPECTED_LEN = 48
+        if len(vals) < EXPECTED_LEN:
+            vals = list(vals) + [0.0] * (EXPECTED_LEN - len(vals))
+        elif len(vals) > EXPECTED_LEN:
+            vals = list(vals[:EXPECTED_LEN])
+        dva_tuple = tuple(vals)
+        if not dva_tuple:
+            return None
+        try:
+            res = frf_func(
+                main_system_parameters=main_params,
+                dva_parameters=dva_tuple,
+                omega_start=omega_start,
+                omega_end=omega_end,
+                omega_points=int(omega_points),
+                target_values_mass1=target_values['mass_1'],
+                weights_mass1=weights['mass_1'],
+                target_values_mass2=target_values['mass_2'],
+                weights_mass2=weights['mass_2'],
+                target_values_mass3=target_values['mass_3'],
+                weights_mass3=weights['mass_3'],
+                target_values_mass4=target_values['mass_4'],
+                weights_mass4=weights['mass_4'],
+                target_values_mass5=target_values['mass_5'],
+                weights_mass5=weights['mass_5'],
+                plot_figure=False,
+                show_peaks=False,
+                show_slopes=False,
+            )
+            # Build omega vector and extract magnitude
+            omega = np.linspace(float(omega_start), float(omega_end), int(omega_points))
+            mass_rec = res.get(mass_key, {}) if isinstance(res, dict) else {}
+            mag = np.array(mass_rec.get('magnitude', np.zeros_like(omega)))
+            cache[mass_key] = (omega, mag)
+            return cache[mass_key]
+        except Exception as e:
+            try:
+                self._frf_last_error = str(e)
+            except Exception:
+                pass
+            return None
+
+    def _update_group_frf_overlay_plot(self, df):
+        import numpy as np
+        import matplotlib.pyplot as plt
+        # Prepare axes
+        self.frf_overlay_fig.clf()
+        ax = self.frf_overlay_fig.add_subplot(111)
+        mass_key = self.frf_mass_combo.currentText() if hasattr(self, 'frf_mass_combo') else 'mass_1'
+        # Map for quickly fetching run record by run_number (robust to missing column)
+        try:
+            by_run = {int(rn): rec for rn, rec in zip(df['run_number'], df.to_dict('records'))}
+        except Exception:
+            by_run = {}
+        # Define base colors per group
+        group_colors = {'Best': '#2ca02c', 'Mid': '#ff7f0e', 'Worst': '#d62728'}
+        # For shade variation per group selection index
+        def _shade(hex_color, factor):
+            # factor in [0,1]; 0 darker, 1 original
+            try:
+                c = plt.matplotlib.colors.to_rgb(hex_color)
+                base = np.array([0.0, 0.0, 0.0])
+                return tuple(base + (np.array(c) - base) * (0.5 + 0.5 * factor))
+            except Exception:
+                return hex_color
+
+        # Split selected runs by group to vary shades
+        # Build ordered selected runs if empty
+        if not self._frf_selected_runs:
+            self._frf_auto_select_runs_from_df(df)
+        grouped = {'Best': [], 'Mid': [], 'Worst': []}
+        for rn in self._frf_selected_runs:
+            rec = by_run.get(int(rn), {})
+            g = str(rec.get('group', ''))
+            if g in grouped:
+                grouped[g].append(int(rn))
+        # Plot in the order of self._frf_selected_runs to respect user ordering
+        # Line styles by group: Best=solid, Mid=long dashes, Worst=short dashes
+        style_map = {
+            'Best': '-',
+            'Mid': (0, (12, 6)),   # long dashes
+            'Worst': (0, (4, 3)),  # small/short dashes
+        }
+        plotted = 0
+        for idx, rn in enumerate(self._frf_selected_runs):
+            rec = by_run.get(int(rn), None)
+            if not rec:
+                continue
+            grp = str(rec.get('group', ''))
+            base_color = group_colors.get(grp, '#1f77b4')
+            # Shade based on position within its group list
+            try:
+                pos_in_group = grouped.get(grp, []).index(int(rn))
+                total_in_group = max(1, len(grouped.get(grp, [])))
+                factor = 1.0 - (pos_in_group / max(1, total_in_group - 1)) * 0.5 if total_in_group > 1 else 1.0
+            except Exception:
+                factor = 1.0
+            color = _shade(base_color, factor)
+            fetched = self._get_frf_mag_for_run_and_mass(rec, mass_key)
+            if not fetched:
+                continue
+            omega, mag = fetched
+            linestyle = style_map.get(grp, '-')
+            ax.plot(omega, mag, label=f"Run {int(rn)} ({grp})", linewidth=1.8, alpha=0.95, color=color, linestyle=linestyle)
+            plotted += 1
+
+        # Baseline curve (No DVA)
+        if hasattr(self, 'frf_show_baseline_chk') and self.frf_show_baseline_chk.isChecked():
+            base = self._get_frf_mag_for_zero_dva(mass_key)
+            if base:
+                omega_b, mag_b = base
+                ax.plot(omega_b, mag_b, label='No DVA (baseline)', color='#000000', linewidth=2.5, linestyle=':', alpha=0.95)
+
+        # Regions (shaded) and boundaries
+        for reg in self._frf_overlay_regions:
+            try:
+                x0 = float(reg.get('start_x', 0.0))
+                x1 = float(reg.get('end_x', 0.0))
+                if x1 < x0:
+                    x0, x1 = x1, x0
+                face = reg.get('color', '#ffcc00')
+                ax.axvspan(x0, x1, color=face, alpha=0.18, linewidth=0)
+                ax.axvline(x0, color=face, alpha=0.8, linestyle='--', linewidth=1.0)
+                ax.axvline(x1, color=face, alpha=0.8, linestyle='--', linewidth=1.0)
+                # Add label at region center
+                if reg.get('text'):
+                    xc = 0.5 * (x0 + x1)
+                    ymin, ymax = ax.get_ylim()
+                    yc = ymin + 0.85 * (ymax - ymin)
+                    ax.text(xc, yc, str(reg.get('text')), ha='center', va='center',
+                            fontsize=float(reg.get('font_size', 10.0)), color=str(reg.get('text_color', '#000000')),
+                            bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.6, ec='none'))
+            except Exception:
+                continue
+
+        ax.set_xlabel('Frequency (rad/s)')
+        ax.set_ylabel('Amplitude')
+        ax.set_title(f'FRF Overlay across Runs – {mass_key}')
+        ax.grid(True, linestyle='--', alpha=0.5)
+        if self.frf_show_legend_chk.isChecked() and plotted > 0:
+            ax.legend(loc='best', ncol=1, fontsize=9, frameon=True)
+        if plotted == 0 and not (hasattr(self, 'frf_show_baseline_chk') and self.frf_show_baseline_chk.isChecked()):
+            msg = 'No runs plotted. Try enabling baseline or adjust Top-K.'
+            try:
+                if getattr(self, '_frf_last_error', None):
+                    msg += f"\nLast FRF error: {self._frf_last_error}"
+            except Exception:
+                pass
+            ax.text(0.5, 0.5, msg,
+                    transform=ax.transAxes, ha='center', va='center', fontsize=11,
+                    bbox=dict(boxstyle='round', fc='#ffeeee', ec='#ddaaaa', alpha=0.8))
+        self.frf_overlay_canvas.draw_idle()
     def _attach_open_in_new_window(self, toolbar, fig, title):
         """Attach a consistent 'Open in New Window' action to a plot toolbar."""
         try:
@@ -1748,6 +2403,207 @@ class GAOptimizationMixin:
         self.rv_comp_plot = QWidget()
         rv_comp_layout.addWidget(self.rv_comp_plot)
 
+        # KDE of FRF peak positions tab
+        rv_kde_tab = QWidget()
+        rv_kde_layout = QVBoxLayout(rv_kde_tab)
+        rv_kde_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Controls for KDE tab
+        rv_kde_ctrl_row = QWidget()
+        rv_kde_ctrl_layout = QHBoxLayout(rv_kde_ctrl_row)
+        rv_kde_ctrl_layout.setContentsMargins(0, 0, 0, 0)
+
+        rv_kde_ctrl_layout.addWidget(QLabel("Mass:"))
+        self.rv_kde_mass_combo = QComboBox()
+        self.rv_kde_mass_combo.addItems([
+            "All Masses", "mass_1", "mass_2", "mass_3", "mass_4", "mass_5"
+        ])
+        rv_kde_ctrl_layout.addWidget(self.rv_kde_mass_combo)
+
+        rv_kde_ctrl_layout.addSpacing(12)
+        rv_kde_ctrl_layout.addWidget(QLabel("Peaks per run:"))
+        self.rv_kde_peak_mode_combo = QComboBox()
+        self.rv_kde_peak_mode_combo.addItems([
+            "All peaks", "Top 1", "Top 2", "Top 3"
+        ])
+        self.rv_kde_peak_mode_combo.setCurrentIndex(1)  # Default to Top 1
+        rv_kde_ctrl_layout.addWidget(self.rv_kde_peak_mode_combo)
+
+        rv_kde_ctrl_layout.addSpacing(12)
+        self.rv_kde_use_zones_chk = QCheckBox("Overlay FRF Zones")
+        self.rv_kde_use_zones_chk.setChecked(True)
+        self.rv_kde_use_zones_chk.setToolTip("Overlay zones defined in FRF comparative visualization")
+        rv_kde_ctrl_layout.addWidget(self.rv_kde_use_zones_chk)
+
+        # Optional: quick access to add a zone
+        self.rv_kde_add_zone_btn = QPushButton("Add Zone")
+        self.rv_kde_add_zone_btn.setToolTip("Add a zone to overlay (same list as FRF comparative tab)")
+        try:
+            self.rv_kde_add_zone_btn.clicked.connect(lambda: getattr(self, 'add_zone', lambda: None)())
+        except Exception:
+            pass
+        rv_kde_ctrl_layout.addWidget(self.rv_kde_add_zone_btn)
+
+        rv_kde_ctrl_layout.addStretch()
+
+        rv_kde_layout.addWidget(rv_kde_ctrl_row)
+        self.rv_kde_plot = QWidget()
+        rv_kde_layout.addWidget(self.rv_kde_plot)
+
+        # Zone management (edit/add/remove) within KDE tab
+        rv_kde_zone_group = QGroupBox("KDE Zones")
+        rv_kde_zone_layout = QVBoxLayout(rv_kde_zone_group)
+
+        # Buttons row
+        rv_kde_zone_btn_row = QWidget()
+        rv_kde_zone_btn_layout = QHBoxLayout(rv_kde_zone_btn_row)
+        rv_kde_zone_btn_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.rv_kde_add_zone_btn2 = QPushButton("Add Zone")
+        self.rv_kde_add_zone_btn2.setToolTip("Create a new zone region")
+        self.rv_kde_add_zone_btn2.clicked.connect(lambda: self._rv_kde_add_zone())
+        rv_kde_zone_btn_layout.addWidget(self.rv_kde_add_zone_btn2)
+
+        self.rv_kde_remove_zone_btn = QPushButton("Remove Selected")
+        self.rv_kde_remove_zone_btn.clicked.connect(lambda: self._rv_kde_remove_zone())
+        rv_kde_zone_btn_layout.addWidget(self.rv_kde_remove_zone_btn)
+
+        self.rv_kde_clear_zones_btn = QPushButton("Clear All")
+        self.rv_kde_clear_zones_btn.clicked.connect(lambda: self._rv_kde_clear_zones())
+        rv_kde_zone_btn_layout.addWidget(self.rv_kde_clear_zones_btn)
+
+        rv_kde_zone_btn_layout.addStretch()
+        rv_kde_zone_layout.addWidget(rv_kde_zone_btn_row)
+
+        # Zones table (Name, Start X, End X, Color)
+        self.rv_kde_zone_table = QTableWidget()
+        self.rv_kde_zone_table.setColumnCount(4)
+        self.rv_kde_zone_table.setHorizontalHeaderLabels(["Name", "Start X", "End X", "Color"])
+        self.rv_kde_zone_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.rv_kde_zone_table.setMaximumHeight(160)
+        # Track if we are programmatically updating to avoid recursion
+        self._rv_kde_updating_table = False
+        try:
+            self.rv_kde_zone_table.itemChanged.connect(self._rv_kde_on_zone_cell_changed)
+        except Exception:
+            pass
+        rv_kde_zone_layout.addWidget(self.rv_kde_zone_table)
+
+        rv_kde_layout.addWidget(rv_kde_zone_group)
+
+        # Initialize table from shared zones list if available
+        try:
+            self._rv_kde_update_zone_table()
+        except Exception:
+            pass
+
+        # React to control changes
+        try:
+            self.rv_kde_mass_combo.currentIndexChanged.connect(lambda _=None: self.update_random_validation_kde())
+            self.rv_kde_peak_mode_combo.currentIndexChanged.connect(lambda _=None: self.update_random_validation_kde())
+            self.rv_kde_use_zones_chk.stateChanged.connect(lambda _=None: self.update_random_validation_kde())
+        except Exception:
+            pass
+
+        # FRF curves tab
+        rv_frf_tab = QWidget()
+        rv_frf_layout = QVBoxLayout(rv_frf_tab)
+        rv_frf_layout.setContentsMargins(0, 0, 0, 0)
+
+        rv_frf_ctrl_row = QWidget()
+        rv_frf_ctrl_layout = QHBoxLayout(rv_frf_ctrl_row)
+        rv_frf_ctrl_layout.setContentsMargins(0, 0, 0, 0)
+        rv_frf_ctrl_layout.addWidget(QLabel("Mass:"))
+        self.rv_frf_mass_combo = QComboBox()
+        self.rv_frf_mass_combo.addItems(["mass_1", "mass_2", "mass_3", "mass_4", "mass_5"])
+        rv_frf_ctrl_layout.addWidget(self.rv_frf_mass_combo)
+        rv_frf_ctrl_layout.addSpacing(12)
+        # Zones overlay toggle for FRF plot
+        self.rv_frf_use_zones_chk = QCheckBox("Overlay Zones")
+        self.rv_frf_use_zones_chk.setChecked(True)
+        self.rv_frf_use_zones_chk.setToolTip("Overlay the shared zones (same list used in KDE tab)")
+        rv_frf_ctrl_layout.addWidget(self.rv_frf_use_zones_chk)
+        rv_frf_ctrl_layout.addStretch()
+        rv_frf_layout.addWidget(rv_frf_ctrl_row)
+
+        rv_frf_layout.addWidget(QLabel("Select runs to plot (sorted by fitness):"))
+
+        self.rv_frf_run_list = QListWidget()
+        self.rv_frf_run_list.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.rv_frf_run_list.setAlternatingRowColors(True)
+        self.rv_frf_run_list.setMinimumHeight(160)
+        self.rv_frf_run_list.setSelectionBehavior(QAbstractItemView.SelectItems)
+        self.rv_frf_run_list.setToolTip("Click to toggle runs; multiple selections allowed.")
+        rv_frf_layout.addWidget(self.rv_frf_run_list)
+
+        rv_frf_btn_row = QWidget()
+        rv_frf_btn_layout = QHBoxLayout(rv_frf_btn_row)
+        rv_frf_btn_layout.setContentsMargins(0, 0, 0, 0)
+        self.rv_frf_select_best_btn = QPushButton("Select Top 3")
+        rv_frf_btn_layout.addWidget(self.rv_frf_select_best_btn)
+        self.rv_frf_clear_btn = QPushButton("Clear Selection")
+        rv_frf_btn_layout.addWidget(self.rv_frf_clear_btn)
+        rv_frf_btn_layout.addStretch()
+        rv_frf_layout.addWidget(rv_frf_btn_row)
+
+        self.rv_frf_plot = QWidget()
+        rv_frf_layout.addWidget(self.rv_frf_plot)
+
+        # FRF Zones editor (shares the same self.zones list as KDE)
+        frf_zone_group = QGroupBox("FRF Zones")
+        frf_zone_layout = QVBoxLayout(frf_zone_group)
+
+        frf_zone_btn_row = QWidget()
+        frf_zone_btn_layout = QHBoxLayout(frf_zone_btn_row)
+        frf_zone_btn_layout.setContentsMargins(0, 0, 0, 0)
+        self.rv_frf_add_zone_btn = QPushButton("Add Zone")
+        self.rv_frf_remove_zone_btn = QPushButton("Remove Selected")
+        self.rv_frf_clear_zones_btn = QPushButton("Clear All")
+        try:
+            # Add zone centered in current omega range for FRF plot
+            self.rv_frf_add_zone_btn.clicked.connect(self._rv_frf_add_zone)
+            # Reuse KDE handlers for remove/clear (they sync both tables)
+            self.rv_frf_remove_zone_btn.clicked.connect(self._rv_frf_remove_zone)
+            self.rv_frf_clear_zones_btn.clicked.connect(self._rv_frf_clear_zones)
+        except Exception:
+            pass
+        frf_zone_btn_layout.addWidget(self.rv_frf_add_zone_btn)
+        frf_zone_btn_layout.addWidget(self.rv_frf_remove_zone_btn)
+        frf_zone_btn_layout.addWidget(self.rv_frf_clear_zones_btn)
+        frf_zone_btn_layout.addStretch()
+        frf_zone_layout.addWidget(frf_zone_btn_row)
+
+        # Zones table (Name, Start X, End X, Color) for FRF tab
+        self.rv_frf_zone_table = QTableWidget()
+        self.rv_frf_zone_table.setColumnCount(4)
+        self.rv_frf_zone_table.setHorizontalHeaderLabels(["Name", "Start X", "End X", "Color"])
+        try:
+            self.rv_frf_zone_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        except Exception:
+            pass
+        # Hook generic KDE cell-change handler to keep a single source of truth
+        try:
+            self.rv_frf_zone_table.itemChanged.connect(self._rv_kde_on_zone_cell_changed)
+        except Exception:
+            pass
+        frf_zone_layout.addWidget(self.rv_frf_zone_table)
+        rv_frf_layout.addWidget(frf_zone_group)
+
+        # Keep the FRF zone table in sync with shared zones
+        try:
+            self._update_zone_table()
+        except Exception:
+            pass
+
+        try:
+            self.rv_frf_mass_combo.currentTextChanged.connect(lambda _=None: self.update_random_validation_frf_plot())
+            self.rv_frf_use_zones_chk.stateChanged.connect(lambda _=None: self.update_random_validation_frf_plot())
+            self.rv_frf_run_list.itemSelectionChanged.connect(self.update_random_validation_frf_plot)
+            self.rv_frf_select_best_btn.clicked.connect(lambda: self._rv_frf_select_top())
+            self.rv_frf_clear_btn.clicked.connect(self._rv_frf_clear_selection)
+        except Exception:
+            pass
+
         # Correlation heatmap tab
         rv_corr_tab = QWidget()
         rv_corr_layout = QVBoxLayout(rv_corr_tab)
@@ -1788,6 +2644,8 @@ class GAOptimizationMixin:
         self.rv_tabs.addTab(rv_summary_tab, "Summary")
         self.rv_tabs.addTab(rv_fitdist_tab, "Fitness Distribution")
         self.rv_tabs.addTab(rv_comp_tab, "Components")
+        self.rv_tabs.addTab(rv_kde_tab, "KDE")
+        self.rv_tabs.addTab(rv_frf_tab, "FRF Runs")
         self.rv_tabs.addTab(rv_corr_tab, "Correlation")
         self.rv_tabs.addTab(rv_scatter_tab, "Scatter")
         self.rv_tabs.addTab(rv_table_tab, "Table")
@@ -1804,6 +2662,12 @@ class GAOptimizationMixin:
         # Keep references
         self.rv_results_df = None
         self._rv_worker = None
+        self.rv_frf_curves = {}
+        self.rv_frf_omega = None
+        try:
+            self.update_random_validation_frf_plot()
+        except Exception:
+            pass
 
         # Add all sub-tabs to the GA tab widget
         self.ga_sub_tabs.addTab(ga_hyper_tab, "GA Settings")
@@ -1888,6 +2752,8 @@ class GAOptimizationMixin:
                      fixed_values,
                      alpha,
                      percentage_error_scale,
+                     *,
+                     cost_scale_factor=None,
                      dva_activation_threshold,
                      dva_activation_penalty,
                      dva_costs,
@@ -1902,7 +2768,7 @@ class GAOptimizationMixin:
                      cat_w_operational,
                      benefit_weight_start,
                      benefit_weight_end,
-                     dva_category_map,
+                     dva_category_map=None,
                      method,
                      num_samples,
                      seed,
@@ -1920,6 +2786,11 @@ class GAOptimizationMixin:
             self.fixed_values = fixed_values
             self.alpha = alpha
             self.percentage_error_scale = percentage_error_scale
+            # Cost scaling for RV fitness calculation (UI-provided or default 1.0)
+            try:
+                self.cost_scale_factor = float(cost_scale_factor) if cost_scale_factor is not None else 1.0
+            except Exception:
+                self.cost_scale_factor = 1.0
             self.dva_activation_threshold = dva_activation_threshold
             self.dva_activation_penalty = dva_activation_penalty
             self.dva_costs = dict(dva_costs) if isinstance(dva_costs, dict) else {}
@@ -1985,6 +2856,8 @@ class GAOptimizationMixin:
             return samples
 
         def run(self):
+            omega_vector = None
+            frf_cache = {}
             try:
                 X = self._sample_matrix()
                 n = X.shape[0]
@@ -1993,6 +2866,14 @@ class GAOptimizationMixin:
                 omega_start = self.omega_start
                 omega_end = self.omega_end
                 omega_points = self.omega_points
+                # Build omega vector to accompany FRF magnitudes
+                try:
+                    _cnt = int(omega_points)
+                    if _cnt < 2:
+                        _cnt = 2
+                except Exception:
+                    _cnt = 2
+                omega_vector = np.linspace(omega_start, omega_end, _cnt)
                 target_values = self.target_values
                 weights = self.weights
                 alpha = self.alpha
@@ -2137,14 +3018,17 @@ class GAOptimizationMixin:
                                 # Fallback to normalized active cost
                                 cost_term = cost_sum_active / denom if denom > 0 else 0.0
 
-                            # Apply cost scale factor if available
-                            cost_scale_factor = float(self.ga_cost_scale_box.value()) if hasattr(self, 'ga_cost_scale_box') else 1.0
+                            # Apply cost scale factor from worker settings
+                            cost_scale_factor = float(self.cost_scale_factor) if self.cost_scale_factor is not None else 1.0
                             scaled_cost_term = cost_term / cost_scale_factor if cost_scale_factor > 0 else cost_term
 
-                            # Debug: Print UI cost scaling information
-                            print(f"DEBUG UI: cost_term={cost_term:.6f}, cost_scale_factor={cost_scale_factor:.6f}, scaled_cost_term={scaled_cost_term:.6f}")
+                            # Debug: Print RV cost scaling information
+                            try:
+                                print(f"DEBUG RV: cost_term={cost_term:.6f}, cost_scale_factor={cost_scale_factor:.6f}, scaled_cost_term={scaled_cost_term:.6f}")
+                            except Exception:
+                                pass
 
-                            fitness = primary + sparsity + perror_sum / pe_scale + activation_penalty + scaled_cost_term
+                        fitness = primary + sparsity + perror_sum / pe_scale + activation_penalty + scaled_cost_term
                     except Exception:
                         fitness = 1e6
                         primary = np.nan
@@ -2153,8 +3037,37 @@ class GAOptimizationMixin:
                         activation_penalty = np.nan
                         cost_term = np.nan
 
+                    # Collect peak positions and values per mass for KDE analysis of FRF peaks
+                    def _collect_peaks_for_mass(mkey):
+                        try:
+                            mres = res.get(mkey, {})
+                            ppos = []
+                            pval = []
+                            if isinstance(mres.get('peak_positions', {}), dict):
+                                # Align positions and values by numeric index suffix
+                                pos_items = [(int(k.split('_')[-1]), float(v)) for k, v in mres['peak_positions'].items() if isinstance(v, (int, float))]
+                                val_items = [(int(k.split('_')[-1]), float(v)) for k, v in mres.get('peak_values', {}).items() if isinstance(v, (int, float))]
+                                pos_map = dict(pos_items)
+                                val_map = dict(val_items)
+                                idxs = sorted(pos_map.keys())
+                                for idx in idxs:
+                                    if idx in val_map:
+                                        ppos.append(pos_map[idx])
+                                        pval.append(val_map[idx])
+                            return ppos, pval
+                        except Exception:
+                            return [], []
+
+                    peaks_m1, peakvals_m1 = _collect_peaks_for_mass('mass_1')
+                    peaks_m2, peakvals_m2 = _collect_peaks_for_mass('mass_2')
+                    peaks_m3, peakvals_m3 = _collect_peaks_for_mass('mass_3')
+                    peaks_m4, peakvals_m4 = _collect_peaks_for_mass('mass_4')
+                    peaks_m5, peakvals_m5 = _collect_peaks_for_mass('mass_5')
+
                     row = {name: X[i, j] for j, name in enumerate(self.param_names)}
                     row.update({
+                        'rv_sample_index': int(i),
+                        'rv_run_id': int(i) + 1,
                         'primary_objective': primary,
                         'sparsity_penalty': sparsity,
                         'percentage_error_sum': perror_sum,
@@ -2162,13 +3075,42 @@ class GAOptimizationMixin:
                         'cost_term_raw': cost_term,  # Raw unscaled cost
                         'cost_term': scaled_cost_term,  # Scaled cost used in fitness
                         'fitness': fitness,
+                        # Store FRF peak positions/values per mass (lists)
+                        'peaks_mass_1': peaks_m1,
+                        'peakvals_mass_1': peakvals_m1,
+                        'peaks_mass_2': peaks_m2,
+                        'peakvals_mass_2': peakvals_m2,
+                        'peaks_mass_3': peaks_m3,
+                        'peakvals_mass_3': peakvals_m3,
+                        'peaks_mass_4': peaks_m4,
+                        'peakvals_mass_4': peakvals_m4,
+                        'peaks_mass_5': peaks_m5,
+                        'peakvals_mass_5': peakvals_m5,
                     })
+                    mass_curves = {}
+                    if isinstance(res, dict):
+                        for mass_key in ('mass_1', 'mass_2', 'mass_3', 'mass_4', 'mass_5'):
+                            try:
+                                mres = res.get(mass_key, {})
+                                if not isinstance(mres, dict):
+                                    continue
+                                mag = mres.get('magnitude')
+                                if mag is None:
+                                    continue
+                                mag_arr = np.asarray(mag, dtype=float)
+                                if mag_arr.size:
+                                    mass_curves[mass_key] = mag_arr.copy()
+                            except Exception:
+                                continue
+                    if mass_curves:
+                        frf_cache[int(i)] = mass_curves
                     rows.append(row)
                     if (i + 1) % max(1, n // 100) == 0:
                         self.progress.emit(int((i + 1) * 100 / n))
 
                 df = pd.DataFrame(rows)
-                self.finished.emit(df)
+                payload = build_random_validation_payload(df, omega_vector, frf_cache)
+                self.finished.emit(payload)
             except Exception as e:
                 self.error.emit(str(e))
 
@@ -2248,6 +3190,17 @@ class GAOptimizationMixin:
         except Exception:
             QMessageBox.warning(self, "Input Error", "Targets & Weights are not properly defined.")
             return
+
+        self.rv_frf_curves = {}
+        self.rv_frf_omega = None
+        try:
+            self.rv_frf_run_list.clear()
+        except Exception:
+            pass
+        try:
+            self.update_random_validation_frf_plot()
+        except Exception:
+            pass
 
         main_params = (
             self.mu_box.value(),
@@ -2348,19 +3301,72 @@ class GAOptimizationMixin:
             self._rv_worker.cancel()
             self.rv_summary_label.setText("Cancelling...")
 
-    def _handle_random_validation_finished(self, df):
+    def _handle_random_validation_finished(self, payload):
         self._rv_worker = None
+
+        df = None
+        frf_curves = {}
+        omega_vector = None
+
+        if isinstance(payload, dict) and 'dataframe' in payload:
+            df = payload.get('dataframe')
+            frf_curves = payload.get('frf_curves') or {}
+            omega_vector = payload.get('omega_vector')
+        else:
+            df = payload
+
+        self.rv_frf_curves = {}
+        self.rv_frf_omega = None
+        if omega_vector is not None:
+            try:
+                self.rv_frf_omega = np.asarray(omega_vector, dtype=float)
+            except Exception:
+                self.rv_frf_omega = None
+        # Fallback: if omega not provided in payload, rebuild from current UI settings
+        if self.rv_frf_omega is None or getattr(self.rv_frf_omega, 'size', 0) == 0:
+            try:
+                _os = float(self.omega_start_box.value())
+                _oe = float(self.omega_end_box.value())
+                _op = int(self.omega_points_box.value())
+                if _op < 2:
+                    _op = 2
+                self.rv_frf_omega = np.linspace(_os, _oe, _op)
+            except Exception:
+                self.rv_frf_omega = None
+
+        if isinstance(frf_curves, dict):
+            safe_curves = {}
+            for key, curves in frf_curves.items():
+                try:
+                    idx = int(key)
+                except Exception:
+                    continue
+                if not isinstance(curves, dict):
+                    continue
+                mass_map = {}
+                for mass_key, magnitudes in curves.items():
+                    try:
+                        mass_map[str(mass_key)] = np.asarray(magnitudes, dtype=float)
+                    except Exception:
+                        continue
+                safe_curves[idx] = mass_map
+            self.rv_frf_curves = safe_curves
+
         if df is None or len(df) == 0:
             self.rv_summary_label.setText("No results produced.")
             self.rv_run_button.setEnabled(True)
             self.rv_cancel_button.setEnabled(False)
+            self.rv_export_button.setEnabled(False)
+            self._rv_frf_populate_run_list(None)
+            self.update_random_validation_frf_plot()
             return
+
         self.rv_results_df = df
         tol = self.rv_tol_box.value()
         df['pass'] = df['fitness'].apply(lambda v: bool(np.isfinite(v) and v <= tol))
         pct = float(100.0 * df['pass'].mean()) if len(df) else 0.0
         self.rv_success_bar.setValue(int(round(pct)))
-        # Build expanded summary
+        self._rv_frf_populate_run_list(df, preserve_selection=False)
         method = (self._rv_context or {}).get('method', 'Unknown')
         seed = (self._rv_context or {}).get('seed', -1)
         alpha = (self._rv_context or {}).get('alpha', self.rv_alpha_box.value())
@@ -2411,7 +3417,7 @@ class GAOptimizationMixin:
             pct_primary = pct_sparsity = pct_perror = pct_activation = pct_cost = float('nan')
 
         seed_text = str(seed) if isinstance(seed, (int,)) and seed >= 0 else 'None'
-        elapsed_text = f" | Time: {elapsed:.2f}s" if elapsed is not None else ""
+        elapsed_text = f" | Time: {elapsed:.2f}s" if elapsed is not None else ''
 
         html = (
             f"<b>Run Settings</b><br>"
@@ -2422,10 +3428,71 @@ class GAOptimizationMixin:
             f"Min: {min_v:.6f} | Q05: {q05:.6f} | Q25: {q25:.6f} | Q75: {q75:.6f} | Q95: {q95:.6f} | Max: {max_v:.6f}<br>"
             f"Within tolerance: {n_pass} / {n} = {pct:.1f}% | Invalid>=1e6: {n_invalid} | NaN: {n_nan} | Inf: {n_inf}<br><br>"
             f"<b>Component Averages</b><br>"
-            f"Primary: {p_mean:.6f} Â± {p_std:.6f} | Sparsity: {s_mean:.6f} Â± {s_std:.6f} | %Error sum: {e_mean:.6f} Â± {e_std:.6f} | Activation: {a_mean:.6f} Â± {a_std:.6f} | Cost: {c_mean:.6f} Â± {c_std:.6f}<br>"
+            f"Primary: {p_mean:.6f} ± {p_std:.6f} | Sparsity: {s_mean:.6f} ± {s_std:.6f} | %Error sum: {e_mean:.6f} ± {e_std:.6f} | Activation: {a_mean:.6f} ± {a_std:.6f} | Cost: {c_mean:.6f} ± {c_std:.6f}<br>"
             f"Approx. contribution to mean fitness: Primary {pct_primary:.1f}%, Sparsity {pct_sparsity:.1f}%, %Error {(pct_perror):.1f}%, Activation {pct_activation:.1f}%, Cost {pct_cost:.1f}%"
         )
         self.rv_summary_label.setText(html)
+
+        try:
+            rows =[
+                ("Samples", f"{n}"),
+                ("Method", str(method)),
+                ("Seed", seed_text),
+                ("Alpha", f"{alpha:.6f}"),
+                ("Tolerance", f"{tol:.6f}"),
+                ("Respect Fixed", "Yes" if respect_fixed else "No"),
+                ("Varied Params", f"{n_varied}"),
+                ("Total Params", f"{n_total_params}"),
+            ]
+            if elapsed is not None:
+                rows.append(("Elapsed Time (s)", f"{elapsed:.2f}"))
+            rows.extend([
+                ("Fitness Mean", f"{mean_v:.6f}"),
+                ("Fitness Median", f"{median_v:.6f}"),
+                ("Fitness Std", f"{std_v:.6f}"),
+                ("Fitness Min", f"{min_v:.6f}"),
+                ("Fitness Q05", f"{q05:.6f}"),
+                ("Fitness Q25", f"{q25:.6f}"),
+                ("Fitness Q75", f"{q75:.6f}"),
+                ("Fitness Q95", f"{q95:.6f}"),
+                ("Fitness Max", f"{max_v:.6f}"),
+                ("Within Tol (count)", f"{n_pass} / {n}"),
+                ("Within Tol (%)", f"{pct:.1f}%"),
+                ("Invalid (>=1e6)", f"{n_invalid}"),
+                ("NaN", f"{n_nan}"),
+                ("Inf", f"{n_inf}"),
+                ("Primary Mean", f"{p_mean:.6f}"),
+                ("Primary Std", f"{p_std:.6f}"),
+                ("Sparsity Mean", f"{s_mean:.6f}"),
+                ("Sparsity Std", f"{s_std:.6f}"),
+                ("%Error Sum Mean", f"{e_mean:.6f}"),
+                ("%Error Sum Std", f"{e_std:.6f}"),
+                ("Activation Mean", f"{a_mean:.6f}"),
+                ("Activation Std", f"{a_std:.6f}"),
+                ("Cost Mean", f"{c_mean:.6f}"),
+                ("Cost Std", f"{c_std:.6f}"),
+                ("Contribution Primary %", f"{pct_primary:.1f}%"),
+                ("Contribution Sparsity %", f"{pct_sparsity:.1f}%"),
+                ("Contribution %Error %", f"{pct_perror:.1f}%"),
+                ("Contribution Activation %", f"{pct_activation:.1f}%"),
+                ("Contribution Cost %", f"{pct_cost:.1f}%"),
+            ])
+            from PyQt5.QtWidgets import QTableWidgetItem
+            from PyQt5.QtCore import Qt
+            tbl = self.rv_summary_table
+            tbl.blockSignals(True)
+            tbl.clearContents()
+            tbl.setRowCount(len(rows))
+            for r, (metric, value) in enumerate(rows):
+                it0 = QTableWidgetItem(str(metric))
+                it1 = QTableWidgetItem(str(value))
+                it0.setTextAlignment(Qt.AlignCenter)
+                it1.setTextAlignment(Qt.AlignCenter)
+                tbl.setItem(r, 0, it0)
+                tbl.setItem(r, 1, it1)
+            tbl.blockSignals(False)
+        except Exception:
+            pass
 
         self.rv_scatter_param_combo.blockSignals(True)
         self.rv_scatter_param_combo.clear()
@@ -2436,7 +3503,6 @@ class GAOptimizationMixin:
         fig1 = Figure(figsize=(6, 4))
         ax1 = fig1.add_subplot(111)
         sns.histplot(df['fitness'], kde=True, bins=self.rv_bins_box.value(), ax=ax1, color='skyblue', edgecolor='darkblue', alpha=0.6)
-        # Highlight within-tolerance region (from 0 to tolerance)
         ax1.axvspan(0.0, tol, facecolor='palegreen', alpha=0.25, label='Within tolerance')
         ax1.axvline(tol, color='magenta', linestyle='--', linewidth=2.0, alpha=0.9, label='Tolerance')
         ax1.set_title('Fitness Distribution')
@@ -2452,24 +3518,9 @@ class GAOptimizationMixin:
         comp_cols = ['primary_objective', 'sparsity_penalty', 'percentage_error_sum', 'activation_penalty', 'cost_term_raw', 'cost_term']
         titles = ['Primary Objective', 'Sparsity Penalty', 'Percentage Error Sum', 'Activation Penalty', 'Cost Term (Raw)', 'Cost Term (Scaled)']
         for ax, col, title in zip(axes, comp_cols, titles):
-            # Draw histogram bars (green)
-            sns.histplot(
-                df[col],
-                kde=False,
-                bins=max(10, self.rv_bins_box.value() // 2),
-                ax=ax,
-                color='lightgreen',
-                edgecolor='darkgreen',
-                alpha=0.6,
-            )
-            # Overlay KDE curve in purple (separate call to avoid seaborn kwargs issues)
+            sns.histplot(df[col], kde=False, bins=max(10, self.rv_bins_box.value() // 2), ax=ax, color='lightgreen', edgecolor='darkgreen', alpha=0.6)
             try:
-                sns.kdeplot(
-                    df[col].dropna(),
-                    ax=ax,
-                    color='purple',
-                    linewidth=2.0,
-                )
+                sns.kdeplot(df[col].dropna(), ax=ax, color='purple', linewidth=2.0)
             except Exception:
                 pass
             ax.set_title(title)
@@ -2494,9 +3545,12 @@ class GAOptimizationMixin:
             self._render_figure_into_widget(self.rv_corr_plot, fig3)
 
         self.update_random_validation_scatter()
+        try:
+            self.update_random_validation_kde()
+        except Exception:
+            pass
 
-        cols = [c for c in df.columns if c.startswith('beta_') or c.startswith('lambda_') or c.startswith('mu_') or c.startswith('nu_')] + \
-               ['primary_objective', 'sparsity_penalty', 'percentage_error_sum', 'activation_penalty', 'cost_term', 'fitness', 'pass']
+        cols = [c for c in df.columns if c.startswith('beta_') or c.startswith('lambda_') or c.startswith('mu_') or c.startswith('nu_')] + ['primary_objective', 'sparsity_penalty', 'percentage_error_sum', 'activation_penalty', 'cost_term', 'fitness', 'pass']
         self.rv_table.setColumnCount(len(cols))
         self.rv_table.setRowCount(len(df))
         self.rv_table.setHorizontalHeaderLabels(cols)
@@ -2518,6 +3572,353 @@ class GAOptimizationMixin:
         self.rv_run_button.setEnabled(True)
         self.rv_cancel_button.setEnabled(False)
         self.rv_export_button.setEnabled(True)
+
+    def _rv_frf_populate_run_list(self, df, preserve_selection=False):
+        if not hasattr(self, 'rv_frf_run_list'):
+            return
+        try:
+            current_selection = {int(item.data(Qt.UserRole)) for item in self.rv_frf_run_list.selectedItems()} if preserve_selection else set()
+        except Exception:
+            current_selection = set()
+        self.rv_frf_run_list.blockSignals(True)
+        self.rv_frf_run_list.clear()
+        if df is None or getattr(df, 'empty', True):
+            self.rv_frf_run_list.blockSignals(False)
+            return
+        try:
+            sorted_df = df.sort_values('fitness', kind='mergesort')
+        except Exception:
+            sorted_df = df
+        for _, row in sorted_df.iterrows():
+            try:
+                sample_idx = int(row.get('rv_sample_index', row.name))
+            except Exception:
+                continue
+            try:
+                run_id = int(row.get('rv_run_id', sample_idx + 1))
+            except Exception:
+                run_id = sample_idx + 1
+            fitness_val = row.get('fitness', np.nan)
+            try:
+                fitness_val = float(fitness_val)
+            except Exception:
+                fitness_val = float('nan')
+            pass_flag = bool(row.get('pass', False))
+            label = f"Run {run_id:04d} | fitness {fitness_val:.6f}"
+            label += ' | PASS' if pass_flag else ' | FAIL'
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, sample_idx)
+            item.setData(Qt.UserRole + 1, run_id)
+            item.setData(Qt.UserRole + 2, fitness_val)
+            item.setData(Qt.UserRole + 3, pass_flag)
+            if pass_flag:
+                item.setForeground(QBrush(QColor('darkgreen')))
+                item.setBackground(QColor(235, 250, 235))
+            else:
+                item.setForeground(QBrush(QColor('maroon')))
+                item.setBackground(QColor(250, 235, 235))
+            self.rv_frf_run_list.addItem(item)
+        if preserve_selection and current_selection:
+            for i in range(self.rv_frf_run_list.count()):
+                item = self.rv_frf_run_list.item(i)
+                try:
+                    key = int(item.data(Qt.UserRole))
+                except Exception:
+                    continue
+                if key in current_selection:
+                    item.setSelected(True)
+        elif self.rv_frf_run_list.count():
+            for i in range(min(3, self.rv_frf_run_list.count())):
+                self.rv_frf_run_list.item(i).setSelected(True)
+        self.rv_frf_run_list.blockSignals(False)
+        self.update_random_validation_frf_plot()
+
+    def _rv_frf_select_top(self, count=3):
+        if not hasattr(self, 'rv_frf_run_list'):
+            return
+        self.rv_frf_run_list.blockSignals(True)
+        for i in range(self.rv_frf_run_list.count()):
+            self.rv_frf_run_list.item(i).setSelected(False)
+        for i in range(min(count, self.rv_frf_run_list.count())):
+            self.rv_frf_run_list.item(i).setSelected(True)
+        self.rv_frf_run_list.blockSignals(False)
+        self.update_random_validation_frf_plot()
+
+    def _rv_frf_clear_selection(self):
+        if not hasattr(self, 'rv_frf_run_list'):
+            return
+        self.rv_frf_run_list.blockSignals(True)
+        for i in range(self.rv_frf_run_list.count()):
+            self.rv_frf_run_list.item(i).setSelected(False)
+        self.rv_frf_run_list.blockSignals(False)
+        self.update_random_validation_frf_plot()
+
+    def update_random_validation_frf_plot(self):
+        if not hasattr(self, 'rv_frf_plot'):
+            return
+        omega = getattr(self, 'rv_frf_omega', None)
+        if omega is not None:
+            try:
+                omega = np.asarray(omega, dtype=float)
+            except Exception:
+                omega = None
+        mass_combo = getattr(self, 'rv_frf_mass_combo', None)
+        mass_key = mass_combo.currentText() if hasattr(mass_combo, 'currentText') else None
+        if not mass_key:
+            mass_key = 'mass_1'
+        try:
+            selected_items = list(self.rv_frf_run_list.selectedItems())
+        except Exception:
+            selected_items = []
+        if omega is None or omega.size == 0 or not getattr(self, 'rv_frf_curves', {}):
+            fig = Figure(figsize=(5, 3))
+            ax = fig.add_subplot(111)
+            ax.text(0.5, 0.5, 'FRF data unavailable', ha='center', va='center')
+            ax.axis('off')
+            self._render_figure_into_widget(self.rv_frf_plot, fig, include_toolbar=False)
+            return
+        if not selected_items:
+            fig = Figure(figsize=(5, 3))
+            ax = fig.add_subplot(111)
+            ax.text(0.5, 0.5, 'Select one or more runs to display FRF curves', ha='center', va='center')
+            ax.axis('off')
+            self._render_figure_into_widget(self.rv_frf_plot, fig, include_toolbar=False)
+            return
+        fig = Figure(figsize=(7, 4))
+        ax = fig.add_subplot(111)
+        palette = sns.color_palette('tab10', n_colors=len(selected_items)) if len(selected_items) else [(0.2, 0.2, 0.2)]
+        plotted = 0
+        for color, item in zip(palette, selected_items):
+            try:
+                sample_idx = int(item.data(Qt.UserRole))
+            except Exception:
+                continue
+            curves = self.rv_frf_curves.get(sample_idx) if isinstance(self.rv_frf_curves, dict) else None
+            if not isinstance(curves, dict):
+                continue
+            mag = curves.get(mass_key)
+            if mag is None:
+                continue
+            try:
+                mag_arr = np.asarray(mag, dtype=float)
+            except Exception:
+                continue
+            if mag_arr.size != omega.size:
+                continue
+            run_id = item.data(Qt.UserRole + 1)
+            fitness_val = item.data(Qt.UserRole + 2)
+            pass_flag = bool(item.data(Qt.UserRole + 3))
+            if isinstance(run_id, (int, np.integer)):
+                label = f"Run {run_id:04d}"
+            else:
+                label = f"Sample {sample_idx}"
+            try:
+                fin = float(fitness_val)
+                if np.isfinite(fin):
+                    label += f" | f={fin:.6f}"
+            except Exception:
+                pass
+            if pass_flag:
+                label += ' ✓'
+            ax.plot(omega, mag_arr, color=color, linewidth=1.6, alpha=0.9, label=label, zorder=5)
+            plotted += 1
+        if plotted == 0:
+            fig = Figure(figsize=(5, 3))
+            ax = fig.add_subplot(111)
+            ax.text(0.5, 0.5, 'FRF curves unavailable for current selection', ha='center', va='center')
+            ax.axis('off')
+            self._render_figure_into_widget(self.rv_frf_plot, fig, include_toolbar=False)
+            return
+        # Overlay zones if requested
+        try:
+            if hasattr(self, 'rv_frf_use_zones_chk') and self.rv_frf_use_zones_chk.isChecked():
+                zones = getattr(self, 'zones', []) or []
+                for z in zones:
+                    try:
+                        x0 = float(z.get('start_x', np.nan))
+                        x1 = float(z.get('end_x', np.nan))
+                        if not (np.isfinite(x0) and np.isfinite(x1)):
+                            continue
+                        if x1 < x0:
+                            x0, x1 = x1, x0
+                        color = z.get('color', '#ffcc66')
+                        name = str(z.get('name', ''))
+                        ax.axvspan(x0, x1, facecolor=color, alpha=0.18, edgecolor=None, zorder=1)
+                        if name:
+                            ax.text((x0 + x1) / 2.0, 0.98, name, transform=ax.get_xaxis_transform(),
+                                    ha='center', va='top', fontsize=8,
+                                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.6))
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+        ax.set_title(f'FRF curves ({mass_key})')
+        ax.set_xlabel('Frequency (rad/s)')
+        ax.set_ylabel('Response magnitude')
+        ax.grid(True, linestyle='--', alpha=0.4)
+        try:
+            ax.set_xlim(float(np.nanmin(omega)), float(np.nanmax(omega)))
+        except Exception:
+            pass
+        try:
+            ax.legend(loc='best', fontsize=8)
+        except Exception:
+            pass
+        fig.tight_layout()
+        self._render_figure_into_widget(self.rv_frf_plot, fig)
+
+    def _rv_frf_add_zone(self):
+        """Add a new zone using the current FRF omega range for immediate visibility."""
+        try:
+            if not hasattr(self, 'zones'):
+                self.zones = []
+            # Determine omega range: prefer FRF omega, then UI settings
+            x0 = x1 = None
+            try:
+                omega = np.asarray(getattr(self, 'rv_frf_omega', None), dtype=float)
+                if omega.size >= 2:
+                    xmin = float(np.nanmin(omega))
+                    xmax = float(np.nanmax(omega))
+                    span = xmax - xmin
+                    if span > 0:
+                        x0 = xmin + 0.40 * span
+                        x1 = xmin + 0.60 * span
+            except Exception:
+                omega = None
+            if not (isinstance(x0, float) and isinstance(x1, float)):
+                try:
+                    _os = float(self.omega_start_box.value())
+                    _oe = float(self.omega_end_box.value())
+                    if _oe < _os:
+                        _os, _oe = _oe, _os
+                    span = _oe - _os
+                    if span <= 0:
+                        span = max(1.0, abs(_oe) + abs(_os))
+                    x0 = _os + 0.40 * span
+                    x1 = _os + 0.60 * span
+                except Exception:
+                    # Last resort
+                    x0, x1 = 0.0, 1.0
+            name = f"Zone {len(self.zones)+1}"
+            self.zones.append({'name': name, 'start_x': float(x0), 'end_x': float(x1), 'color': '#ffcc66'})
+        except Exception:
+            pass
+        # Sync both tables and redraw
+        try:
+            if hasattr(self, '_rv_kde_update_zone_table'):
+                self._rv_kde_update_zone_table()
+        except Exception:
+            pass
+        try:
+            self._update_zone_table()
+        except Exception:
+            pass
+        try:
+            self.update_random_validation_frf_plot()
+        except Exception:
+            pass
+
+    def _rv_frf_remove_zone(self):
+        """Remove selected zone from FRF zone table, sync everywhere."""
+        try:
+            row = self.rv_frf_zone_table.currentRow() if hasattr(self, 'rv_frf_zone_table') else -1
+            if row is None:
+                row = -1
+            if row >= 0 and hasattr(self, 'zones') and row < len(self.zones):
+                del self.zones[row]
+        except Exception:
+            pass
+        # Sync KDE table and redraw
+        try:
+            if hasattr(self, '_rv_kde_update_zone_table'):
+                self._rv_kde_update_zone_table()
+        except Exception:
+            pass
+        try:
+            self._update_zone_table()
+        except Exception:
+            pass
+        try:
+            self.update_random_validation_kde()
+        except Exception:
+            pass
+        try:
+            self.update_random_validation_frf_plot()
+        except Exception:
+            pass
+
+    def _rv_frf_clear_zones(self):
+        """Clear all zones from FRF view, sync both tables."""
+        try:
+            if hasattr(self, 'zones'):
+                self.zones.clear()
+            else:
+                self.zones = []
+        except Exception:
+            self.zones = []
+        try:
+            if hasattr(self, '_rv_kde_update_zone_table'):
+                self._rv_kde_update_zone_table()
+        except Exception:
+            pass
+        try:
+            self._update_zone_table()
+        except Exception:
+            pass
+        try:
+            self.update_random_validation_kde()
+        except Exception:
+            pass
+        try:
+            self.update_random_validation_frf_plot()
+        except Exception:
+            pass
+
+    # ----- FRF zones table sync (mirrors KDE zones table) -----
+    def _update_zone_table(self):
+        # Ensure zones list exists
+        if not hasattr(self, 'zones'):
+            self.zones = []
+        tbl = getattr(self, 'rv_frf_zone_table', None)
+        if tbl is None:
+            return
+        try:
+            tbl.blockSignals(True)
+            tbl.setRowCount(len(self.zones))
+            for r, zone in enumerate(self.zones):
+                # Name
+                name_item = QTableWidgetItem(str(zone.get('name', '')))
+                tbl.setItem(r, 0, name_item)
+                # Start X
+                start_item = QTableWidgetItem(f"{float(zone.get('start_x', 0.0)):.6g}")
+                tbl.setItem(r, 1, start_item)
+                # End X
+                end_item = QTableWidgetItem(f"{float(zone.get('end_x', 0.0)):.6g}")
+                tbl.setItem(r, 2, end_item)
+                # Color button
+                btn = QPushButton()
+                btn.setAutoFillBackground(True)
+                color = zone.get('color', '#cccccc')
+                btn.setStyleSheet(f"background-color: {color};")
+                btn.setFixedSize(40, 20)
+                def choose_color(row=r, button=btn):
+                    from PyQt5.QtWidgets import QColorDialog
+                    dlg = QColorDialog(self)
+                    if dlg.exec_():
+                        c = dlg.selectedColor()
+                        if c.isValid():
+                            self.zones[row]['color'] = c.name()
+                            button.setStyleSheet(f"background-color: {c.name()};")
+                            # Redraw FRF plot to reflect color change
+                            self.update_random_validation_frf_plot()
+                btn.clicked.connect(choose_color)
+                tbl.setCellWidget(r, 3, btn)
+        finally:
+            try:
+                tbl.blockSignals(False)
+            except Exception:
+                pass
 
     def update_random_validation_scatter(self):
         if self.rv_results_df is None or self.rv_results_df.empty:
@@ -2585,6 +3986,7 @@ class GAOptimizationMixin:
             df = self.rv_results_df.copy()
             df['pass'] = df['fitness'].apply(lambda v: bool(np.isfinite(v) and v <= tol))
             self.rv_results_df = df
+            self._rv_frf_populate_run_list(df, preserve_selection=True)
             # Update success bar and summary header only
             pct = float(100.0 * df['pass'].mean()) if len(df) else 0.0
             self.rv_success_bar.setValue(int(round(pct)))
@@ -2634,8 +4036,296 @@ class GAOptimizationMixin:
             self._render_figure_into_widget(self.rv_comp_plot, fig2)
             # Scatter plot refresh
             self.update_random_validation_scatter()
+            # KDE of peak positions
+            self.update_random_validation_kde()
         except Exception as _:
             pass
+
+    def update_random_validation_kde(self):
+        """Build/refresh the KDE + histogram of FRF peak positions across RV runs."""
+        try:
+            if getattr(self, 'rv_results_df', None) is None or self.rv_results_df.empty:
+                return
+
+            import numpy as np
+            import seaborn as sns
+            from matplotlib.figure import Figure
+            from scipy import stats
+
+            df = self.rv_results_df
+
+            # Decide which masses to include
+            sel = getattr(self, 'rv_kde_mass_combo', None)
+            selected_mass = sel.currentText() if sel is not None else 'All Masses'
+
+            def collect_all_positions(row, masses):
+                vals = []
+                for m in masses:
+                    col = f'peaks_{m}'
+                    try:
+                        peaks = row.get(col, []) if hasattr(row, 'get') else (row[col] if col in row else [])
+                    except Exception:
+                        peaks = []
+                    if not isinstance(peaks, list):
+                        peaks = []
+                    # Ensure numeric
+                    for p in peaks:
+                        try:
+                            pf = float(p)
+                            if np.isfinite(pf):
+                                vals.append(pf)
+                        except Exception:
+                            pass
+                return vals
+
+            # Build the list of peak positions across all runs based on controls
+            masses = []
+            if selected_mass == 'All Masses':
+                masses = [f'mass_{i}' for i in range(1, 6)]
+            elif selected_mass.startswith('mass_'):
+                masses = [selected_mass]
+            else:
+                masses = [f'mass_{i}' for i in range(1, 6)]
+
+            peak_mode = getattr(self, 'rv_kde_peak_mode_combo', None)
+            mode_text = peak_mode.currentText() if peak_mode is not None else 'Top 1'
+
+            positions = []
+            # Iterate rows: each row has lists per mass for positions and values
+            for _, r in df.iterrows():
+                if mode_text == 'All peaks':
+                    positions.extend(collect_all_positions(r, masses))
+                else:
+                    # Build pairs (value, pos) per mass to pick top-N by amplitude
+                    per_run = []
+                    for m in masses:
+                        pcol = f'peaks_{m}'
+                        vcol = f'peakvals_{m}'
+                        # Use Series.get for safety
+                        plist = r.get(pcol, []) if hasattr(r, 'get') else (r[pcol] if pcol in r else [])
+                        vlist = r.get(vcol, []) if hasattr(r, 'get') else (r[vcol] if vcol in r else [])
+                        if not isinstance(plist, list):
+                            plist = []
+                        if not isinstance(vlist, list):
+                            vlist = []
+                        if isinstance(plist, list) and isinstance(vlist, list) and len(plist) == len(vlist):
+                            for pos, val in zip(plist, vlist):
+                                try:
+                                    posf = float(pos)
+                                    valf = float(val)
+                                    if np.isfinite(posf) and np.isfinite(valf):
+                                        per_run.append((valf, posf))
+                                except Exception:
+                                    pass
+                    if per_run:
+                        per_run.sort(key=lambda t: t[0], reverse=True)
+                        take = 1 if mode_text == 'Top 1' else 2 if mode_text == 'Top 2' else 3
+                        positions.extend([p for _v, p in per_run[:take]])
+
+            positions = [p for p in positions if isinstance(p, (int, float)) and np.isfinite(p)]
+            if len(positions) < 2:
+                # Render a simple message
+                msg_fig = Figure(figsize=(6, 3))
+                axm = msg_fig.add_subplot(111)
+                axm.text(0.5, 0.5, 'Not enough peak data to render KDE', ha='center', va='center')
+                axm.axis('off')
+                self._render_figure_into_widget(self.rv_kde_plot, msg_fig, include_toolbar=False)
+                return
+
+            # Build figure
+            fig = Figure(figsize=(8, 4))
+            ax = fig.add_subplot(111)
+
+            # Histogram density
+            try:
+                sns.histplot(positions, bins=max(10, int(self.rv_bins_box.value())), stat='density', alpha=0.5,
+                             color='steelblue', edgecolor='navy', ax=ax)
+            except Exception:
+                pass
+
+            # KDE curve and peak annotations
+            try:
+                kde = stats.gaussian_kde(positions)
+                xmin = float(min(positions))
+                xmax = float(max(positions))
+                xgrid = np.linspace(xmin, xmax, 512)
+                y = kde(xgrid)
+                ax.plot(xgrid, y, color='purple', linewidth=2.0, label='KDE')
+
+                # Detect local maxima on KDE for annotations
+                peaks_idx = []
+                if len(y) >= 3:
+                    for i in range(1, len(y) - 1):
+                        if y[i] > y[i - 1] and y[i] > y[i + 1]:
+                            peaks_idx.append(i)
+                # Sort peaks by prominence (y value)
+                peaks_idx = sorted(peaks_idx, key=lambda i: y[i], reverse=True)[:5]
+                for i in peaks_idx:
+                    px = xgrid[i]
+                    py = y[i]
+                    ax.axvline(px, color='magenta', linestyle='--', alpha=0.6)
+                    ax.text(px, py, f"{px:.3f}", rotation=90, va='bottom', ha='right', fontsize=8,
+                            bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
+            except Exception:
+                pass
+
+            # Overlay FRF zones if requested and available
+            try:
+                if self.rv_kde_use_zones_chk.isChecked() and hasattr(self, '_add_zone_highlights'):
+                    self._add_zone_highlights(ax)
+            except Exception:
+                pass
+
+            title_mass = selected_mass if selected_mass != 'All Masses' else 'All Masses'
+            ax.set_title(f'Peak Position Density ({title_mass})')
+            ax.set_xlabel('Frequency (rad/s) of peaks')
+            ax.set_ylabel('Density')
+            ax.grid(True, alpha=0.3, linestyle='--')
+
+            fig.tight_layout()
+            self._render_figure_into_widget(self.rv_kde_plot, fig)
+            # Keep the KDE zones table in sync with current zones list
+            try:
+                self._rv_kde_update_zone_table()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    # ----- KDE zone management helpers -----
+    def _rv_kde_update_zone_table(self):
+        # Ensure zones list exists
+        if not hasattr(self, 'zones'):
+            self.zones = []
+        self._rv_kde_updating_table = True
+        try:
+            tbl = self.rv_kde_zone_table
+            tbl.setRowCount(len(self.zones))
+            for r, zone in enumerate(self.zones):
+                # Name
+                name_item = QTableWidgetItem(str(zone.get('name', '')))
+                tbl.setItem(r, 0, name_item)
+                # Start X
+                start_item = QTableWidgetItem(f"{float(zone.get('start_x', 0.0)):.6g}")
+                tbl.setItem(r, 1, start_item)
+                # End X
+                end_item = QTableWidgetItem(f"{float(zone.get('end_x', 0.0)):.6g}")
+                tbl.setItem(r, 2, end_item)
+                # Color button
+                btn = QPushButton()
+                btn.setAutoFillBackground(True)
+                color = zone.get('color', '#cccccc')
+                btn.setStyleSheet(f"background-color: {color};")
+                btn.setFixedSize(40, 20)
+                def choose_color(row=r, button=btn):
+                    from PyQt5.QtWidgets import QColorDialog
+                    dlg = QColorDialog(self)
+                    if dlg.exec_():
+                        c = dlg.selectedColor()
+                        if c.isValid():
+                            self.zones[row]['color'] = c.name()
+                            button.setStyleSheet(f"background-color: {c.name()};")
+                            # Update FRF table too if present
+                            try:
+                                if hasattr(self, '_update_zone_table'):
+                                    self._update_zone_table()
+                            except Exception:
+                                pass
+                            # Redraw KDE
+                            self.update_random_validation_kde()
+                btn.clicked.connect(choose_color)
+                tbl.setCellWidget(r, 3, btn)
+        finally:
+            self._rv_kde_updating_table = False
+
+    def _rv_kde_on_zone_cell_changed(self, item):
+        if self._rv_kde_updating_table:
+            return
+        try:
+            row = item.row()
+            col = item.column()
+            if row < 0 or row >= len(getattr(self, 'zones', [])):
+                return
+            zone = self.zones[row]
+            text = item.text().strip()
+            if col == 0:
+                zone['name'] = text
+            elif col == 1:
+                try:
+                    zone['start_x'] = float(text)
+                except Exception:
+                    pass
+            elif col == 2:
+                try:
+                    zone['end_x'] = float(text)
+                except Exception:
+                    pass
+            # Keep FRF table in sync if available
+            try:
+                if hasattr(self, '_update_zone_table'):
+                    self._update_zone_table()
+            except Exception:
+                pass
+            # Redraw plots for visual feedback in both tabs
+            try:
+                self.update_random_validation_kde()
+            except Exception:
+                pass
+            try:
+                self.update_random_validation_frf_plot()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _rv_kde_add_zone(self):
+        # Use FRF dialog if available; else create a simple default zone
+        try:
+            if hasattr(self, 'add_zone'):
+                self.add_zone()
+            else:
+                if not hasattr(self, 'zones'):
+                    self.zones = []
+                self.zones.append({'name': 'Zone', 'start_x': 0.0, 'end_x': 1.0, 'color': '#ffcc00'})
+        except Exception:
+            pass
+        # Sync both tables
+        try:
+            if hasattr(self, '_update_zone_table'):
+                self._update_zone_table()
+        except Exception:
+            pass
+        self._rv_kde_update_zone_table()
+        self.update_random_validation_kde()
+
+    def _rv_kde_remove_zone(self):
+        try:
+            current_row = self.rv_kde_zone_table.currentRow()
+            if current_row >= 0 and hasattr(self, 'zones') and current_row < len(self.zones):
+                del self.zones[current_row]
+        except Exception:
+            pass
+        try:
+            if hasattr(self, '_update_zone_table'):
+                self._update_zone_table()
+        except Exception:
+            pass
+        self._rv_kde_update_zone_table()
+        self.update_random_validation_kde()
+
+    def _rv_kde_clear_zones(self):
+        try:
+            if hasattr(self, 'zones'):
+                self.zones.clear()
+        except Exception:
+            self.zones = []
+        try:
+            if hasattr(self, '_update_zone_table'):
+                self._update_zone_table()
+        except Exception:
+            pass
+        self._rv_kde_update_zone_table()
+        self.update_random_validation_kde()
     def toggle_ga_fixed(self, state, row, table=None):
         """Toggle the fixed state of a GA parameter row"""
         if table is None:
@@ -10889,6 +12579,11 @@ All parameters remain constant during optimization.''',
     def _build_comprehensive_group_summary(self, df):
         """Build comprehensive visualizations for the Group Summary tab with separate subtabs"""
         try:
+            # Remember latest df for auxiliary handlers that may need it later
+            try:
+                self._last_group_summary_df = df.copy() if hasattr(df, 'copy') else df
+            except Exception:
+                self._last_group_summary_df = df
             # Clear existing content
             if hasattr(self, 'group_summary_container') and self.group_summary_container.layout():
                 layout = self.group_summary_container.layout()
@@ -11653,6 +13348,17 @@ All parameters remain constant during optimization.''',
             
             plot_tabs.addTab(stats_tab, "📋 Statistics Table")
             
+            # 13. FRF Overlay Tab
+            try:
+                self._build_group_frf_overlay_tab(plot_tabs, df)
+            except Exception as _e_frf:
+                try:
+                    info = QLabel(f"FRF Overlay unavailable: {str(_e_frf)}")
+                    info.setStyleSheet("color: orange; padding: 6px;")
+                    self.group_summary_container.layout().addWidget(info)
+                except Exception:
+                    pass
+
         except Exception as e:
             print(f"Error building comprehensive group summary: {str(e)}")
             # Add error message to the container
@@ -11700,7 +13406,6 @@ All parameters remain constant during optimization.''',
                 
         except Exception as e:
             print(f"Error exporting table: {str(e)}")
-
 
 
 

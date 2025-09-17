@@ -292,6 +292,43 @@ def safe_deap_operation(func):
 # -----------------------------------------------------------------------------------------------
 
 
+# -----------------------------------------------------------------------------------------------
+
+
+def build_random_validation_payload(df, omega_vector, frf_curves):
+    """Bundle random validation results, frequency vector, and FRF curves."""
+    payload = {
+        "dataframe": df,
+        "omega_vector": None,
+        "frf_curves": {}
+    }
+
+    try:
+        if omega_vector is not None:
+            payload["omega_vector"] = np.asarray(omega_vector, dtype=float)
+    except Exception:
+        payload["omega_vector"] = None
+
+    safe_curves = {}
+    if isinstance(frf_curves, dict):
+        for key, curves in frf_curves.items():
+            try:
+                idx = int(key)
+            except Exception:
+                continue
+            if not isinstance(curves, dict):
+                continue
+            mass_map = {}
+            for mass_key, magnitudes in curves.items():
+                try:
+                    mass_map[str(mass_key)] = np.asarray(magnitudes, dtype=float)
+                except Exception:
+                    continue
+            safe_curves[idx] = mass_map
+    payload["frf_curves"] = safe_curves
+    return payload
+
+
 class GAWorker(QThread):
     """Background worker thread that executes the Genetic Algorithm (GA).
 
