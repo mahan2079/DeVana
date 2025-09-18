@@ -344,6 +344,54 @@ class GAWorker(QThread):
     benchmark_data = pyqtSignal(dict)
     generation_metrics = pyqtSignal(dict)
 
+    # ----------------------------- Helpers ---------------------------------
+    def _attach_frf_peak_positions(self, results_dict):
+        """Compute and attach FRF peak positions/magnitudes for each mass to results_dict.
+
+        Adds keys like 'peaks_mass_1' and 'peakvals_mass_1' if magnitude data is present.
+        Safe no-op on error.
+        """
+        try:
+            import numpy as np
+            from scipy.signal import find_peaks
+
+            try:
+                omega = np.linspace(float(self.omega_start), float(self.omega_end), int(self.omega_points))
+            except Exception:
+                return
+
+            for mi in range(1, 6):
+                mkey = f'mass_{mi}'
+                rec = results_dict.get(mkey, {}) if isinstance(results_dict, dict) else {}
+                try:
+                    mag = np.asarray(rec.get('magnitude', []), dtype=float)
+                except Exception:
+                    mag = np.array([], dtype=float)
+                if mag.size < 5 or omega.size != mag.size:
+                    continue
+                # Heuristic parameters
+                yspan = float(np.nanmax(mag) - np.nanmin(mag)) if mag.size else 0.0
+                prominence = max(1e-12, 0.05 * yspan)
+                distance = max(1, mag.size // 100)
+                try:
+                    peaks, _ = find_peaks(mag, prominence=prominence, distance=distance)
+                except Exception:
+                    peaks = []
+                if isinstance(peaks, (list, tuple, np.ndarray)) and len(peaks) > 0:
+                    try:
+                        pos = [float(omega[int(i)]) for i in peaks if 0 <= int(i) < omega.size]
+                        vals = [float(mag[int(i)]) for i in peaks if 0 <= int(i) < mag.size]
+                        # Only attach if finite
+                        pos = [p for p in pos if np.isfinite(p)]
+                        vals = [v for v in vals if np.isfinite(v)]
+                        if pos and vals and len(pos) == len(vals):
+                            results_dict[f'peaks_{mkey}'] = pos
+                            results_dict[f'peakvals_{mkey}'] = vals
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     # ---------------------------------------------------------------------------
     # Python Concepts to Understand Here:
     # - Classes and Inheritance: GAWorker is a class that inherits from QThread,
@@ -3505,12 +3553,18 @@ class GAWorker(QThread):
                         show_peaks=False,
                         show_slopes=False
                     )
-                    
+
                     # Make sure we have a singular response value
                     if 'singular_response' not in final_results and 'composite_measures' in final_results:
                         composite_measures = final_results['composite_measures']
                         final_results['singular_response'] = sum(composite_measures.values())
                         self.update.emit("Calculated missing singular response from composite measures")
+
+                    # Attach peak positions per mass (for downstream KDE/analytics)
+                    try:
+                        self._attach_frf_peak_positions(final_results)
+                    except Exception:
+                        pass
                     
                     # Add benchmark metrics to final results if tracking was enabled
                     if self.track_metrics:

@@ -698,6 +698,69 @@ class GAOptimizationMixin:
             except Exception:
                 continue
 
+        # --- KDE overlay of peak positions across the plotted FRFs ---
+        try:
+            from scipy.signal import find_peaks
+            from scipy import stats as _stats
+            peak_positions = []
+
+            # Collect peaks from each non-baseline plotted run for current mass
+            for rn in self._frf_selected_runs:
+                if int(rn) == 0:
+                    continue
+                rec = by_run.get(int(rn), None)
+                if not rec:
+                    continue
+                fetched = self._get_frf_mag_for_run_and_mass(rec, mass_key)
+                if not fetched:
+                    continue
+                omega, mag = fetched
+                if not isinstance(omega, np.ndarray):
+                    omega = np.asarray(omega, dtype=float)
+                if not isinstance(mag, np.ndarray):
+                    mag = np.asarray(mag, dtype=float)
+                if omega.size < 5 or mag.size != omega.size:
+                    continue
+                # Heuristic peak detection parameters
+                yspan = float(np.nanmax(mag) - np.nanmin(mag)) if mag.size else 0.0
+                prominence = max(1e-12, 0.05 * yspan)
+                distance = max(1, mag.size // 100)
+                try:
+                    peaks, _ = find_peaks(mag, prominence=prominence, distance=distance)
+                except Exception:
+                    peaks = []
+                if isinstance(peaks, (list, tuple, np.ndarray)) and len(peaks) > 0:
+                    # Keep only finite frequency positions
+                    for idx in peaks:
+                        try:
+                            x = float(omega[int(idx)])
+                            if np.isfinite(x):
+                                peak_positions.append(x)
+                        except Exception:
+                            pass
+
+            # Draw KDE band near the top if we have enough data
+            if len(peak_positions) >= 3:
+                xlim = ax.get_xlim()
+                ylim = ax.get_ylim()
+                xgrid = np.linspace(min(xlim[0], min(peak_positions)), max(xlim[1], max(peak_positions)), 512)
+                kde = _stats.gaussian_kde(np.asarray(peak_positions, dtype=float))
+                ydens = kde(xgrid)
+                if np.all(np.isfinite(ydens)) and np.nanmax(ydens) > 0:
+                    # Scale density into a slim band near the top of current y-range
+                    y0 = ylim[0] + 0.86 * (ylim[1] - ylim[0])
+                    h = 0.12 * (ylim[1] - ylim[0])
+                    yscaled = y0 + (ydens / float(np.nanmax(ydens))) * h
+                    # Subtle pale-yellow underlay with a contrasting line
+                    ax.fill_between(xgrid, y0, yscaled, color='#fff9a5', alpha=0.35, zorder=1, linewidth=0)
+                    ax.plot(xgrid, yscaled, color='#b39b00', linewidth=2.0, alpha=0.85, label='Peak KDE', zorder=2)
+                    # Preserve original limits
+                    ax.set_xlim(xlim)
+                    ax.set_ylim(ylim)
+        except Exception:
+            # Silently ignore KDE errors to avoid breaking main plot
+            pass
+
         ax.set_xlabel('Frequency (rad/s)')
         ax.set_ylabel('Amplitude')
         ax.set_title(f'FRF Overlay across Runs as {mass_key}')
