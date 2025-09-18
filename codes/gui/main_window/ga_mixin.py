@@ -739,7 +739,7 @@ class GAOptimizationMixin:
                         except Exception:
                             pass
 
-            # Draw KDE band near the top if we have enough data
+            # Draw KDE band anchored at y=0 (overlapping FRFs) if we have enough data
             if len(peak_positions) >= 3:
                 xlim = ax.get_xlim()
                 ylim = ax.get_ylim()
@@ -747,16 +747,18 @@ class GAOptimizationMixin:
                 kde = _stats.gaussian_kde(np.asarray(peak_positions, dtype=float))
                 ydens = kde(xgrid)
                 if np.all(np.isfinite(ydens)) and np.nanmax(ydens) > 0:
-                    # Scale density into a slim band near the top of current y-range
-                    y0 = ylim[0] + 0.86 * (ylim[1] - ylim[0])
-                    h = 0.12 * (ylim[1] - ylim[0])
+                    # Scale density into a slim band above y=0 (baseline)
+                    y0 = 0.0
+                    h = 0.08 * (ylim[1] - ylim[0])
+                    if h <= 0:
+                        h = 1.0
                     yscaled = y0 + (ydens / float(np.nanmax(ydens))) * h
                     # Subtle pale-yellow underlay with a contrasting line
                     ax.fill_between(xgrid, y0, yscaled, color='#fff9a5', alpha=0.35, zorder=1, linewidth=0)
                     ax.plot(xgrid, yscaled, color='#b39b00', linewidth=2.0, alpha=0.85, label='Peak KDE', zorder=2)
-                    # Preserve original limits
+                    # Preserve original x-limits and ensure y=0 is visible
                     ax.set_xlim(xlim)
-                    ax.set_ylim(ylim)
+                    ax.set_ylim(min(ylim[0], 0.0), ylim[1])
         except Exception:
             # Silently ignore KDE errors to avoid breaking main plot
             pass
