@@ -698,19 +698,50 @@ class GAOptimizationMixin:
             except Exception:
                 continue
 
-        # --- KDE overlay of peak positions across the plotted FRFs ---
+        # --- KDE overlay of peak positions (use ALL runs available in df) ---
+        kde_drawn = False
         try:
             from scipy.signal import find_peaks
             from scipy import stats as _stats
             peak_positions = []
 
-            # Collect peaks from each non-baseline plotted run for current mass
-            for rn in self._frf_selected_runs:
-                if int(rn) == 0:
-                    continue
+            # Collect peaks from every run in the DataFrame (excluding baseline 0 if present)
+            try:
+                all_runs = []
+                try:
+                    all_runs = [int(r) for r in df.get('run_number', []) if int(r) != 0]
+                except Exception:
+                    pass
+                if not all_runs and hasattr(self, '_frf_selected_runs'):
+                    # Fallback to selected runs if df lacks run_number
+                    all_runs = [int(r) for r in self._frf_selected_runs if int(r) != 0]
+                # Ensure uniqueness
+                all_runs = sorted({int(r) for r in all_runs})
+            except Exception:
+                all_runs = []
+
+            for rn in all_runs:
                 rec = by_run.get(int(rn), None)
                 if not rec:
                     continue
+                # Prefer precomputed peaks if present in df
+                peaks_col = f"peaks_{mass_key}"
+                precomp = None
+                try:
+                    # Find row matching rn
+                    # df may have multiple rows; pick first match
+                    rows = df.index[df['run_number'] == rn]
+                    if len(rows) > 0 and peaks_col in df.columns:
+                        pc = df.at[rows[0], peaks_col]
+                        if isinstance(pc, list) and pc:
+                            precomp = [float(p) for p in pc if np.isfinite(p)]
+                except Exception:
+                    precomp = None
+                if precomp:
+                    peak_positions.extend(precomp)
+                    continue
+
+                # Otherwise compute from FRF curve
                 fetched = self._get_frf_mag_for_run_and_mass(rec, mass_key)
                 if not fetched:
                     continue
@@ -759,6 +790,7 @@ class GAOptimizationMixin:
                     # Preserve original x-limits and ensure y=0 is visible
                     ax.set_xlim(xlim)
                     ax.set_ylim(min(ylim[0], 0.0), ylim[1])
+                    kde_drawn = True
         except Exception:
             # Silently ignore KDE errors to avoid breaking main plot
             pass
@@ -769,7 +801,7 @@ class GAOptimizationMixin:
         ax.grid(True, linestyle='--', alpha=0.5)
         if self.frf_show_legend_chk.isChecked() and plotted > 0:
             ax.legend(loc='best', ncol=1, fontsize=9, frameon=True)
-        if plotted == 0:
+        if plotted == 0 and not kde_drawn:
             msg = 'No runs plotted. Adjust Top-K or add runs.'
             try:
                 if getattr(self, '_frf_last_error', None):
