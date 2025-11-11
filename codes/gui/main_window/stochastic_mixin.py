@@ -66,6 +66,10 @@ class StochasticDesignMixin:
         if hasattr(self, 'create_rl_tab'):
             self.create_rl_tab()
         
+        # New: Create NSGA-II and AdaVEA tabs using their mixin methods
+        self.nsga2_tab = self.create_nsga2_tab()
+        self.adavea_tab = self.create_adavea_tab()
+
         # Don't create DE tab here - it will be created by integrate_de_functionality method
         # if DEOptimizationMixin is available
         
@@ -101,11 +105,11 @@ class StochasticDesignMixin:
         self.optimization_tabs.addTab(self.de_tab, "DE Optimization (Placeholder)")
 
         # New: Create Multi-Objective Optimizations tab and its sub-tabs
-        moo_ga_placeholder_tab = QTabWidget() # Use QTabWidget for sub-tabs
-        moo_ga_placeholder_tab.addTab(QWidget(), "NSGA-II")
-        moo_ga_placeholder_tab.addTab(QWidget(), "AdaVEA")
+        self.moo_ga_tabs = QTabWidget() # Renamed from moo_ga_placeholder_tab
+        self.moo_ga_tabs.addTab(self.nsga2_tab, "NSGA-II")
+        self.moo_ga_tabs.addTab(self.adavea_tab, "AdaVEA")
         
-        self.moo_optimization_tabs.addTab(moo_ga_placeholder_tab, "MOO-GA")
+        self.moo_optimization_tabs.addTab(self.moo_ga_tabs, "MOO-GA")
 
         # Add main tab groups to design tabs
         self.design_tabs.addTab(self.input_tabs, "Input")

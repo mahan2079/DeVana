@@ -55,6 +55,8 @@ from gui.main_window.sidebar_mixin import SidebarMixin
 from gui.main_window.stochastic_mixin import StochasticDesignMixin
 from gui.main_window.sobol_mixin import SobolAnalysisMixin
 from gui.main_window.omega_sensitivity_mixin import OmegaSensitivityMixin
+from gui.main_window.nsga2_mixin import NSGA2OptimizationMixin # New import
+from gui.main_window.adavea_mixin import AdaVEAOptimizationMixin # New import
 
 from app_info import APP_NAME, __version__
 
@@ -80,7 +82,8 @@ except ImportError:
 class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin,
                  ThemeMixin, FRFMixin, PSOMixin, GAOptimizationMixin,
                  InputTabsMixin, ExtraOptimizationMixin,
-                 SidebarMixin, StochasticDesignMixin, SobolAnalysisMixin, OmegaSensitivityMixin):
+                 SidebarMixin, StochasticDesignMixin, SobolAnalysisMixin, OmegaSensitivityMixin,
+                 NSGA2OptimizationMixin, AdaVEAOptimizationMixin): # Added new mixins
     # Track all open MainWindow instances for Playground tiling/management
     playground_windows = []
     def __init__(self):
