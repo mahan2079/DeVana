@@ -1,23 +1,21 @@
-import numpy as np
-import random
-import time
-import psutil
-import json
-import os
-from collections import defaultdict
+from PyQt5.QtCore import QObject, pyqtSignal
 
 from deap import base, creator, tools, algorithms
 
 # Assuming FRF function is available in modules.FRF
 from modules.FRF import frf
 
-class NSGA2Worker:
+class NSGA2Worker(QObject):
+    progress = pyqtSignal(int, int, int, dict) # run_idx, current_gen, total_gens, metrics
+    finished = pyqtSignal(list) # all_runs_data
+    error = pyqtSignal(str) # error_message
+
     def __init__(self, main_system_parameters, dva_parameters, target_values_weights,
                  omega_start, omega_end, omega_points,
                  pop_size, generations, cxpb, mutpb, eta_c, eta_m,
                  num_runs, random_seed, convergence_epsilon, convergence_window, convergence_min_gen,
-                 hv_ref_point,
-                 progress_callback=None, finished_callback=None, error_callback=None):
+                 hv_ref_point):
+        super().__init__()
         
         self.main_system_parameters = main_system_parameters
         self.dva_parameters = dva_parameters
@@ -39,10 +37,6 @@ class NSGA2Worker:
         self.convergence_window = convergence_window
         self.convergence_min_gen = convergence_min_gen
         self.hv_ref_point = hv_ref_point
-
-        self.progress_callback = progress_callback
-        self.finished_callback = finished_callback
-        self.error_callback = error_callback
         
         self.is_running = False
         self.is_paused = False
@@ -115,7 +109,7 @@ class NSGA2Worker:
                     max_frf_magnitude = max(max_frf_magnitude, np.max(frf_results[mass_key]['magnitude']))
             f1 = max_frf_magnitude
         except Exception as e:
-            print(f"Error during FRF calculation: {e}")
+            self.error.emit(f"Error during FRF calculation: {e}")
             f1 = 1e9 # Assign a very high penalty for failed FRF calculation
 
         # Objective 2: Sparsity (alpha * N_active + beta * sum(|x_i|))
@@ -249,8 +243,7 @@ class NSGA2Worker:
                 logbook.record(gen=gen, evals=len(invalid_ind), **record)
                 generation_metrics.append(logbook.chapters["gen"].current)
 
-                if self.progress_callback:
-                    self.progress_callback(run_idx, gen, self.generations, logbook.chapters["gen"].current)
+                self.progress.emit(run_idx, gen, self.generations, logbook.chapters["gen"].current)
                 
                 # Check for convergence (placeholder logic)
                 if gen > self.convergence_min_gen and gen % self.convergence_window == 0:
@@ -287,8 +280,7 @@ class NSGA2Worker:
             all_runs_data.append(run_results)
 
         self.is_running = False
-        if self.finished_callback:
-            self.finished_callback(all_runs_data)
+        self.finished.emit(all_runs_data)
 
     def pause(self):
         self.is_paused = True

@@ -323,12 +323,12 @@ class NSGA2OptimizationMixin:
             convergence_epsilon=convergence_epsilon,
             convergence_window=convergence_window,
             convergence_min_gen=convergence_min_gen,
-            hv_ref_point=hv_ref_point,
-            progress_callback=self.update_nsga2_progress,
-            finished_callback=self.nsga2_finished,
-            error_callback=self.nsga2_error
+            hv_ref_point=hv_ref_point
         )
         self.nsga2_worker.moveToThread(self.nsga2_worker_thread)
+        self.nsga2_worker.progress.connect(self.update_nsga2_progress)
+        self.nsga2_worker.finished.connect(self.nsga2_finished)
+        self.nsga2_worker.error.connect(self.nsga2_error)
         self.nsga2_worker_thread.started.connect(self.nsga2_worker.run)
         self.nsga2_worker_thread.start()
 
