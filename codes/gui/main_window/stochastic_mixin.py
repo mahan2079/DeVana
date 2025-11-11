@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSplitter, QFrame, QPushButton,
     QTextEdit, QComboBox, QSizePolicy, QMessageBox, QGroupBox, QFormLayout, QSpinBox,
-    QDoubleSpinBox
+    QDoubleSpinBox, QTabWidget
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor, QPalette
