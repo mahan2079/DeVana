@@ -50,6 +50,7 @@ class StochasticDesignMixin:
         self.input_tabs = ModernQTabWidget()
         self.sensitivity_tabs = ModernQTabWidget()
         self.optimization_tabs = ModernQTabWidget()
+        self.moo_optimization_tabs = ModernQTabWidget() # New: Multi-Objective Optimizations tab widget
 
         # Create all tabs
         self.create_main_system_tab()
@@ -99,10 +100,18 @@ class StochasticDesignMixin:
         # Use a different tab text to identify this as a placeholder
         self.optimization_tabs.addTab(self.de_tab, "DE Optimization (Placeholder)")
 
+        # New: Create Multi-Objective Optimizations tab and its sub-tabs
+        moo_ga_placeholder_tab = QTabWidget() # Use QTabWidget for sub-tabs
+        moo_ga_placeholder_tab.addTab(QWidget(), "NSGA-II")
+        moo_ga_placeholder_tab.addTab(QWidget(), "AdaVEA")
+        
+        self.moo_optimization_tabs.addTab(moo_ga_placeholder_tab, "MOO-GA")
+
         # Add main tab groups to design tabs
         self.design_tabs.addTab(self.input_tabs, "Input")
         self.design_tabs.addTab(self.sensitivity_tabs, "Sensitivity Analysis")
         self.design_tabs.addTab(self.optimization_tabs, "Optimization")
+        self.design_tabs.addTab(self.moo_optimization_tabs, "Multi-Objective Optimizations") # New tab
         
         # Set the default tab to Input (index 0)
         self.design_tabs.setCurrentIndex(0)
@@ -163,6 +172,13 @@ class StochasticDesignMixin:
         self.run_cmaes_button.clicked.connect(self.run_cmaes)
         self.run_cmaes_button.setVisible(False)
 
+        # New: Run MOO-GA button
+        self.run_moo_ga_button = QPushButton("Run MOO-GA")
+        self.run_moo_ga_button.setObjectName("primary-button")
+        self.run_moo_ga_button.setMinimumHeight(40)
+        self.run_moo_ga_button.clicked.connect(self.run_moo_ga)
+        self.run_moo_ga_button.setVisible(False)
+
         run_buttons_layout.addWidget(self.run_frf_button)
         run_buttons_layout.addWidget(self.run_sobol_button)
         run_buttons_layout.addWidget(self.run_ga_button)
@@ -170,6 +186,7 @@ class StochasticDesignMixin:
         run_buttons_layout.addWidget(self.run_de_button)
         run_buttons_layout.addWidget(self.run_sa_button)
         run_buttons_layout.addWidget(self.run_cmaes_button)
+        run_buttons_layout.addWidget(self.run_moo_ga_button) # Add new button
 
         run_card_layout.addLayout(run_buttons_layout)
         run_card.setVisible(False)
@@ -477,4 +494,21 @@ class StochasticDesignMixin:
         QMessageBox.information(
             self, "Not Implemented", 
             "The DE optimization functionality is not fully implemented yet."
+        )
+
+    def run_moo_ga(self):
+        """Run the Multi-Objective Optimization Genetic Algorithm (MOO-GA)"""
+        try:
+            # Switch to the Multi-Objective Optimizations tab
+            moo_opt_tab_idx = self.design_tabs.indexOf(self.moo_optimization_tabs)
+            self.design_tabs.setCurrentIndex(moo_opt_tab_idx)
+            
+            # Switch to the MOO-GA sub-tab (which is the first tab in moo_optimization_tabs)
+            self.moo_optimization_tabs.setCurrentIndex(0)
+        except Exception:
+            pass
+            
+        QMessageBox.information(
+            self, "Not Implemented", 
+            "The Multi-Objective Optimization Genetic Algorithm (MOO-GA) functionality is not yet implemented."
         )
