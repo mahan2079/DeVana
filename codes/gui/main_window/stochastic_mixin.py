@@ -181,7 +181,7 @@ class StochasticDesignMixin:
         self.run_moo_ga_button.setObjectName("primary-button")
         self.run_moo_ga_button.setMinimumHeight(40)
         self.run_moo_ga_button.clicked.connect(self.run_moo_ga)
-        self.run_moo_ga_button.setVisible(False)
+        self.run_moo_ga_button.setVisible(True) # Make the button visible
 
         run_buttons_layout.addWidget(self.run_frf_button)
         run_buttons_layout.addWidget(self.run_sobol_button)
@@ -508,11 +508,21 @@ class StochasticDesignMixin:
             self.design_tabs.setCurrentIndex(moo_opt_tab_idx)
             
             # Switch to the MOO-GA sub-tab (which is the first tab in moo_optimization_tabs)
-            self.moo_optimization_tabs.setCurrentIndex(0)
-        except Exception:
-            pass
+            self.moo_optimization_tabs.setCurrentIndex(0) # Assuming MOO-GA is the first tab
             
-        QMessageBox.information(
-            self, "Not Implemented", 
-            "The Multi-Objective Optimization Genetic Algorithm (MOO-GA) functionality is not yet implemented."
-        )
+            # Now, check which sub-tab within MOO-GA is active and call its run method
+            current_moo_ga_tab_index = self.moo_ga_tabs.currentIndex()
+            current_moo_ga_tab_text = self.moo_ga_tabs.tabText(current_moo_ga_tab_index)
+
+            if current_moo_ga_tab_text == "NSGA-II":
+                if hasattr(self, 'run_nsga2'):
+                    self.run_nsga2()
+                else:
+                    QMessageBox.information(self, "Not Implemented", "NSGA-II run method not found.")
+            elif current_moo_ga_tab_text == "AdaVEA":
+                QMessageBox.information(self, "Not Implemented", "AdaVEA optimization is not yet implemented.")
+            else:
+                QMessageBox.information(self, "Not Implemented", f"{current_moo_ga_tab_text} optimization is not yet implemented.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to run MOO-GA: {str(e)}")
