@@ -520,7 +520,10 @@ class StochasticDesignMixin:
                 else:
                     QMessageBox.information(self, "Not Implemented", "NSGA-II run method not found.")
             elif current_moo_ga_tab_text == "AdaVEA":
-                QMessageBox.information(self, "Not Implemented", "AdaVEA optimization is not yet implemented.")
+                if hasattr(self, 'run_adavea'):
+                    self.run_adavea()
+                else:
+                    QMessageBox.information(self, "Not Implemented", "AdaVEA run method not found.")
             else:
                 QMessageBox.information(self, "Not Implemented", f"{current_moo_ga_tab_text} optimization is not yet implemented.")
 
