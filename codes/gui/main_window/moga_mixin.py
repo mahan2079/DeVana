@@ -244,28 +244,116 @@ class MOGAOptimizationMixin:
         self.nsga2_statistics_tab = QWidget()
         layout = QVBoxLayout(self.nsga2_statistics_tab)
 
-        self.nsga2_stats_table = QTableWidget()
-        self.nsga2_stats_table.setColumnCount(9)
-        self.nsga2_stats_table.setHorizontalHeaderLabels([
-            "Run ID", "Final HV", "Mean HV (30 runs)", "Std Dev HV (30 runs)",
-            "Final IGD+", "Pareto Size", "Time (hours)", "Convergence Gen", "Robustness"
+        self.stats_summary_text = QTextEdit()
+        self.stats_summary_text.setReadOnly(True)
+        self.stats_summary_text.setFontFamily("Courier New")
+        layout.addWidget(self.stats_summary_text)
+
+        self.runs_summary_table = QTableWidget()
+        self.runs_summary_table.setColumnCount(9)
+        self.runs_summary_table.setHorizontalHeaderLabels([
+            "Run ID", "Final HV", "Final IGD+", "Pareto Size", 
+            "Time (hours)", "Convergence Gen", "Robustness", "Memory Peak (MB)", "File Path"
         ])
-        self.nsga2_stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.nsga2_stats_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.nsga2_stats_table.itemSelectionChanged.connect(self.display_selected_run_results)
-        layout.addWidget(self.nsga2_stats_table)
+        self.runs_summary_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.runs_summary_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.runs_summary_table.itemSelectionChanged.connect(self.display_selected_run_results)
+        self.runs_summary_table.setColumnHidden(8, True) # Hide file path
+        layout.addWidget(self.runs_summary_table)
 
         self.calculate_stats_button = QPushButton("Calculate Statistics")
         self.calculate_stats_button.clicked.connect(self.calculate_and_display_statistics)
         layout.addWidget(self.calculate_stats_button)
 
     def calculate_and_display_statistics(self):
-        # This method will be implemented later
-        pass
+        import json
+        import os
+        import numpy as np
+        from scipy import stats
+
+        results_dir = "nsga2_results"
+        if not os.path.exists(results_dir):
+            QMessageBox.warning(self, "Statistics", "No results directory found.")
+            return
+
+        all_results = []
+        for file_name in os.listdir(results_dir):
+            if file_name.startswith("nsga2_run_") and file_name.endswith(".json"):
+                file_path = os.path.join(results_dir, file_name)
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    data['file_path'] = file_path
+                    all_results.append(data)
+        
+        if not all_results:
+            QMessageBox.information(self, "Statistics", "No run results found.")
+            return
+
+        metrics = {
+            "Hypervolume (HV)": [res.get("final_HV", 0) for res in all_results],
+            "IGD+ (Lower Better)": [res.get("final_IGD+", 0) for res in all_results],
+            "Generational Distance": [res.get("final_GD", 0) for res in all_results],
+            "Spread (Δ)": [res.get("final_Spread", 0) for res in all_results],
+            "Pareto Front Size": [res.get("pareto_size", 0) for res in all_results],
+            "Convergence Generation": [res.get("convergence_gen", 0) for res in all_results],
+            "Computational Time (hrs)": [res.get("total_time_hours", 0) for res in all_results],
+            "Memory Peak (MB)": [res.get("memory_peak", 0) for res in all_results],
+        }
+        
+        # Calculate Robustness
+        hv_mean = np.mean(metrics["Hypervolume (HV)"])
+        hv_std = np.std(metrics["Hypervolume (HV)"], ddof=1)
+        metrics["Robustness (σ/μ)"] = [hv_std / hv_mean if hv_mean else 0] * len(all_results)
+
+
+        # Format the table
+        header = "╔═══════════════════════════════════════════════════════════════╗\n"
+        header += "║          TABLE 1: NSGA-II BASELINE PERFORMANCE ({} RUNS)      ║\n".format(len(all_results))
+        header += "╠═══════════════════════════════════════════════════════════════╣\n\n"
+        
+        table_str = "Metric                    Mean ± Std          95% CI          Range\n"
+        table_str += "─────────────────────────────────────────────────────────────────\n"
+
+        for name, values in metrics.items():
+            mean = np.mean(values)
+            std = np.std(values, ddof=1)
+            ci = stats.t.interval(0.95, len(values)-1, loc=mean, scale=stats.sem(values))
+            min_val = np.min(values)
+            max_val = np.max(values)
+            
+            table_str += f"{name:<25} {mean:.3f} ± {std:.3f}       [{ci[0]:.3f}, {ci[1]:.3f}]  {min_val:.3f}-{max_val:.3f}\n"
+
+        self.stats_summary_text.setText(header + table_str)
+
+        # Populate the runs summary table
+        self.runs_summary_table.setRowCount(0)
+        for res in all_results:
+            row_position = self.runs_summary_table.rowCount()
+            self.runs_summary_table.insertRow(row_position)
+            
+            self.runs_summary_table.setItem(row_position, 0, QTableWidgetItem(str(res.get("run_id", ""))))
+            self.runs_summary_table.setItem(row_position, 1, QTableWidgetItem(f'{res.get("final_HV", 0):.4f}'))
+            self.runs_summary_table.setItem(row_position, 2, QTableWidgetItem(f'{res.get("final_IGD+", 0):.4f}'))
+            self.runs_summary_table.setItem(row_position, 3, QTableWidgetItem(str(res.get("pareto_size", ""))))
+            self.runs_summary_table.setItem(row_position, 4, QTableWidgetItem(f'{res.get("total_time_hours", 0):.2f}'))
+            self.runs_summary_table.setItem(row_position, 5, QTableWidgetItem(str(res.get("convergence_gen", ""))))
+            hv_mean = np.mean(metrics["Hypervolume (HV)"])
+            hv_std = np.std(metrics["Hypervolume (HV)"], ddof=1)
+            robustness = hv_std / hv_mean if hv_mean else 0
+            self.runs_summary_table.setItem(row_position, 6, QTableWidgetItem(f'{robustness:.4f}'))
+            self.runs_summary_table.setItem(row_position, 7, QTableWidgetItem(str(res.get("memory_peak", ""))))
+            self.runs_summary_table.setItem(row_position, 8, QTableWidgetItem(res.get("file_path", "")))
 
     def display_selected_run_results(self):
-        # This method will be implemented later
-        pass
+        selected_items = self.runs_summary_table.selectedItems()
+        if not selected_items:
+            return
+        
+        selected_row = selected_items[0].row()
+        file_path = self.runs_summary_table.item(selected_row, 8).text()
+
+        if os.path.exists(file_path):
+            self.display_run_results(file_path)
 
     def create_nsga2_results_tab(self):
         """Creates the 'Results' sub-tab for NSGA-II."""
@@ -307,7 +395,7 @@ class MOGAOptimizationMixin:
                 self.nsga2_stop_button.setEnabled(True)
                 self.nsga2_progress_bar.setValue(0)
                 self.nsga2_live_table.setRowCount(0)
-                self.nsga2_stats_table.setRowCount(0)
+                self.runs_summary_table.setRowCount(0)
                 
                 for i in range(num_runs):
                     main_params = self.get_main_system_params()
@@ -414,22 +502,138 @@ class MOGAOptimizationMixin:
         self.nsga2_live_table.setItem(row_position, 9, QTableWidgetItem(f"{metrics['Rank Diversity']:.4f}"))
         self.nsga2_live_table.setItem(row_position, 10, QTableWidgetItem(str(metrics["Best Fitness (f1,f2,f3)"])))
 
-    def nsga2_finished(self, pareto_front):
-        self.nsga2_run_button.setEnabled(True)
-        self.nsga2_stop_button.setEnabled(False)
-        QMessageBox.information(self, "NSGA-II Finished", "The NSGA-II optimization has completed.")
+    def nsga2_finished(self, run_id, file_path):
+        if not self.nsga2_multi_run_checkbox.isChecked():
+            # Single run
+            self.nsga2_run_button.setEnabled(True)
+            self.nsga2_stop_button.setEnabled(False)
+            QMessageBox.information(self, "NSGA-II Finished", f"The NSGA-II optimization has completed. Results saved to {file_path}")
+            self.display_run_results(file_path)
+        else:
+            # Multi-run
+            num_runs = self.nsga2_num_runs_box.value()
+            if run_id == num_runs:
+                self.nsga2_run_button.setEnabled(True)
+                self.nsga2_stop_button.setEnabled(False)
+                QMessageBox.information(self, "NSGA-II Multi-Run Finished", f"All {num_runs} runs have completed.")
+            self.calculate_and_display_statistics()
+
+    def calculate_and_display_statistics(self):
+        import json
+        import os
+        import numpy as np
+        from scipy import stats
+
+        results_dir = "nsga2_results"
+        if not os.path.exists(results_dir):
+            QMessageBox.warning(self, "Statistics", "No results directory found.")
+            return
+
+        all_results = []
+        for file_name in os.listdir(results_dir):
+            if file_name.startswith("nsga2_run_") and file_name.endswith(".json"):
+                file_path = os.path.join(results_dir, file_name)
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    data['file_path'] = file_path
+                    all_results.append(data)
         
-        # Display results
+        if not all_results:
+            QMessageBox.information(self, "Statistics", "No run results found.")
+            return
+
+        metrics = {
+            "Hypervolume (HV)": [res.get("final_HV", 0) for res in all_results],
+            "IGD+ (Lower Better)": [res.get("final_IGD+", 0) for res in all_results],
+            "Generational Distance": [res.get("final_GD", 0) for res in all_results],
+            "Spread (Δ)": [res.get("final_Spread", 0) for res in all_results],
+            "Pareto Front Size": [res.get("pareto_size", 0) for res in all_results],
+            "Convergence Generation": [res.get("convergence_gen", 0) for res in all_results],
+            "Computational Time (hrs)": [res.get("total_time_hours", 0) for res in all_results],
+            "Memory Peak (MB)": [res.get("memory_peak", 0) for res in all_results],
+        }
+        
+        # Calculate Robustness
+        hv_mean = np.mean(metrics["Hypervolume (HV)"])
+        hv_std = np.std(metrics["Hypervolume (HV)"], ddof=1)
+        metrics["Robustness (σ/μ)"] = [hv_std / hv_mean if hv_mean else 0] * len(all_results)
+
+
+        # Format the table
+        header = "╔═══════════════════════════════════════════════════════════════╗\n"
+        header += "║          TABLE 1: NSGA-II BASELINE PERFORMANCE ({} RUNS)      ║\n".format(len(all_results))
+        header += "╠═══════════════════════════════════════════════════════════════╣\n\n"
+        
+        table_str = "Metric                    Mean ± Std          95% CI          Range\n"
+        table_str += "─────────────────────────────────────────────────────────────────\n"
+
+        for name, values in metrics.items():
+            mean = np.mean(values)
+            std = np.std(values, ddof=1)
+            if len(values) > 1:
+                ci = stats.t.interval(0.95, len(values)-1, loc=mean, scale=stats.sem(values))
+            else:
+                ci = (mean, mean)
+            min_val = np.min(values)
+            max_val = np.max(values)
+            
+            table_str += f"{name:<25} {mean:.3f} ± {std:.3f}       [{ci[0]:.3f}, {ci[1]:.3f}]  {min_val:.3f}-{max_val:.3f}\n"
+
+        self.stats_summary_text.setText(header + table_str)
+
+        # Populate the runs summary table
+        self.runs_summary_table.setRowCount(0)
+        for res in all_results:
+            row_position = self.runs_summary_table.rowCount()
+            self.runs_summary_table.insertRow(row_position)
+            
+            self.runs_summary_table.setItem(row_position, 0, QTableWidgetItem(str(res.get("run_id", ""))))
+            self.runs_summary_table.setItem(row_position, 1, QTableWidgetItem(f'{res.get("final_HV", 0):.4f}'))
+            self.runs_summary_table.setItem(row_position, 2, QTableWidgetItem(f'{res.get("final_IGD+", 0):.4f}'))
+            self.runs_summary_table.setItem(row_position, 3, QTableWidgetItem(str(res.get("pareto_size", ""))))
+            self.runs_summary_table.setItem(row_position, 4, QTableWidgetItem(f'{res.get("total_time_hours", 0):.2f}'))
+            self.runs_summary_table.setItem(row_position, 5, QTableWidgetItem(str(res.get("convergence_gen", ""))))
+            hv_mean = np.mean(metrics["Hypervolume (HV)"])
+            hv_std = np.std(metrics["Hypervolume (HV)"], ddof=1)
+            robustness = hv_std / hv_mean if hv_mean else 0
+            self.runs_summary_table.setItem(row_position, 6, QTableWidgetItem(f'{robustness:.4f}'))
+            self.runs_summary_table.setItem(row_position, 7, QTableWidgetItem(str(res.get("memory_peak", ""))))
+            self.runs_summary_table.setItem(row_position, 8, QTableWidgetItem(res.get("file_path", "")))
+
+    def display_selected_run_results(self):
+        selected_items = self.runs_summary_table.selectedItems()
+        if not selected_items:
+            return
+        
+        selected_row = selected_items[0].row()
+        file_path = self.runs_summary_table.item(selected_row, 8).text()
+
+        if os.path.exists(file_path):
+            self.display_run_results(file_path)
+
+    def display_run_results(self, file_path):
+        import json
+        with open(file_path, 'r') as f:
+            results = json.load(f)
+
         self.nsga2_results_summary.clear()
+        self.nsga2_results_summary.append(f"<h3>Results for Run {results.get('run_id', '')}</h3>")
+        self.nsga2_results_summary.append(f"<b>Total Time:</b> {results.get('total_time_hours', 0):.2f} hours<br>")
+        self.nsga2_results_summary.append(f"<b>Final HV:</b> {results.get('final_HV', 0):.4f}<br>")
+        self.nsga2_results_summary.append(f"<b>Final IGD+:</b> {results.get('final_IGD+', 0):.4f}<br>")
+        self.nsga2_results_summary.append(f"<b>Pareto Size:</b> {results.get('pareto_size', 0)}<br>")
+        
         self.nsga2_results_summary.append("<h3>Final Pareto Front:</h3>")
-        for ind in pareto_front:
-            self.nsga2_results_summary.append(f"Fitness: {ind.fitness.values}, Individual: {ind}")
+        pareto_front = results.get("pareto_front", [])
+        for fitnesses in pareto_front:
+            self.nsga2_results_summary.append(f"Fitness: {fitnesses}")
 
         # Plot Pareto Front
         self.nsga2_pareto_fig.clear()
         ax = self.nsga2_pareto_fig.add_subplot(111, projection='3d')
-        fitnesses = np.array([ind.fitness.values for ind in pareto_front])
-        ax.scatter(fitnesses[:, 0], fitnesses[:, 1], fitnesses[:, 2])
+        fitnesses = np.array(pareto_front)
+        if fitnesses.size > 0:
+            ax.scatter(fitnesses[:, 0], fitnesses[:, 1], fitnesses[:, 2])
         ax.set_xlabel("f1 (FRF)")
         ax.set_ylabel("f2 (Sparsity)")
         ax.set_zlabel("f3 (Cost)")

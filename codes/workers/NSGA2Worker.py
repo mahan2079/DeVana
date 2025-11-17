@@ -31,7 +31,8 @@ class NSGA2Worker(QThread):
     error = pyqtSignal(str)
 
     def __init__(self, main_params, dva_params, target_values_weights, omega_start, omega_end, omega_points,
-                 pop_size, generations, cxpb, mutpb, eta_c, eta_m, indpb, sparsity_tau, sparsity_alpha, sparsity_beta, parent=None):
+                 pop_size, generations, cxpb, mutpb, eta_c, eta_m, indpb, sparsity_tau, sparsity_alpha, sparsity_beta,
+                 run_id=1, random_seed=None, parent=None):
         super().__init__(parent)
         self.main_params = main_params
         # Parse dva_params
@@ -55,6 +56,8 @@ class NSGA2Worker(QThread):
         self.sparsity_tau = sparsity_tau
         self.sparsity_alpha = sparsity_alpha
         self.sparsity_beta = sparsity_beta
+        self.run_id = run_id
+        self.random_seed = random_seed
         
         self.abort = False
 
@@ -102,6 +105,12 @@ class NSGA2Worker(QThread):
     @safe_deap_operation
     def run(self):
         try:
+            if self.random_seed is not None:
+                random.seed(self.random_seed)
+                np.random.seed(self.random_seed)
+
+            start_time = time.time()
+
             creator.create("FitnessMulti", base.Fitness, weights=(-1.0, -1.0, -1.0))
             creator.create("Individual", list, fitness=creator.FitnessMulti)
 
@@ -173,7 +182,7 @@ class NSGA2Worker(QThread):
                     "Spread": 0, # Placeholder
                     "N_Pareto": len(tools.sortNondominated(pop, len(pop), first_front_only=True)[0]),
                     "Diversity": 0, # Placeholder
-                    "Time (s)": 0, # Placeholder
+                    "Time (s)": time.time() - start_time,
                     "Memory (MB)": 0, # Placeholder
                     "Rank Diversity": 0, # Placeholder
                     "Best Fitness (f1,f2,f3)": min(fits)
@@ -181,7 +190,33 @@ class NSGA2Worker(QThread):
                 
                 self.progress.emit(int(((gen + 1) / self.generations) * 100), metrics)
 
-            self.finished.emit(tools.sortNondominated(pop, len(pop), first_front_only=True)[0])
+            end_time = time.time()
+            final_pareto = tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
+            
+            # Prepare results for saving
+            results_to_save = {
+                "run_id": self.run_id,
+                "start_time": start_time,
+                "end_time": end_time,
+                "total_time_hours": (end_time - start_time) / 3600,
+                "final_HV": 0, # Placeholder
+                "final_IGD+": 0, # Placeholder
+                "pareto_size": len(final_pareto),
+                "pareto_front": [ind.fitness.values for ind in final_pareto],
+                "pareto_individuals": [list(ind) for ind in final_pareto]
+            }
+            
+            import json
+            import os
+            results_dir = "nsga2_results"
+            if not os.path.exists(results_dir):
+                os.makedirs(results_dir)
+            
+            file_path = os.path.join(results_dir, f"nsga2_run_{self.run_id}.json")
+            with open(file_path, 'w') as f:
+                json.dump(results_to_save, f, indent=4)
+
+            self.finished.emit(self.run_id, file_path)
 
         except Exception as e:
             self.error.emit(str(e))
