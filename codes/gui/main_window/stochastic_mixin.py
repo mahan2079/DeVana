@@ -66,9 +66,8 @@ class StochasticDesignMixin:
         if hasattr(self, 'create_rl_tab'):
             self.create_rl_tab()
         
-        # New: Create NSGA-II and AdaVEA tabs using their mixin methods
-        self.nsga2_tab = self.create_nsga2_tab()
-        self.adavea_tab = self.create_adavea_tab()
+        # Create the main MOGA tab which contains all multi-objective algorithms
+        self.moga_tab = self.create_moga_tab()
 
         # Don't create DE tab here - it will be created by integrate_de_functionality method
         # if DEOptimizationMixin is available
@@ -104,18 +103,11 @@ class StochasticDesignMixin:
         # Use a different tab text to identify this as a placeholder
         self.optimization_tabs.addTab(self.de_tab, "DE Optimization (Placeholder)")
 
-        # New: Create Multi-Objective Optimizations tab and its sub-tabs
-        self.moo_ga_tabs = QTabWidget() # Renamed from moo_ga_placeholder_tab
-        self.moo_ga_tabs.addTab(self.nsga2_tab, "NSGA-II")
-        self.moo_ga_tabs.addTab(self.adavea_tab, "AdaVEA")
-        
-        self.moo_optimization_tabs.addTab(self.moo_ga_tabs, "MOO-GA")
-
         # Add main tab groups to design tabs
         self.design_tabs.addTab(self.input_tabs, "Input")
         self.design_tabs.addTab(self.sensitivity_tabs, "Sensitivity Analysis")
         self.design_tabs.addTab(self.optimization_tabs, "Optimization")
-        self.design_tabs.addTab(self.moo_optimization_tabs, "Multi-Objective Optimizations") # New tab
+        self.design_tabs.addTab(self.moga_tab, "Multi-Objective") # Add the consolidated MOGA tab
         
         # Set the default tab to Input (index 0)
         self.design_tabs.setCurrentIndex(0)
@@ -501,31 +493,29 @@ class StochasticDesignMixin:
         )
 
     def run_moo_ga(self):
-        """Run the Multi-Objective Optimization Genetic Algorithm (MOO-GA)"""
+        """Run the selected Multi-Objective Optimization Genetic Algorithm."""
         try:
-            # Switch to the Multi-Objective Optimizations tab
-            moo_opt_tab_idx = self.design_tabs.indexOf(self.moo_optimization_tabs)
-            self.design_tabs.setCurrentIndex(moo_opt_tab_idx)
+            # Switch to the Multi-Objective tab
+            moga_tab_idx = self.design_tabs.indexOf(self.moga_tab)
+            if moga_tab_idx != -1:
+                self.design_tabs.setCurrentIndex(moga_tab_idx)
             
-            # Switch to the MOO-GA sub-tab (which is the first tab in moo_optimization_tabs)
-            self.moo_optimization_tabs.setCurrentIndex(0) # Assuming MOO-GA is the first tab
-            
-            # Now, check which sub-tab within MOO-GA is active and call its run method
-            current_moo_ga_tab_index = self.moo_ga_tabs.currentIndex()
-            current_moo_ga_tab_text = self.moo_ga_tabs.tabText(current_moo_ga_tab_index)
+            # Check which MOGA method is currently selected
+            if hasattr(self, 'moga_method_tabs'):
+                current_method_tab_text = self.moga_method_tabs.tabText(self.moga_method_tabs.currentIndex())
 
-            if current_moo_ga_tab_text == "NSGA-II":
-                if hasattr(self, 'run_nsga2'):
-                    self.run_nsga2()
+                if current_method_tab_text == "NSGA-II":
+                    if hasattr(self, 'run_nsga2'):
+                        self.run_nsga2()
+                    else:
+                        QMessageBox.information(self, "Not Implemented", "NSGA-II run method not found.")
+                # Add other MOGA methods here in the future
+                # elif current_method_tab_text == "SomeOtherMOGA":
+                #     self.run_some_other_moga()
                 else:
-                    QMessageBox.information(self, "Not Implemented", "NSGA-II run method not found.")
-            elif current_moo_ga_tab_text == "AdaVEA":
-                if hasattr(self, 'run_adavea'):
-                    self.run_adavea()
-                else:
-                    QMessageBox.information(self, "Not Implemented", "AdaVEA run method not found.")
+                    QMessageBox.information(self, "Not Implemented", f"The '{current_method_tab_text}' optimization is not yet implemented.")
             else:
-                QMessageBox.information(self, "Not Implemented", f"{current_moo_ga_tab_text} optimization is not yet implemented.")
+                QMessageBox.critical(self, "Error", "MOGA method tabs not found.")
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to run MOO-GA: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to run Multi-Objective Optimization: {str(e)}")
