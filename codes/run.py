@@ -17,59 +17,46 @@ original_qthread_del = getattr(QThread, "__del__", None)
 def closeEvent(self, event):
     """Handle cleanup when window is closed"""
     print("Application closing - cleaning up threads...")
-    
-    # Clean up PSO worker
-    if hasattr(self, 'pso_worker') and self.pso_worker is not None:
-        if self.pso_worker.isRunning():
-            print("Terminating PSO worker thread...")
-            try:
-                # Use our custom terminate method if available
-                if hasattr(self.pso_worker, 'terminate'):
-                    self.pso_worker.terminate()
+
+    workers_to_stop = {
+        'pso_worker': ['finished', 'error', 'update', 'progress'],
+        'ga_worker': ['finished', 'error', 'update', 'progress', 'benchmark_data', 'generation_metrics'],
+        'rl_worker': ['finished', 'error', 'update', 'progress'],
+        'nsgaii_worker': ['finished', 'error', 'update', 'progress']
+    }
+
+    for worker_name, signals in workers_to_stop.items():
+        if hasattr(self, worker_name):
+            worker = getattr(self, worker_name)
+            if worker is not None and worker.isRunning():
+                print(f"Stopping {worker_name} thread...")
                 
-                # Wait for a short time to let the thread finish
-                if not self.pso_worker.wait(1000):  # 1 second timeout
-                    print("PSO worker did not finish in time, forcing termination...")
-                    # Use QThread's terminate as a last resort
-                    self.pso_worker.terminate()
-                    self.pso_worker.wait()
-            except Exception as e:
-                print(f"Error terminating PSO worker: {str(e)}")
-    
-    # Clean up GA worker
-    if hasattr(self, 'ga_worker') and self.ga_worker is not None:
-        if self.ga_worker.isRunning():
-            print("Terminating GA worker thread...")
-            try:
-                # Wait for a short time to let the thread finish
-                if not self.ga_worker.wait(1000):  # 1 second timeout
-                    print("GA worker did not finish in time, forcing termination...")
-                    self.ga_worker.terminate()
-                    self.ga_worker.wait()
-            except Exception as e:
-                print(f"Error terminating GA worker: {str(e)}")
-    
-    # Clean up RL worker
-    if hasattr(self, 'rl_worker') and self.rl_worker is not None:
-        if self.rl_worker.isRunning():
-            print("Terminating RL worker thread...")
-            try:
-                # Use our custom terminate method if available
-                if hasattr(self.rl_worker, 'terminate'):
-                    self.rl_worker.terminate()
-                
-                # Wait for a short time to let the thread finish
-                if not self.rl_worker.wait(1000):  # 1 second timeout
-                    print("RL worker did not finish in time, forcing termination...")
-                    # Use QThread's terminate as a last resort
-                    self.rl_worker.terminate()
-                    self.rl_worker.wait()
-            except Exception as e:
-                print(f"Error terminating RL worker: {str(e)}")
-    
+                # 1. Disconnect signals to prevent calls to deleted widgets
+                for signal_name in signals:
+                    try:
+                        signal = getattr(worker, signal_name)
+                        signal.disconnect()
+                    except (TypeError, AttributeError):
+                        # This can happen if signals were not connected, which is fine.
+                        pass
+                    except Exception as e:
+                        print(f"Error disconnecting {signal_name} for {worker_name}: {str(e)}")
+
+                # 2. Attempt to stop the thread
+                try:
+                    if hasattr(worker, 'stop'):
+                        worker.stop()  # Graceful stop
+                    
+                    if not worker.wait(1000):  # 1-second timeout
+                        print(f"{worker_name} did not stop gracefully, forcing termination...")
+                        worker.terminate()
+                        worker.wait()
+                    print(f"{worker_name} stopped.")
+                except Exception as e:
+                    print(f"Error stopping {worker_name}: {str(e)}")
+
     # Allow the close event to proceed
     try:
-        # Playground cleanup: deregister this window instance if tracking exists
         if hasattr(self, '_playground_close_cleanup'):
             self._playground_close_cleanup()
     except Exception:

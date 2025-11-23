@@ -75,6 +75,13 @@ class MenuMixin:
         sidebar_action.triggered.connect(lambda: self.status_bar.showMessage("Toggle Sidebar - Feature coming soon"))
         view_menu.addAction(sidebar_action)
 
+        # Toggle Log Console (New)
+        toggle_log_action = QAction("Toggle &Log Console", self)
+        toggle_log_action.setShortcut("Ctrl+L")
+        toggle_log_action.setCheckable(True)
+        toggle_log_action.triggered.connect(lambda: self.log_dock_widget.setVisible(not self.log_dock_widget.isVisible()))
+        view_menu.addAction(toggle_log_action)
+
         view_menu.addSeparator()
 
         # Theme submenu

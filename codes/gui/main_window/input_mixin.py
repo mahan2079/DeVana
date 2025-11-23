@@ -134,7 +134,7 @@ class InputTabsMixin:
         apply_optimizer_combo = QComboBox()
         apply_optimizer_combo.addItems(["Genetic Algorithm (GA)", "Particle Swarm (PSO)", 
                                        "Differential Evolution (DE)", "Simulated Annealing (SA)", 
-                                       "CMA-ES", "Reinforcement Learning (RL)"])
+                                       "CMA-ES", "Reinforcement Learning (RL)", "NSGA-II"])
         apply_optimized_layout.addWidget(apply_optimizer_combo)
         self.dva_optimizer_combo = apply_optimizer_combo
         

@@ -55,6 +55,7 @@ from gui.main_window.sidebar_mixin import SidebarMixin
 from gui.main_window.stochastic_mixin import StochasticDesignMixin
 from gui.main_window.sobol_mixin import SobolAnalysisMixin
 from gui.main_window.omega_sensitivity_mixin import OmegaSensitivityMixin
+from gui.main_window.nsgaii_mixin import NSGAIIOptimizationMixin
 
 from app_info import APP_NAME, __version__
 
@@ -78,7 +79,7 @@ except ImportError:
         
 
 class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin,
-                 ThemeMixin, FRFMixin, PSOMixin, GAOptimizationMixin,
+                 ThemeMixin, FRFMixin, PSOMixin, GAOptimizationMixin, NSGAIIOptimizationMixin,
                  InputTabsMixin, ExtraOptimizationMixin,
                  SidebarMixin, StochasticDesignMixin, SobolAnalysisMixin, OmegaSensitivityMixin):
     # Track all open MainWindow instances for Playground tiling/management
@@ -111,6 +112,16 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.setCentralWidget(central_widget)
+
+        # Create dockable log widget
+        self.results_text = QTextEdit()
+        self.results_text.setReadOnly(True)
+        self.results_text.setStyleSheet("background-color: #2b2b2b; color: #a9b7c6; font-family: 'Consolas', 'Monospace';")
+        self.log_dock_widget = QDockWidget("Log Console", self)
+        self.log_dock_widget.setWidget(self.results_text)
+        self.log_dock_widget.setObjectName("LogConsoleDock") # For saving/restoring layout
+        self.log_dock_widget.setVisible(False) # Hidden by default
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.log_dock_widget)
         
         # Create sidebar
         self.create_sidebar(BEAM_IMPORTS_SUCCESSFUL)
@@ -479,4 +490,11 @@ class MainWindow(QMainWindow, MenuMixin, ContinuousBeamMixin, MicrochipPageMixin
                 MainWindow.playground_windows.remove(self)
         except Exception:
             pass
+
+    def update_log(self, message):
+        """Appends a message to the results text area."""
+        if hasattr(self, 'results_text') and self.results_text is not None:
+            self.results_text.append(message)
+        else:
+            print(message)
 

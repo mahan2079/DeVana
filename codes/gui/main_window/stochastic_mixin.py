@@ -62,6 +62,7 @@ class StochasticDesignMixin:
         self.create_pso_tab()
         self.create_sa_tab()
         self.create_cmaes_tab()
+        self.create_nsgaii_tab()
         if hasattr(self, 'create_rl_tab'):
             self.create_rl_tab()
         
@@ -86,6 +87,7 @@ class StochasticDesignMixin:
         self.optimization_tabs.addTab(self.pso_tab, "PSO Optimization")
         self.optimization_tabs.addTab(self.sa_tab, "SA Optimization")
         self.optimization_tabs.addTab(self.cmaes_tab, "CMA-ES Optimization")
+        self.optimization_tabs.addTab(self.nsgaii_tab, "NSGA-II")
         if hasattr(self, 'rl_tab'):
             self.optimization_tabs.addTab(self.rl_tab, "RL Optimization")
         
@@ -340,6 +342,25 @@ class StochasticDesignMixin:
         elif "Reinforcement Learning" in selected_optimizer:
             if hasattr(self, 'current_rl_best_params'):
                 best_params = self.current_rl_best_params
+        elif "NSGA-II" in selected_optimizer:
+            if hasattr(self, 'nsgaii_results_table') and hasattr(self, 'nsgaii_results_df'):
+                selected_rows = self.nsgaii_results_table.selectionModel().selectedRows()
+                if not selected_rows:
+                    QMessageBox.warning(self, "No Selection", "Please select a solution from the NSGA-II 'Solutions' table first.")
+                    return
+                
+                selected_row_index = selected_rows[0].row()
+                
+                # The table might be sorted, so we need to map the view index to the dataframe index
+                # Here we assume the dataframe 'nsgaii_results_df' is already sorted in the same way as the table
+                # This is handled by our update_nsgaii_results_display method
+                
+                param_names = self.last_param_names
+                solution_series = self.nsgaii_results_df.iloc[selected_row_index]
+                best_params = solution_series[param_names].values.tolist()
+            else:
+                QMessageBox.warning(self, "No Results", "No NSGA-II results are available.")
+                return
         
         if best_params is None:
             QMessageBox.warning(self, "No Parameters Available", 
