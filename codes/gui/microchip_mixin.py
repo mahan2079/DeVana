@@ -1,42 +1,40 @@
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
-import os
 
 class MicrochipPageMixin:
     def create_microchip_controller_page(self):
-        """Create the empty microchip controller page for future implementation"""
+        """Create the microchip controller page (Under Construction)."""
         microchip_page = QWidget()
         layout = QVBoxLayout(microchip_page)
 
-        # Centered content
-        center_widget = QWidget()
-        center_layout = QVBoxLayout(center_widget)
-        center_layout.setAlignment(Qt.AlignCenter)
-
-        # Icon or image placeholder
-        placeholder = QLabel()
-        placeholder.setPixmap(QPixmap("placeholder_image.png" if os.path.exists("placeholder_image.png") else ""))
-        placeholder.setAlignment(Qt.AlignCenter)
-        center_layout.addWidget(placeholder)
+        # Top-aligned content
+        top_widget = QWidget()
+        top_layout = QVBoxLayout(top_widget)
+        top_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        top_layout.setContentsMargins(0, 40, 0, 0)
 
         # Title
         title = QLabel("Microchip Controller")
-        title.setFont(QFont("Segoe UI", 24, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 28, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        center_layout.addWidget(title)
+        title.setStyleSheet("color: #1976D2;")
+        top_layout.addWidget(title)
+
+        # Status
+        status_label = QLabel("--- UNDER CONSTRUCTION ---")
+        status_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        status_label.setAlignment(Qt.AlignCenter)
+        status_label.setStyleSheet("color: #FFA000; margin-top: 10px; margin-bottom: 20px;")
+        top_layout.addWidget(status_label)
 
         # Description
-        description = QLabel("This feature will provide interfaces for microchip-based vibration control systems.")
-        description.setFont(QFont("Segoe UI", 12))
+        description = QLabel("Advanced interfaces for microchip-based vibration control systems are coming soon.")
+        description.setFont(QFont("Segoe UI", 14))
         description.setAlignment(Qt.AlignCenter)
-        center_layout.addWidget(description)
+        description.setStyleSheet("color: #666666;")
+        top_layout.addWidget(description)
 
-        # Coming soon label
-        coming_soon = QLabel("Coming Soon!")
-        coming_soon.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        coming_soon.setAlignment(Qt.AlignCenter)
-        center_layout.addWidget(coming_soon)
-
-        layout.addWidget(center_widget)
+        layout.addWidget(top_widget)
+        layout.addStretch()
         self.content_stack.addWidget(microchip_page)

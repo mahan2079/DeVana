@@ -63,6 +63,9 @@ def perform_sobol_analysis(
             # Only variable parameters (i.e. not fixed) are used for sensitivity analysis.
             if not fixed:
                 bounds_dict[name] = (low, up)
+            else:
+                # Add fixed parameters to the dictionary as scalar values
+                bounds_dict[name] = low
         dva_parameters_bounds = bounds_dict
         if dva_parameter_order is None:
             dva_parameter_order = order_list

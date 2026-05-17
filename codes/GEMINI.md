@@ -17,7 +17,7 @@ Key capabilities include:
 
 To set up and run the DeVana application, follow these steps:
 
-1.  **Clone the repository**:
+1.  **Clone the repository**: (This step is typically done outside the 'codes' directory)
     ```bash
     git clone https://github.com/mahan2079/DeVana.git
     cd DeVana
@@ -36,11 +36,13 @@ To set up and run the DeVana application, follow these steps:
     ```bash
     pip install -r requirements.txt
     ```
+    *Note: The `requirements.txt` file is located in the parent directory of 'codes'. Ensure your terminal is in the project root (`DeVana/`) before running this command.*
 
 4.  **Launch the application**:
     ```bash
     python codes/run.py
     ```
+    *Note: This command should be run from the project root (`DeVana/`). If you are in the `codes/` directory, you would run `python run.py`.*
 
 ## Development Conventions
 
@@ -51,17 +53,15 @@ The project adheres to the following development guidelines:
 *   **Unit Tests**: Include unit tests for all new features and bug fixes to ensure reliability.
 *   **Code Style and Architecture**: Follow the existing code style and architectural patterns established within the project.
 
-## Key Files for Interaction
+## Key Files for Interaction (within the `codes/` directory)
 
-Based on the project structure and the `README.md`, the following files are likely important for development and understanding the codebase:
+Based on the project structure and common entry points, the following files are likely important for development and understanding the codebase *within the current `codes/` directory*:
 
-*   `codes/run.py`: The main entry point for launching the application.
-*   `codes/mainwindow.py`: Defines the main window structure and integrates various mixins.
-*   `codes/gui/main_window/stochastic_mixin.py`: Manages the "Stochastic Design" page, including the main tab groups like "Input", "Sensitivity Analysis", and "Optimization". This file was recently modified to include "Multi-Objective Optimizations".
-*   `codes/gui/main_window/ga_mixin.py`: Contains logic and UI for Genetic Algorithm optimization.
-*   `codes/gui/main_window/pso_mixin.py`: Contains logic and UI for Particle Swarm Optimization.
-*   `codes/gui/main_window/de_mixin.py`: Contains logic and UI for Differential Evolution optimization.
-*   `codes/gui/main_window/nsga2_mixin.py`: (Newly created) Placeholder for NSGA-II Multi-Objective Optimization.
-*   `codes/gui/main_window/adavea_mixin.py`: (Newly created) Placeholder for AdaVEA Multi-Objective Optimization.
-*   `requirements.txt`: Lists all Python dependencies required for the project.
-*   `README.md`: Provides a comprehensive overview, installation, and usage instructions.
+*   `run.py`: The main entry point for launching the application.
+*   `mainwindow.py`: Defines the main window structure and integrates various mixins.
+*   `gui/main_window/stochastic_mixin.py`: Manages the "Stochastic Design" page, including the main tab groups like "Input", "Sensitivity Analysis", and "Optimization". This file was recently modified to include "Multi-Objective Optimizations".
+*   `gui/main_window/ga_mixin.py`: Contains logic and UI for Genetic Algorithm optimization.
+*   `gui/main_window/pso_mixin.py`: Contains logic and UI for Particle Swarm Optimization.
+*   `gui/main_window/de_mixin.py`: Contains logic and UI for Differential Evolution optimization.
+*   `gui/main_window/nsga2_mixin.py`: (Newly created) Placeholder for NSGA-II Multi-Objective Optimization.
+*   `gui/main_window/adavea_mixin.py`: (Newly created) Placeholder for AdaVEA Multi-Objective Optimization.

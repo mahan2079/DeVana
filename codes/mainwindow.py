@@ -41,6 +41,7 @@ from workers.CMAESWorker import CMAESWorker
 # RL functionality is provided through RLOptimizationMixin
 
 from gui.menu_mixin import MenuMixin
+from gui.introduction_mixin import IntroductionMixin
 from gui.beam_mixin import ContinuousBeamMixin
 from gui.microchip_mixin import MicrochipPageMixin
 from gui.main_window.theme_mixin import ThemeMixin
@@ -82,6 +83,7 @@ except ImportError:
 class MainWindow(
     QMainWindow,
     MenuMixin,
+    IntroductionMixin,
     ContinuousBeamMixin,
     MicrochipPageMixin,
     ThemeMixin,
@@ -144,13 +146,14 @@ class MainWindow(
         self.main_layout.addWidget(scroll_area, 1)
         
         # Create the various content pages
-        self.create_stochastic_design_page()
+        self.create_introduction_page() # Index 0
+        self.create_stochastic_design_page() # Index 1
         
         # Integrate DE functionality before showing the window
         self.integrate_de_functionality()
         
-        self.create_microchip_controller_page()
-        self.create_continuous_beam_page()
+        self.create_microchip_controller_page() # Index 2
+        self.create_continuous_beam_page() # Index 3
         
         # Set default active page
         self.content_stack.setCurrentIndex(0)

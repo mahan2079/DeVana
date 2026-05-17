@@ -46,17 +46,21 @@ class SidebarMixin:
         nav_layout.setContentsMargins(10, 20, 10, 20)
         nav_layout.setSpacing(10)
 
+        self.intro_btn = SidebarButton(None, "Intro & Paradigm")
+        self.intro_btn.setObjectName("active-nav-btn")
+        self.intro_btn.mousePressEvent = lambda event: self.change_page(0)
+        nav_layout.addWidget(self.intro_btn)
+
         self.stochastic_btn = SidebarButton(None, "Stochastic Design")
-        self.stochastic_btn.setObjectName("active-nav-btn")
-        self.stochastic_btn.mousePressEvent = lambda event: self.change_page(0)
+        self.stochastic_btn.mousePressEvent = lambda event: self.change_page(1)
         nav_layout.addWidget(self.stochastic_btn)
 
         self.microchip_btn = SidebarButton(None, "Microchip Controller")
-        self.microchip_btn.mousePressEvent = lambda event: self.change_page(1)
+        self.microchip_btn.mousePressEvent = lambda event: self.change_page(2)
         nav_layout.addWidget(self.microchip_btn)
 
         self.beam_btn = SidebarButton(None, "Continuous Beam")
-        self.beam_btn.mousePressEvent = lambda event: self.change_page(2)
+        self.beam_btn.mousePressEvent = lambda event: self.change_page(3)
         if not BEAM_IMPORTS_SUCCESSFUL:
             self.beam_btn.setEnabled(False)
             self.beam_btn.setToolTip("Continuous Beam module not available")
@@ -81,15 +85,17 @@ class SidebarMixin:
         """Change the active page in the content stack"""
         self.content_stack.setCurrentIndex(index)
 
-        for btn in [self.stochastic_btn, self.microchip_btn, self.beam_btn]:
+        for btn in [self.intro_btn, self.stochastic_btn, self.microchip_btn, self.beam_btn]:
             btn.setObjectName("")
             btn.setStyleSheet("")
 
         if index == 0:
-            self.stochastic_btn.setObjectName("active-nav-btn")
+            self.intro_btn.setObjectName("active-nav-btn")
         elif index == 1:
-            self.microchip_btn.setObjectName("active-nav-btn")
+            self.stochastic_btn.setObjectName("active-nav-btn")
         elif index == 2:
+            self.microchip_btn.setObjectName("active-nav-btn")
+        elif index == 3:
             self.beam_btn.setObjectName("active-nav-btn")
 
         self.apply_current_theme()
@@ -105,5 +111,8 @@ class SidebarMixin:
             self.apply_dark_theme()
             self.theme_toggle.setText("Switch to Light Theme")
         
+        # Update the sidebar button styles
+        self.apply_current_theme()
+  
         # Update the sidebar button styles
         self.apply_current_theme()

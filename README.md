@@ -1,386 +1,171 @@
 # DeVana: Dynamic Vibration Absorber Optimization Framework
 
-![DeVana Logo](Logo.png)
+<div align="center">
+  <img src="Logo.png" alt="DeVana Logo" width="300">
+  <br />
+  <p align="center">
+    <b>A state-of-the-art engineering suite bridging the gap between theoretical vibration analysis and algorithmic, multi-objective DVA design.</b>
+  </p>
 
-**Version:** V0.5.0  
-**Release Date:** January 2025  
-**Author:** Mahan Dashti Gohari  
-
----
-
-## Overview
-
-**DeVana** is a state-of-the-art framework for modeling, analyzing, and optimizing Dynamic Vibration Absorbers (DVAs) in complex mechanical systems. Designed for engineers and researchers, DeVana facilitates the creation of efficient, robust, and stable systems across various industries, including structural engineering, aerospace, automotive, industrial machinery and more.
-
-The framework bridges the gap between discrete system modeling and continuous system analysis, providing a comprehensive workflow for DVA optimization. DeVana handles the critical middle phase of the design process, taking discrete models as input and producing optimized DVA parameter ranges that can be further validated in continuous system analysis.
-
-### Key Features
-
-- **Comprehensive Modeling**: Multi-degree-of-freedom system modeling with integrated DVAs
-- **Advanced Optimization Suite**: Multiple algorithms including Genetic Algorithms, Particle Swarm Optimization, Differential Evolution, Simulated Annealing, CMA-ES, and Bayesian Optimization
-- **Sensitivity Analysis**: Sobol method for sensitivity analysis and prioritizing impactful parameters
-- **Statistical Analysis**: Aggregation of multiple optimization runs to identify robust parameter ranges
-- **Real-Time Visualization**: Interactive dashboards for Frequency Response Functions (FRF) and optimization progress
-- **Continuous Beam Analysis**: Advanced composite beam modeling with temperature-dependent material properties
-- **User-Friendly Configuration**: Intuitive JSON-based configuration files for flexibility and customization
+  [![Version](https://img.shields.io/badge/version-v0.5.0-blue.svg)](https://github.com/mahan2079/DeVana)
+  [![License](https://img.shields.io/badge/license-Apache%202.0-orange.svg)](LICENSE)
+  [![Python](https://img.shields.io/badge/python-3.8%2B-green.svg)](https://www.python.org/)
+  [![Platform](https://img.shields.io/badge/platform-win32%20%7C%20linux%20%7C%20macos-lightgrey.svg)]()
+</div>
 
 ---
 
-## Performance Criteria
+## 🛑 The Engineering Challenge & Research Gap
 
-DeVana optimizes DVAs based on the following:
+In the real world, mechanical systems—from rotary devices to robotic arms, aerospace components, and large civil structures—are **continuous systems**. Analyzing these systems for vibration control is fundamentally complex. For simple geometries (like uniform beams), elegant mathematical theories exist. However, for complex real-world geometries, engineers must either reduce them to combinations of simple geometries or rely heavily on numerical methods like Finite Element Analysis (FEM) or mesh-free methods. 
 
-- **Minimizing Vibrational Energy**: Reducing stress and enhancing durability
-- **Resonance Control**: Managing peak magnitudes and their frequencies
-- **Bandwidth Optimization**: Ensuring robustness over a range of frequencies
-- **Energy Dissipation Balance**: Enhancing stability and uniform energy distribution
-
-For technical details, refer to the [DeVana Documentation](User_Manual.pdf).
+Historically, designing Dynamic Vibration Absorbers (DVAs)—which consist of masses, springs, dampers, and inerters—has relied intensely on **engineering intuition, heuristic knowledge bases, and manual trial-and-error**. There has been a distinct lack of open-source, algorithmic frameworks that can systematically handle:
+1. The vast, high-dimensional design space of DVA parameters.
+2. Multi-criteria objectives (e.g., minimizing cost, weight, complexity, and vibration simultaneously).
+3. The transition from finding theoretical "single optimal points" to defining **manufacturable parameter ranges**.
 
 ---
 
-## Complete DVA Design Workflow
+## 💡 The DeVana Solution
 
-### Phase 1: Discrete System Modeling (Pre-DeVana)
-- Model the mechanical system as a discrete mass-spring-damper system
-- Define degrees of freedom, connectivity, and external forces
-- Establish initial system parameters (mass, stiffness, damping matrices)
+**DeVana** was born out of comprehensive academic research to shift DVA design from an experience-based art to a rigorous, algorithmic science. 
 
-### Phase 2: DVA Optimization (DeVana Core)
+The software operates by taking a discrete vibrational model (masses, springs, dampers, and inerters) derived from the original continuous system. By defining physical restrictions (e.g., specifying which masses or bases cannot be physically connected), DeVana creates a comprehensive, fully-coupled mathematical space. It then leverages advanced machine learning and metaheuristics to answer two fundamental engineering questions:
 
-#### Step 1: Define System Parameters
-Set primary system properties such as mass, stiffness, damping, and external forces in `config/system_config.json`.
+1. **The Optimal Topology (Q1):** What is the absolute best combination of DVA components based on user-defined criteria? DeVana systematically finds configurations that minimize the number of active parameters, minimize total manufacturing/maintenance cost, and maximize energy dissipation.
+2. **The Safe Ranges (Q2):** Real-world manufacturing cannot produce infinite-precision continuous values (e.g., a spring stiffness of exactly 145.32 N/m). Given the infinite combinations of parameters, what are the **safe, reliable ranges** for each DVA parameter? DeVana performs deep statistical extraction so that *any* combination chosen within these ranges will satisfy the performance thresholds.
 
-#### Step 2: Configure DVAs
-Customize DVA parameters (e.g., mass, stiffness, damping) in `config/dva_config.json`.
+### The Algorithmic Paradigm
 
-#### Step 3: Set Performance Targets
-Specify optimization goals in `config/performance_targets.json`.
-
-#### Step 4: Analyze System
-Run Frequency Response Function (FRF) analysis to assess vibrational responses and establish baseline performance.
-
-#### Step 5: Conduct Sensitivity Analysis
-Identify influential parameters using the Sobol method to prioritize optimization efforts:
-- Determine which DVA parameters have the greatest impact on system performance
-- Visualize parameter sensitivity across frequency ranges
-- Focus optimization on the most influential parameters
-
-#### Step 6: Optimize DVAs
-Execute optimization using one or multiple algorithms:
-- **Genetic Algorithm (GA)**: Multi-objective evolutionary optimization with adaptive rates
-- **Particle Swarm Optimization (PSO)**: Social behavior-inspired optimization with various topology options
-- **Differential Evolution (DE)**: Population-based stochastic function minimizer
-- **Simulated Annealing (SA)**: Temperature-based probabilistic technique for global optimization
-- **CMA-ES**: Covariance Matrix Adaptation Evolution Strategy for non-linear, non-convex optimization
-- **Bayesian Optimization**: Sample-efficient optimization using probabilistic surrogate models
-
-#### Step 7: Statistical Analysis of Results
-- Run multiple optimization instances with different initial conditions
-- Aggregate results to identify robust parameter ranges
-- Analyze convergence patterns and solution stability
-- Generate statistical distributions of optimal parameters
-
-### Phase 3: Continuous System Implementation (Post-DeVana)
-- Apply optimized DVA parameter ranges to continuous system models
-- Validate performance using the integrated Continuous Beam Analysis module
-- Fine-tune parameters based on continuous system response
-- Implement final design in physical system
+```mermaid
+flowchart TD
+    Start(["Real-World Continuous System"]) --> Discretize["Step 1: Discretization (Pre-DeVana)<br/>Reduce to discrete masses, springs, dampers, inerters"]
+    Discretize --> Restrict["Step 2: Define Restrictions<br/>Set boundary conditions and non-connectable nodes"]
+    Restrict --> DeVana{"Step 3: DeVana Optimization Engine<br/>Run GA, PSO, RL, CMA-ES, etc."}
+    
+    DeVana --> Q1["Answer Q1: Optimal Configuration<br/>(Min cost, max sparsity, peak performance)"]
+    DeVana --> Q2["Answer Q2: Safe Parameter Ranges<br/>(Top 10% & Median 5% statistical extraction)"]
+    
+    Q1 --> Combine["Step 4: Final Discrete DVA Design"]
+    Q2 --> Combine
+    
+    Combine --> Future["Step 5: Continuous Analysis (Future)<br/>Validate ranges against original continuous system"]
+```
 
 ---
 
-## Installation
+## 💎 Core Pillars
+
+### 1. Advanced Optimization Suite
+DeVana features a diverse library of optimization workers, each optimized for high-dimensional mechanical design spaces:
+*   **Genetic Algorithms (GA)**: Adaptive crossover/mutation rates with ML-based parameter control.
+*   **Particle Swarm (PSO)**: Multi-topology support with velocity clamping.
+*   **Evolution Strategies (CMA-ES)**: State-of-the-art covariance matrix adaptation for non-convex landscapes.
+*   **Multi-Objective (NSGA-II)**: Pareto-optimal front generation balancing vibration, sparsity, and cost.
+*   **Reinforcement Learning (RL)**: Continuous policy-gradient agents for intelligent parameter tuning.
+*   **Simulated Annealing (SA) & Differential Evolution (DE)**: Robust global search techniques.
+
+### 2. Intelligent Seeding Engine
+Accelerate convergence by bypassing random initialization with DeVana's proprietary seeding strategies:
+*   **Neural Seeder**: Online learning via MLP ensembles to predict fitness landscapes using UCB and EI acquisition.
+*   **Memory Seeder**: Cross-session persistence that learns from successful historical designs.
+*   **Quasi-Random**: Sobol sequences and Latin Hypercube Sampling (LHS) for uniform space coverage.
+
+### 3. High-Fidelity Analysis
+*   **FRF Computation**: Robust Frequency Response Function solver with automatic DOF pruning and pseudo-inverse fallbacks for singular matrices.
+*   **Sobol Sensitivity**: Global variance-based sensitivity analysis to identify critical design parameters.
+*   **Peak & Slope Analysis**: Automated modal identification with high-precision topological prominence filtering.
+
+---
+
+## 🚀 Future Roadmap: Continuous System Integration
+
+Currently, DeVana flawlessly handles highly complex discrete systems (e.g., the fully-coupled 2DOF-3DOF benchmark featured in our documentation). 
+
+The **next major frontier** for DeVana is the seamless integration of **Continuous Analysis**. In the future, once DeVana extracts the "Safe Ranges" for the discrete DVA components, the software will automatically feed these ranges back into integrated FEM/continuous modules (such as the under-construction Continuous Beam module). This will provide an end-to-end pipeline: from real-world continuous structures, to discrete optimization, and straight back to continuous validation.
+
+---
+
+## 🛠 Project Structure
+
+```text
+DeVana/
+├── codes/
+│   ├── gui/                # Modular Mixin-based UI architecture
+│   ├── workers/            # Multi-threaded optimization algorithms
+│   ├── modules/            # Core physics and sensitivity engines
+│   └── RL/                 # Reinforcement Learning agents
+├── Documents/              # Comprehensive technical documentation & flowcharts
+├── Icon/                   # Application assets
+└── requirements.txt        # Environment dependencies
+```
+
+---
+
+## 🏁 Getting Started
 
 ### Prerequisites
-- Python 3.7+
-- pip (Python package installer)
+- Python 3.8 or higher
+- Git
 
-### Dependencies
-- NumPy: Numerical computing
-- Matplotlib & Seaborn: Data visualization
-- Pandas: Data manipulation
-- SciPy: Scientific computing
-- PyQt5: GUI framework
-- SALib: Sensitivity analysis
-- joblib: Parallel computing
-- adjustText: Text annotation in plots
+### Installation
 
-### Steps
-
-1. Clone the repository:
+1. **Clone the Repository**
    ```bash
    git clone https://github.com/mahan2079/DeVana.git
    cd DeVana
    ```
 
-2. Create a virtual environment (optional):
+2. **Set Up Environment**
    ```bash
    python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   source venv/bin/activate  # Windows: venv\Scripts\activate
    ```
 
-3. Install dependencies:
+3. **Install Dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. Launch the application:
+4. **Run the Application**
    ```bash
    python codes/run.py
    ```
 
 ---
 
-## Advanced Features
+## 📚 Documentation
 
-### Continuous Beam Analysis
-The integrated Continuous Beam module provides:
-- Multi-layer composite beam analysis
-- Temperature-dependent material properties
-- Automatic calculation of effective flexural rigidity and mass per unit length
-- Advanced finite element analysis with Euler-Bernoulli beam elements
-- Natural frequency and mode shape calculation
-- Time-domain vibration analysis
-- Interactive visualization with real-time animations
-
-### Optimization Algorithm Comparison
-DeVana allows side-by-side comparison of different optimization algorithms:
-- Performance benchmarking across algorithms
-- Convergence rate visualization
-- Solution quality assessment
-- Computational efficiency metrics
-
-### Comprehensive Metrics Visualization
-- Real-time optimization progress tracking
-- Parameter convergence plots
-- Fitness landscape visualization
-- Statistical distribution of solutions
-- Sensitivity analysis heatmaps
+For deep technical dives, algorithm flowcharts, mathematical models, and API references, please explore our comprehensive **[Documentation Index](Documents/INDEX.md)**.
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
-Contributions are welcome! Fork the repository, create a branch for your feature or fix, and submit a pull request.
+Contributions are what make the engineering community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
 
-### Guidelines
-- Ensure code quality and update documentation
-- Include unit tests for new features or fixes
-- Follow the existing code style and architecture
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ---
 
-## Contact
+## ✉️ Contact
 
 **Mahan Dashti Gohari**  
-Email: [mahan.dashti.gohari@gmail.com](mailto:mahan.dashti.gohari@gmail.com)  
-GitHub: [https://github.com/mahan2079](https://github.com/mahan2079)
+Lead Developer & Researcher  
+📧 [mahan.dashti.gohari@gmail.com](mailto:mahan.dashti.gohari@gmail.com)  
+🔗 [GitHub Profile](https://github.com/mahan2079)
 
 ---
 
-## Acknowledgments
+## 📜 License
 
-Thanks to all contributors and the broader research community for their insights into vibration analysis and control systems.
+Distributed under the **Apache License 2.0**. See `LICENSE` for more information.
 
-## License
-       Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-      "Source" form shall mean the preferred form for making modifications,
-      including but not limited to software source code, documentation
-      source, and configuration files.
-
-      "Object" form shall mean any form resulting from mechanical
-      transformation or translation of a Source form, including but
-      not limited to compiled object code, generated documentation,
-      and conversions to other media types.
-
-      "Work" shall mean the work of authorship, whether in Source or
-      Object form, made available under the License, as indicated by a
-      copyright notice that is included in or attached to the work
-      (an example is provided in the Appendix below).
-
-      "Derivative Works" shall mean any work, whether in Source or Object
-      form, that is based on (or derived from) the Work and for which the
-      editorial revisions, annotations, elaborations, or other modifications
-      represent, as a whole, an original work of authorship. For the purposes
-      of this License, Derivative Works shall not include works that remain
-      separable from, or merely link (or bind by name) to the interfaces of,
-      the Work and Derivative Works thereof.
-
-      "Contribution" shall mean any work of authorship, including
-      the original version of the Work and any modifications or additions
-      to that Work or Derivative Works thereof, that is intentionally
-      submitted to Licensor for inclusion in the Work by the copyright owner
-      or by an individual or Legal Entity authorized to submit on behalf of
-      the copyright owner. For the purposes of this definition, "submitted"
-      means any form of electronic, verbal, or written communication sent
-      to the Licensor or its representatives, including but not limited to
-      communication on electronic mailing lists, source code control systems,
-      and issue tracking systems that are managed by, or on behalf of, the
-      Licensor for the purpose of discussing and improving the Work, but
-      excluding communication that is conspicuously marked or otherwise
-      designated in writing by the copyright owner as "Not a Contribution."
-
-      "Contributor" shall mean Licensor and any individual or Legal Entity
-      on behalf of whom a Contribution has been received by Licensor and
-      subsequently incorporated within the Work.
-
-   2. Grant of Copyright License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      copyright license to reproduce, prepare Derivative Works of,
-      publicly display, publicly perform, sublicense, and distribute the
-      Work and such Derivative Works in Source or Object form.
-
-   3. Grant of Patent License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      (except as stated in this section) patent license to make, have made,
-      use, offer to sell, sell, import, and otherwise transfer the Work,
-      where such license applies only to those patent claims licensable
-      by such Contributor that are necessarily infringed by their
-      Contribution(s) alone or by combination of their Contribution(s)
-      with the Work to which such Contribution(s) was submitted. If You
-      institute patent litigation against any entity (including a
-      cross-claim or counterclaim in a lawsuit) alleging that the Work
-      or a Contribution incorporated within the Work constitutes direct
-      or contributory patent infringement, then any patent licenses
-      granted to You under this License for that Work shall terminate
-      as of the date such litigation is filed.
-
-   4. Redistribution. You may reproduce and distribute copies of the
-      Work or Derivative Works thereof in any medium, with or without
-      modifications, and in Source or Object form, provided that You
-      meet the following conditions:
-
-      (a) You must give any other recipients of the Work or
-          Derivative Works a copy of this License; and
-
-      (b) You must cause any modified files to carry prominent notices
-          stating that You changed the files; and
-
-      (c) You must retain, in the Source form of any Derivative Works
-          that You distribute, all copyright, patent, trademark, and
-          attribution notices from the Source form of the Work,
-          excluding those notices that do not pertain to any part of
-          the Derivative Works; and
-
-      (d) If the Work includes a "NOTICE" text file as part of its
-          distribution, then any Derivative Works that You distribute must
-          include a readable copy of the attribution notices contained
-          within such NOTICE file, excluding those notices that do not
-          pertain to any part of the Derivative Works, in at least one
-          of the following places: within a NOTICE text file distributed
-          as part of the Derivative Works; within the Source form or
-          documentation, if provided along with the Derivative Works; or,
-          within a display generated by the Derivative Works, if and
-          wherever such third-party notices normally appear. The contents
-          of the NOTICE file are for informational purposes only and
-          do not modify the License. You may add Your own attribution
-          notices within Derivative Works that You distribute, alongside
-          or as an addendum to the NOTICE text from the Work, provided
-          that such additional attribution notices cannot be construed
-          as modifying the License.
-
-      You may add Your own copyright statement to Your modifications and
-      may provide additional or different license terms and conditions
-      for use, reproduction, or distribution of Your modifications, or
-      for any such Derivative Works as a whole, provided Your use,
-      reproduction, and distribution of the Work otherwise complies with
-      the conditions stated in this License.
-
-   5. Submission of Contributions. Unless You explicitly state otherwise,
-      any Contribution intentionally submitted for inclusion in the Work
-      by You to the Licensor shall be under the terms and conditions of
-      this License, without any additional terms or conditions.
-      Notwithstanding the above, nothing herein shall supersede or modify
-      the terms of any separate license agreement you may have executed
-      with Licensor regarding such Contributions.
-
-   6. Trademarks. This License does not grant permission to use the trade
-      names, trademarks, service marks, or product names of the Licensor,
-      except as required for reasonable and customary use in describing the
-      origin of the Work and reproducing the content of the NOTICE file.
-
-   7. Disclaimer of Warranty. Unless required by applicable law or
-      agreed to in writing, Licensor provides the Work (and each
-      Contributor provides its Contributions) on an "AS IS" BASIS,
-      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-      implied, including, without limitation, any warranties or conditions
-      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-      PARTICULAR PURPOSE. You are solely responsible for determining the
-      appropriateness of using or redistributing the Work and assume any
-      risks associated with Your exercise of permissions under this License.
-
-   8. Limitation of Liability. In no event and under no legal theory,
-      whether in tort (including negligence), contract, or otherwise,
-      unless required by applicable law (such as deliberate and grossly
-      negligent acts) or agreed to in writing, shall any Contributor be
-      liable to You for damages, including any direct, indirect, special,
-      incidental, or consequential damages of any character arising as a
-      result of this License or out of the use or inability to use the
-      Work (including but not limited to damages for loss of goodwill,
-      work stoppage, computer failure or malfunction, or any and all
-      other commercial damages or losses), even if such Contributor
-      has been advised of the possibility of such damages.
-
-   9. Accepting Warranty or Additional Liability. While redistributing
-      the Work or Derivative Works thereof, You may choose to offer,
-      and charge a fee for, acceptance of support, warranty, indemnity,
-      or other liability obligations and/or rights consistent with this
-      License. However, in accepting such obligations, You may act only
-      on Your own behalf and on Your sole responsibility, not on behalf
-      of any other Contributor, and only if You agree to indemnify,
-      defend, and hold each Contributor harmless for any liability
-      incurred by, or claims asserted against, such Contributor by reason
-      of your accepting any such warranty or additional liability.
-
-   END OF TERMS AND CONDITIONS
-
-   APPENDIX: How to apply the Apache License to your work.
-
-      To apply the Apache License to your work, attach the following
-      boilerplate notice, with the fields enclosed by brackets "[]"
-      replaced with your own identifying information. (Don't include
-      the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that a
-      file or class name and description of purpose be included on the
-      same "printed page" as the copyright notice for easier
-      identification within third-party archives.
-
-   Copyright 2025 Mahan Dashti Gohari
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+---
+<p align="center">
+  Built with ❤️ for the Structural Dynamics Community
+</p>
