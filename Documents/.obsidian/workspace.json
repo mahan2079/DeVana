@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "INDEX.md",
+                "file": "CoreComponents/Microchip.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "INDEX"
+              "title": "Microchip"
             }
           }
         ]
@@ -185,21 +185,21 @@
   },
   "active": "577874e066882c03",
   "lastOpenFiles": [
+    "Analysis/Metrics.md",
+    "Analysis/Sobol.md",
+    "Analysis/MathematicalModel.md",
+    "Algorithms/GA.md",
+    "CoreComponents/ContinuousBeam.md",
     "CoreComponents/Seeding.md",
     "CoreComponents/Microchip.md",
-    "CoreComponents/ContinuousBeam.md",
+    "CoreComponents/Architecture.md",
+    "Analysis/FRF.md",
+    "INDEX.md",
     "CoreComponents/MainWindow.md",
-    "Analysis/MathematicalModel.md",
-    "Analysis/Metrics.md",
     "Algorithms/ObjectiveFunction.md",
     "README.md",
     "Algorithms/DE.md",
-    "CoreComponents/Architecture.md",
-    "INDEX.md",
-    "Analysis/FRF.md",
     "Analysis/StatisticalEvaluation.md",
-    "Analysis/Sobol.md",
-    "Algorithms/GA.md",
     "Algorithms/PSO.md"
   ]
 }

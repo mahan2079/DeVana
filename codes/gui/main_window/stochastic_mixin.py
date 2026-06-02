@@ -509,9 +509,11 @@ class StochasticDesignMixin:
                         self.run_nsga2()
                     else:
                         QMessageBox.information(self, "Not Implemented", "NSGA-II run method not found.")
-                # Add other MOGA methods here in the future
-                # elif current_method_tab_text == "SomeOtherMOGA":
-                #     self.run_some_other_moga()
+                elif current_method_tab_text == "AdaVEA":
+                    if hasattr(self, 'run_adavea'):
+                        self.run_adavea()
+                    else:
+                        QMessageBox.information(self, "Not Implemented", "AdaVEA run method not found.")
                 else:
                     QMessageBox.information(self, "Not Implemented", f"The '{current_method_tab_text}' optimization is not yet implemented.")
             else:

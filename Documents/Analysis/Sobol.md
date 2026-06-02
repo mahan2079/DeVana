@@ -22,19 +22,19 @@ It decomposes the variance of the output ($Y$, usually the singular response) in
 
 ```mermaid
 flowchart TD
-    Start([Start Sobol Analysis]) --> DefineProb[Define Problem <br> Variable Bounds & Names]
+    Start([Start Sobol Analysis]) --> DefineProb[Define Problem <br/> Variable Bounds & Names]
     DefineProb --> SampleLoop{For each Sample Size N}
     
-    SampleLoop --> Saltelli[Generate Samples via <br> Saltelli Sampling Scheme]
-    Saltelli --> ParallelEval[Parallel Evaluation of Samples <br> via FRF Module]
-    ParallelEval --> SiAnalyze[Perform Sobol Analysis <br> (SALib.analyze)]
+    SampleLoop --> Saltelli[Generate Samples via <br/> Saltelli Sampling Scheme]
+    Saltelli --> ParallelEval[Parallel Evaluation of Samples <br/> via FRF Module]
+    ParallelEval --> SiAnalyze[Perform Sobol Analysis <br/> (SALib.analyze)]
     
     SiAnalyze --> Store[Store S1 and ST indices]
     Store --> SampleLoop
     
-    SampleLoop -- All N Done --> Ranking[Rank Parameters by ST <br> Most to Least Important]
-    Ranking --> Stats[Calculate Statistical Errors <br> (Variance, Std, CI)]
+    SampleLoop -- All N Done --> Ranking[Rank Parameters by ST <br/> Most to Least Important]
+    Ranking --> Stats[Calculate Statistical Errors <br/> (Variance, Std, CI)]
     
-    Stats --> Visuals[Generate Comprehensive <br> Visualization Suite]
+    Stats --> Visuals[Generate Comprehensive <br/> Visualization Suite]
     Visuals --> End([End Sobol Analysis])
 ```

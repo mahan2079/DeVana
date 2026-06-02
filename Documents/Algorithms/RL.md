@@ -14,23 +14,23 @@ The RL Worker (`RLWorker.py`) applies a policy-gradient-inspired approach to opt
 
 ```mermaid
 flowchart TD
-    Start([Start RL Optimization]) --> Sobol[Perform Sobol Analysis <br> Rank Parameters by Sensitivity]
-    Sobol --> Reorder[Reorder Parameters <br> Sensitivity-based Hierarchy]
+    Start([Start RL Optimization]) --> Sobol[Perform Sobol Analysis <br/> Rank Parameters by Sensitivity]
+    Sobol --> Reorder[Reorder Parameters <br/> Sensitivity-based Hierarchy]
     
-    Reorder --> InitPolicy[Initialize Policy Weights & <br> Experience Buffer]
-    InitPolicy --> EpisodeLoop{Max Episodes <br> Reached?}
+    Reorder --> InitPolicy[Initialize Policy Weights & <br/> Experience Buffer]
+    InitPolicy --> EpisodeLoop{Max Episodes <br/> Reached?}
     
     EpisodeLoop -- No --> ResetWatchdog[Reset Safety Watchdog]
-    ResetWatchdog --> StepLoop{Max Steps <br> Reached?}
+    ResetWatchdog --> StepLoop{Max Steps <br/> Reached?}
     
-    StepLoop -- No --> GenParams[Generate Parameters <br> Policy + Exploration Noise]
-    GenParams --> Eval[Evaluate Parameters via FRF <br> Calculate Fitness (Reward)]
+    StepLoop -- No --> GenParams[Generate Parameters <br/> Policy + Exploration Noise]
+    GenParams --> Eval[Evaluate Parameters via FRF <br/> Calculate Fitness (Reward)]
     
-    Eval --> Store[Store Experience <br> (Params, Fitness, Results)]
+    Eval --> Store[Store Experience <br/> (Params, Fitness, Results)]
     Store --> UpdateBest[Update Global Best Solution]
     UpdateBest --> StepLoop
     
-    StepLoop -- Yes --> UpdatePolicy[Update Policy Weights <br> via Policy Gradient & Batch Sampling]
+    StepLoop -- Yes --> UpdatePolicy[Update Policy Weights <br/> via Policy Gradient & Batch Sampling]
     UpdatePolicy --> DecayEpsilon[Decay Exploration Rate epsilon]
     DecayEpsilon --> EpisodeLoop
     

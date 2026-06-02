@@ -18,17 +18,17 @@ The Differential Evolution module (`DEWorker.py`) optimizes DVA parameters by ma
 
 ```mermaid
 flowchart TD
-    Start([Start DE]) --> InitPop[Initialize Population <br> (Latin Hypercube or Random)]
+    Start([Start DE]) --> InitPop[Initialize Population <br/> (Latin Hypercube or Random)]
     InitPop --> EvalInitial[Evaluate Initial Population]
-    EvalInitial --> GenLoop{Max Generations <br> Reached?}
+    EvalInitial --> GenLoop{Max Generations <br/> Reached?}
     
-    GenLoop -- No --> AdaptParams[Adapt Control Parameters <br> F and CR]
+    GenLoop -- No --> AdaptParams[Adapt Control Parameters <br/> F and CR]
     AdaptParams --> MLRL[Update ML/RL Controllers if enabled]
     MLRL --> PopLoop[For each target vector x_i]
     
-    PopLoop --> Mutation[Apply DE Strategy <br> Create Donor Vector v]
-    Mutation --> Crossover[Apply Binomial Crossover <br> Create Trial Vector u]
-    Crossover --> Constraints[Apply Constraint Handling <br> (Reflection, Projection)]
+    PopLoop --> Mutation[Apply DE Strategy <br/> Create Donor Vector v]
+    Mutation --> Crossover[Apply Binomial Crossover <br/> Create Trial Vector u]
+    Crossover --> Constraints[Apply Constraint Handling <br/> (Reflection, Projection)]
     Constraints --> EvalTrial[Evaluate Trial Vector u]
     
     EvalTrial --> Selection{Is f(u) < f(x_i)?}
@@ -39,7 +39,7 @@ flowchart TD
     Keep --> CheckNext
     
     CheckNext -- Yes --> PopLoop
-    CheckNext -- No --> Diversity[Calculate Diversity & <br> Apply Preservation]
+    CheckNext -- No --> Diversity[Calculate Diversity & <br/> Apply Preservation]
     
     Diversity --> Metrics[Calculate Generation Metrics & Update Best]
     Metrics --> EarlyStop{Convergence Met?}

@@ -310,23 +310,21 @@ class AdaVEAOptimizationMixin:
         ]
         heuristic_init_ratio = self.adavea_heuristic_init_spinbox.value()
 
-        # Get system parameters from main window (assuming they are available)
+        # Get system parameters from main window
         try:
             main_system_parameters = self.get_main_system_params()
             dva_parameters = self.get_dva_params()
-            target_values, weights = self.get_target_values_weights()
+            target_values_dict, weights_dict = self.get_target_values_weights()
+            target_values_weights = (target_values_dict, weights_dict) # Pass as tuple for worker
+            
             omega_start = self.omega_start_box.value()
             omega_end = self.omega_end_box.value()
             omega_points = self.omega_points_box.value()
-        except AttributeError:
-            QMessageBox.critical(self, "Error", "System parameters (main, DVA, targets, frequency) are not accessible. Ensure they are initialized.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to retrieve system parameters: {str(e)}")
             self.reset_adavea_buttons()
             return
         
-        # Combine target_values and weights into a single structure for the worker
-        target_values_weights = (target_values, weights)
-
-        self.adavea_worker_thread = QThread()
         self.adavea_worker = AdaVEAWorker(
             main_system_parameters=main_system_parameters,
             dva_parameters=dva_parameters,
@@ -348,12 +346,19 @@ class AdaVEAOptimizationMixin:
             hv_ref_point=hv_ref_point,
             heuristic_init_ratio=heuristic_init_ratio
         )
+        # Using a direct thread approach consistent with AdaVEA's current structure
+        self.adavea_worker_thread = QThread()
         self.adavea_worker.moveToThread(self.adavea_worker_thread)
         self.adavea_worker.progress.connect(self.update_adavea_progress)
-        self.adavea_worker.finished.connect(self.adavea_finished)
+        self.adavea_worker.finished.connect(self.adavea_finished_wrapper)
         self.adavea_worker.error.connect(self.adavea_error)
         self.adavea_worker_thread.started.connect(self.adavea_worker.run)
         self.adavea_worker_thread.start()
+
+    def adavea_finished_wrapper(self, all_runs_data):
+        self.adavea_worker_thread.quit()
+        self.adavea_worker_thread.wait()
+        self.adavea_finished(all_runs_data)
 
     def pause_adavea(self):
         if self.adavea_worker:

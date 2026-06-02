@@ -3,6 +3,8 @@ from deap import base, creator, tools, algorithms
 from PyQt5.QtCore import QThread, pyqtSignal
 import time
 import random
+import psutil
+import os
 
 from modules.FRF import frf
 
@@ -26,20 +28,21 @@ def safe_deap_operation(func):
     return wrapper
 
 class NSGA2Worker(QThread):
-    progress = pyqtSignal(int, dict)
-    finished = pyqtSignal(list)
+    progress = pyqtSignal(int, int, int, dict) # run_idx, current_gen, total_gens, metrics
+    finished = pyqtSignal(list) # all_runs_data
     error = pyqtSignal(str)
 
     def __init__(self, main_params, dva_params, target_values_weights, omega_start, omega_end, omega_points,
                  pop_size, generations, cxpb, mutpb, eta_c, eta_m, indpb, sparsity_tau, sparsity_alpha, sparsity_beta,
-                 run_id=1, random_seed=None, parent=None):
+                 num_runs=1, random_seed=None, convergence_epsilon=0.001, convergence_window=50, convergence_min_gen=500,
+                 hv_ref_point=None, parent=None):
         super().__init__(parent)
         self.main_params = main_params
         # Parse dva_params
         self.parameter_names = [p[0] for p in dva_params]
         self.low_bounds = [p[1] for p in dva_params]
         self.high_bounds = [p[2] for p in dva_params]
-        self.fixed_params = {i: p[4] for i, p in enumerate(dva_params) if p[3]} # {index: fixed_value}
+        self.fixed_params = {i: p[4] for i, p in enumerate(dva_params) if p[3]} 
         self.cost_coeffs = [p[5] for p in dva_params]
 
         self.target_values_weights = target_values_weights
@@ -56,17 +59,29 @@ class NSGA2Worker(QThread):
         self.sparsity_tau = sparsity_tau
         self.sparsity_alpha = sparsity_alpha
         self.sparsity_beta = sparsity_beta
-        self.run_id = run_id
+        self.num_runs = num_runs
         self.random_seed = random_seed
+        self.convergence_epsilon = convergence_epsilon
+        self.convergence_window = convergence_window
+        self.convergence_min_gen = convergence_min_gen
+        self.hv_ref_point = hv_ref_point if hv_ref_point else [1.0, 100.0, 100.0]
         
         self.abort = False
+        self.is_paused = False
 
     def stop(self):
         self.abort = True
 
+    def pause(self):
+        self.is_paused = True
+
+    def resume(self):
+        self.is_paused = False
+
     def evaluate(self, individual):
         # Objective 1: FRF
         try:
+            # target_values_weights is a list of 5 (masses) tuples of (target_values, weights)
             results = frf(
                 main_system_parameters=self.main_params,
                 dva_parameters=tuple(individual),
@@ -90,7 +105,7 @@ class NSGA2Worker(QThread):
             f1 = results.get('singular_response', 1e6)
             if not np.isfinite(f1):
                 f1 = 1e6
-        except Exception as e:
+        except Exception:
             f1 = 1e6
 
         # Objective 2: Sparsity
@@ -105,124 +120,125 @@ class NSGA2Worker(QThread):
     @safe_deap_operation
     def run(self):
         try:
-            if self.random_seed is not None:
-                random.seed(self.random_seed)
-                np.random.seed(self.random_seed)
+            all_runs_data = []
+            process = psutil.Process()
 
-            start_time = time.time()
-
-            creator.create("FitnessMulti", base.Fitness, weights=(-1.0, -1.0, -1.0))
-            creator.create("Individual", list, fitness=creator.FitnessMulti)
-
-            toolbox = base.Toolbox()
-            
-            # Attribute generator
-            def attr_float(i):
-                if i in self.fixed_params:
-                    return self.fixed_params[i]
-                return random.uniform(self.low_bounds[i], self.high_bounds[i])
-            
-            toolbox.register("attr_float", attr_float)
-            toolbox.register("individual", tools.initIterate, creator.Individual, 
-                             lambda: [toolbox.attr_float(i) for i in range(len(self.low_bounds))])
-            toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-
-            toolbox.register("evaluate", self.evaluate)
-            toolbox.register("mate", tools.cxSimulatedBinaryBounded, low=self.low_bounds, up=self.high_bounds, eta=self.eta_c)
-            toolbox.register("mutate", tools.mutPolynomialBounded, low=self.low_bounds, up=self.high_bounds, eta=self.eta_m, indpb=self.indpb)
-            toolbox.register("select", tools.selNSGA2)
-
-            pop = toolbox.population(n=self.pop_size)
-            
-            # Evaluate the entire population
-            fitnesses = list(map(toolbox.evaluate, pop))
-            for ind, fit in zip(pop, fitnesses):
-                ind.fitness.values = fit
-
-            for gen in range(self.generations):
-                if self.abort:
-                    break
-
-                # Select the next generation individuals
-                offspring = toolbox.select(pop, len(pop))
-                # Clone the selected individuals
-                offspring = list(map(toolbox.clone, offspring))
-
-                # Apply crossover and mutation on the offspring
-                for child1, child2 in zip(offspring[::2], offspring[1::2]):
-                    if random.random() < self.cxpb:
-                        toolbox.mate(child1, child2)
-                        del child1.fitness.values
-                        del child2.fitness.values
-
-                for mutant in offspring:
-                    if random.random() < self.mutpb:
-                        toolbox.mutate(mutant)
-                        del mutant.fitness.values
-
-                # Evaluate the individuals with an invalid fitness
-                invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-                fitnesses = map(toolbox.evaluate, invalid_ind)
-                for ind, fit in zip(invalid_ind, fitnesses):
-                    ind.fitness.values = fit
-
-                # The population is entirely replaced by the offspring
-                pop[:] = offspring
-                
-                # Gather all the fitnesses in one list and print the stats
-                fits = [ind.fitness.values for ind in pop]
-                
-                # Calculate metrics
-                # This is a placeholder for the actual metrics calculation
-                metrics = {
-                    "Gen": gen + 1,
-                    "HV": 0, # Placeholder
-                    "IGD+": 0, # Placeholder
-                    "GD": 0, # Placeholder
-                    "Spread": 0, # Placeholder
-                    "N_Pareto": len(tools.sortNondominated(pop, len(pop), first_front_only=True)[0]),
-                    "Diversity": 0, # Placeholder
-                    "Time (s)": time.time() - start_time,
-                    "Memory (MB)": 0, # Placeholder
-                    "Rank Diversity": 0, # Placeholder
-                    "Best Fitness (f1,f2,f3)": min(fits)
-                }
-                
-                self.progress.emit(int(((gen + 1) / self.generations) * 100), metrics)
-
-            end_time = time.time()
-            final_pareto = tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
-            
-            # Prepare results for saving
-            results_to_save = {
-                "run_id": self.run_id,
-                "start_time": start_time,
-                "end_time": end_time,
-                "total_time_hours": (end_time - start_time) / 3600,
-                "final_HV": 0, # Placeholder
-                "final_IGD+": 0, # Placeholder
-                "pareto_size": len(final_pareto),
-                "pareto_front": [ind.fitness.values for ind in final_pareto],
-                "pareto_individuals": [list(ind) for ind in final_pareto]
-            }
-            
-            import json
-            import os
+            # Ensure results directory exists
             results_dir = "nsga2_results"
             if not os.path.exists(results_dir):
                 os.makedirs(results_dir)
-            
-            file_path = os.path.join(results_dir, f"nsga2_run_{self.run_id}.json")
-            with open(file_path, 'w') as f:
-                json.dump(results_to_save, f, indent=4)
 
-            self.finished.emit(self.run_id, file_path)
+            for run_idx in range(self.num_runs):
+                if self.abort: break
+                
+                seed = self.random_seed + run_idx if self.random_seed is not None else None
+                if seed is not None:
+                    random.seed(seed)
+                    np.random.seed(seed)
 
+                if not hasattr(creator, "FitnessMulti"):
+                    creator.create("FitnessMulti", base.Fitness, weights=(-1.0, -1.0, -1.0))
+                if not hasattr(creator, "Individual"):
+                    creator.create("Individual", list, fitness=creator.FitnessMulti)
+
+                toolbox = base.Toolbox()
+                def attr_float(i):
+                    if i in self.fixed_params: return self.fixed_params[i]
+                    return random.uniform(self.low_bounds[i], self.high_bounds[i])
+                
+                toolbox.register("attr_float", attr_float)
+                toolbox.register("individual", tools.initIterate, creator.Individual, 
+                                 lambda: [toolbox.attr_float(i) for i in range(len(self.low_bounds))])
+                toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+                toolbox.register("evaluate", self.evaluate)
+                toolbox.register("mate", tools.cxSimulatedBinaryBounded, low=self.low_bounds, up=self.high_bounds, eta=self.eta_c)
+                toolbox.register("mutate", tools.mutPolynomialBounded, low=self.low_bounds, up=self.high_bounds, eta=self.eta_m, indpb=self.indpb)
+                toolbox.register("select", tools.selNSGA2)
+
+                pop = toolbox.population(n=self.pop_size)
+                fitnesses = list(map(toolbox.evaluate, pop))
+                for ind, fit in zip(pop, fitnesses): ind.fitness.values = fit
+
+                generation_metrics = []
+                start_time = time.time()
+
+                for gen in range(self.generations):
+                    while self.is_paused and not self.abort: time.sleep(0.1)
+                    if self.abort: break
+
+                    gen_start = time.time()
+
+                    offspring = tools.selTournamentDCD(pop, len(pop))
+                    offspring = [toolbox.clone(ind) for ind in offspring]
+
+                    for ind1, ind2 in zip(offspring[::2], offspring[1::2]):
+                        if random.random() < self.cxpb:
+                            toolbox.mate(ind1, ind2)
+                            del ind1.fitness.values
+                            del ind2.fitness.values
+
+                    for ind in offspring:
+                        if random.random() < self.mutpb:
+                            toolbox.mutate(ind)
+                            del ind.fitness.values
+
+                    invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+                    fitnesses = map(toolbox.evaluate, invalid_ind)
+                    for ind, fit in zip(invalid_ind, fitnesses): ind.fitness.values = fit
+
+                    pop = toolbox.select(pop + offspring, self.pop_size)
+                    
+                    # Calculate Hypervolume
+                    try:
+                        from deap.tools._hypervolume import hv
+                        pareto_front = tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
+                        objs = [ind.fitness.values for ind in pareto_front]
+                        hypervolume_val = hv.hypervolume(objs, self.hv_ref_point)
+                    except Exception:
+                        hypervolume_val = 0.0
+
+                    metrics = {
+                        "Gen": gen + 1,
+                        "HV": hypervolume_val,
+                        "IGD+": 0.0, # Placeholder
+                        "GD": 0.0, # Placeholder
+                        "Spread": 0.0, # Placeholder
+                        "N_Pareto": len(tools.sortNondominated(pop, len(pop), first_front_only=True)[0]),
+                        "Diversity": 0.0, # Placeholder
+                        "Time (s)": time.time() - start_time,
+                        "Memory (MB)": process.memory_info().rss / 1024 / 1024,
+                        "Rank Diversity": 0.0, # Placeholder
+                        "Best Fitness (f1,f2,f3)": str(min([ind.fitness.values for ind in pop])),
+                        "time_gen": time.time() - gen_start
+                    }
+                    generation_metrics.append(metrics)
+                    self.progress.emit(run_idx, gen + 1, self.generations, metrics)
+
+                    # Convergence check
+                    if (gen + 1) > self.convergence_min_gen and (gen + 1) % self.convergence_window == 0:
+                        recent_hvs = [m['HV'] for m in generation_metrics[-self.convergence_window:]]
+                        if np.max(recent_hvs) - np.min(recent_hvs) < self.convergence_epsilon:
+                            break
+
+                final_pareto = tools.sortNondominated(pop, len(pop), first_front_only=True)[0]
+                run_data = {
+                    "run_id": run_idx + 1,
+                    "total_time_hours": (time.time() - start_time) / 3600,
+                    "final_HV": generation_metrics[-1]['HV'] if generation_metrics else 0,
+                    "pareto_size": len(final_pareto),
+                    "generation_metrics": generation_metrics,
+                    "final_pareto_front_objectives": [list(ind.fitness.values) for ind in final_pareto],
+                    "final_population_parameters": [list(ind) for ind in final_pareto],
+                    "convergence_gen": len(generation_metrics)
+                }
+                all_runs_data.append(run_data)
+
+                # Save individual run to JSON
+                file_path = os.path.join(results_dir, f"nsga2_run_{run_idx + 1}.json")
+                with open(file_path, 'w') as f:
+                    import json
+                    json.dump(run_data, f, indent=4)
+
+            self.finished.emit(all_runs_data)
         except Exception as e:
             self.error.emit(str(e))
-        finally:
-            if hasattr(creator, "FitnessMulti"):
-                delattr(creator, "FitnessMulti")
-            if hasattr(creator, "Individual"):
-                delattr(creator, "Individual")
-

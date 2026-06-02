@@ -66,6 +66,10 @@ class SidebarMixin:
             self.beam_btn.setToolTip("Continuous Beam module not available")
         nav_layout.addWidget(self.beam_btn)
 
+        self.pinn_btn = SidebarButton(None, "PINN Discretisizer")
+        self.pinn_btn.mousePressEvent = lambda event: self.change_page(4)
+        nav_layout.addWidget(self.pinn_btn)
+
         nav_layout.addStretch()
         sidebar_layout.addWidget(nav_container)
 
@@ -85,7 +89,7 @@ class SidebarMixin:
         """Change the active page in the content stack"""
         self.content_stack.setCurrentIndex(index)
 
-        for btn in [self.intro_btn, self.stochastic_btn, self.microchip_btn, self.beam_btn]:
+        for btn in [self.intro_btn, self.stochastic_btn, self.microchip_btn, self.beam_btn, self.pinn_btn]:
             btn.setObjectName("")
             btn.setStyleSheet("")
 
@@ -97,6 +101,8 @@ class SidebarMixin:
             self.microchip_btn.setObjectName("active-nav-btn")
         elif index == 3:
             self.beam_btn.setObjectName("active-nav-btn")
+        elif index == 4:
+            self.pinn_btn.setObjectName("active-nav-btn")
 
         self.apply_current_theme()
 

@@ -58,6 +58,7 @@ from gui.main_window.sobol_mixin import SobolAnalysisMixin
 from gui.main_window.omega_sensitivity_mixin import OmegaSensitivityMixin
 from gui.main_window.adavea_mixin import AdaVEAOptimizationMixin  # New import
 from gui.main_window.moga_mixin import MOGAOptimizationMixin
+from gui.main_window.pinn_mixin import PINNIdentificationMixin
 
 from app_info import APP_NAME, __version__
 
@@ -98,6 +99,7 @@ class MainWindow(
     OmegaSensitivityMixin,
     AdaVEAOptimizationMixin,
     MOGAOptimizationMixin,
+    PINNIdentificationMixin,
 ):  # Added new mixins
     # Track all open MainWindow instances for Playground tiling/management
     playground_windows = []
@@ -154,6 +156,7 @@ class MainWindow(
         
         self.create_microchip_controller_page() # Index 2
         self.create_continuous_beam_page() # Index 3
+        self.create_pinn_discretisizer_page() # Index 4
         
         # Set default active page
         self.content_stack.setCurrentIndex(0)

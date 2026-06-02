@@ -25,7 +25,10 @@ class MOGAOptimizationMixin:
         self.create_nsga2_sub_tab()
         self.moga_method_tabs.addTab(self.nsga2_tab, "NSGA-II")
 
-        # Other MOGA methods can be added here as new tabs in the future
+        # Create the AdaVEA tab (from AdaVEAOptimizationMixin)
+        if hasattr(self, 'create_adavea_tab'):
+            self.create_adavea_tab()
+            self.moga_method_tabs.addTab(self.adavea_tab, "AdaVEA")
 
         return self.moga_main_tab
 
@@ -396,8 +399,10 @@ class MOGAOptimizationMixin:
                 self.nsga2_progress_bar.setValue(0)
                 self.nsga2_live_table.setRowCount(0)
                 self.runs_summary_table.setRowCount(0)
-                
+
                 for i in range(num_runs):
+                    if hasattr(self, 'nsga2_abort') and self.nsga2_abort:
+                        break
                     main_params = self.get_main_system_params()
                     nsga2_parameter_data = self.get_nsga2_parameter_data()
                     target_values_dict, weights_dict = self.get_target_values_weights()
@@ -410,7 +415,7 @@ class MOGAOptimizationMixin:
                     omega_end = self.omega_end_box.value()
                     omega_points = self.omega_points_box.value()
 
-                    worker = NSGA2Worker(
+                    self.nsga2_worker = NSGA2Worker(
                         main_params=main_params,
                         dva_params=nsga2_parameter_data,
                         target_values_weights=target_values_weights,
@@ -428,16 +433,21 @@ class MOGAOptimizationMixin:
                         sparsity_alpha=self.nsga2_sparsity_alpha.value(),
                         sparsity_beta=self.nsga2_sparsity_beta.value(),
                         run_id=i + 1,
-                        random_seed=i + 1
+                        random_seed=i + 1,
+                        convergence_epsilon=0.001,
+                        convergence_window=50,
+                        convergence_min_gen=500,
+                        hv_ref_point=[1.0, 100.0, 100.0]
                     )
-                    worker.progress.connect(self.update_nsga2_progress)
-                    worker.finished.connect(self.nsga2_finished)
-                    worker.error.connect(self.nsga2_error)
-                    worker.start()
-                    # This will run workers sequentially. For parallel execution, more complex management is needed.
-                    worker.wait() 
+                    self.nsga2_worker.progress.connect(self.update_nsga2_progress_multi)
+                    self.nsga2_worker.finished.connect(self.nsga2_finished)
+                    self.nsga2_worker.error.connect(self.nsga2_error)
+                    self.nsga2_worker.start()
+                    # Sequential run for simplicity in this context
+                    self.nsga2_worker.wait() 
             else:
                 # Single run
+                self.nsga2_abort = False
                 main_params = self.get_main_system_params()
                 nsga2_parameter_data = self.get_nsga2_parameter_data()
                 target_values_dict, weights_dict = self.get_target_values_weights()
@@ -446,6 +456,7 @@ class MOGAOptimizationMixin:
                     target_values = target_values_dict.get(f"mass_{mass_idx}", {})
                     weights = weights_dict.get(f"mass_{mass_idx}", {})
                     target_values_weights.append((target_values, weights))
+
                 omega_start = self.omega_start_box.value()
                 omega_end = self.omega_end_box.value()
                 omega_points = self.omega_points_box.value()
@@ -468,7 +479,11 @@ class MOGAOptimizationMixin:
                     sparsity_alpha=self.nsga2_sparsity_alpha.value(),
                     sparsity_beta=self.nsga2_sparsity_beta.value(),
                     run_id=1,
-                    random_seed=None
+                    random_seed=None,
+                    convergence_epsilon=0.001,
+                    convergence_window=50,
+                    convergence_min_gen=500,
+                    hv_ref_point=[1.0, 100.0, 100.0]
                 )
                 self.nsga2_worker.progress.connect(self.update_nsga2_progress)
                 self.nsga2_worker.finished.connect(self.nsga2_finished)
@@ -480,27 +495,37 @@ class MOGAOptimizationMixin:
             QMessageBox.critical(self, "Error", f"Failed to start NSGA-II: {str(e)}")
 
     def stop_nsga2(self):
-        if hasattr(self, 'nsga2_worker') and self.nsga2_worker.isRunning():
+        """Stop the NSGA-II optimization."""
+        self.nsga2_abort = True
+        if hasattr(self, 'nsga2_worker') and self.nsga2_worker:
             self.nsga2_worker.stop()
-            self.nsga2_run_button.setEnabled(True)
-            self.nsga2_stop_button.setEnabled(False)
+            self.nsga2_worker.wait()
+
+        self.nsga2_run_button.setEnabled(True)
+        self.nsga2_stop_button.setEnabled(False)
+        QMessageBox.information(self, "NSGA-II Stopped", "The NSGA-II optimization has been stopped.")
+
+    def update_nsga2_progress_multi(self, run_idx, current_gen, total_gens, metrics):
+        # Handle multi-run progress update
+        progress = int(((run_idx * total_gens + current_gen) / (self.nsga2_num_runs_box.value() * total_gens)) * 100)
+        self.update_nsga2_progress(progress, metrics)
 
     def update_nsga2_progress(self, progress, metrics):
         self.nsga2_progress_bar.setValue(progress)
         row_position = self.nsga2_live_table.rowCount()
         self.nsga2_live_table.insertRow(row_position)
         
-        self.nsga2_live_table.setItem(row_position, 0, QTableWidgetItem(str(metrics["Gen"])))
-        self.nsga2_live_table.setItem(row_position, 1, QTableWidgetItem(f"{metrics['HV']:.4f}"))
-        self.nsga2_live_table.setItem(row_position, 2, QTableWidgetItem(f"{metrics['IGD+']:.4f}"))
-        self.nsga2_live_table.setItem(row_position, 3, QTableWidgetItem(f"{metrics['GD']:.4f}"))
-        self.nsga2_live_table.setItem(row_position, 4, QTableWidgetItem(f"{metrics['Spread']:.4f}"))
-        self.nsga2_live_table.setItem(row_position, 5, QTableWidgetItem(str(metrics["N_Pareto"])))
-        self.nsga2_live_table.setItem(row_position, 6, QTableWidgetItem(f"{metrics['Diversity']:.4f}"))
-        self.nsga2_live_table.setItem(row_position, 7, QTableWidgetItem(f"{metrics['Time (s)']:.2f}"))
-        self.nsga2_live_table.setItem(row_position, 8, QTableWidgetItem(f"{metrics['Memory (MB)']:.2f}"))
-        self.nsga2_live_table.setItem(row_position, 9, QTableWidgetItem(f"{metrics['Rank Diversity']:.4f}"))
-        self.nsga2_live_table.setItem(row_position, 10, QTableWidgetItem(str(metrics["Best Fitness (f1,f2,f3)"])))
+        self.nsga2_live_table.setItem(row_position, 0, QTableWidgetItem(str(metrics.get("Gen", ""))))
+        self.nsga2_live_table.setItem(row_position, 1, QTableWidgetItem(f"{metrics.get('HV', 0):.4f}"))
+        self.nsga2_live_table.setItem(row_position, 2, QTableWidgetItem(f"{metrics.get('IGD+', 0):.4f}"))
+        self.nsga2_live_table.setItem(row_position, 3, QTableWidgetItem(f"{metrics.get('GD', 0):.4f}"))
+        self.nsga2_live_table.setItem(row_position, 4, QTableWidgetItem(f"{metrics.get('Spread', 0):.4f}"))
+        self.nsga2_live_table.setItem(row_position, 5, QTableWidgetItem(str(metrics.get("N_Pareto", ""))))
+        self.nsga2_live_table.setItem(row_position, 6, QTableWidgetItem(f"{metrics.get('Diversity', 0):.4f}"))
+        self.nsga2_live_table.setItem(row_position, 7, QTableWidgetItem(f"{metrics.get('Time (s)', 0):.2f}"))
+        self.nsga2_live_table.setItem(row_position, 8, QTableWidgetItem(f"{metrics.get('Memory (MB)', 0):.2f}"))
+        self.nsga2_live_table.setItem(row_position, 9, QTableWidgetItem(f"{metrics.get('Rank Diversity', 0):.4f}"))
+        self.nsga2_live_table.setItem(row_position, 10, QTableWidgetItem(str(metrics.get("Best Fitness (f1,f2,f3)", ""))))
 
     def nsga2_finished(self, run_id, file_path):
         if not self.nsga2_multi_run_checkbox.isChecked():

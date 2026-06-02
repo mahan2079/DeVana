@@ -17,6 +17,7 @@ Detailed flowcharts and explanations of the optimization algorithms, objective f
 ## 2. Analysis, Modeling & Metrics
 In-depth looks at the physics engines, statistical assessment protocols, and computational benchmarking.
 - [Mathematical Model (2DOF-3DOF)](Analysis/MathematicalModel.md)
+- [PINN System Identification](Analysis/PINNIdentification.md)
 - [Frequency Response Function (FRF) Algorithms](Analysis/FRF.md)
 - [Statistical Evaluation & Optimal Ranges](Analysis/StatisticalEvaluation.md)
 - [Sobol Sensitivity Analysis](Analysis/Sobol.md)

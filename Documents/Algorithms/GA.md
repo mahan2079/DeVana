@@ -3,54 +3,69 @@
 ## Overview
 The Genetic Algorithm (`GAWorker.py`) optimizes DVA parameters by simulating natural selection. It evaluates fitness based on a comprehensive [Objective Function](ObjectiveFunction.md) that considers FRF analysis, sparsity, and cost-benefit ratios.
 
-## Standard GA Workflow
-The algorithm follows a biologically inspired cycle of selection, crossover, and mutation to evolve a population of candidate solutions toward the global optimum.
+## GA Workflow with Advanced Controllers
+The core evolutionary loop is augmented by multiple intelligent controllers that dynamically tune hyperparameters to ensure robust convergence and prevent stagnation.
 
 ```mermaid
 flowchart TD
-    Init["Initialize Population (Random, Sobol, LHS, Neural)"] --> Eval["Evaluate Fitness (Objective Function)"]
-    Eval --> Select["Selection (Tournament, Roulette)"]
-    Select --> Cross["Crossover (Blend, Simulated Binary)"]
-    Select --> Mut["Mutation (Gaussian, Polynomial)"]
-    Cross --> Offspring["Create New Population"]
-    Mut --> Offspring
-    Offspring --> Replace["Replacement (Elitism)"]
-    Replace --> Term{"Termination Criteria Met?"}
+    Start([Start GA Optimization]) --> Init["Initialize Population <br/> (Random, Sobol, LHS, Memory, or Neural)"]
+    Init --> Eval["Evaluate Initial Fitness <br/> (FRF Analysis)"]
     
-    Term -- No --> Eval
-    Term -- Yes --> Output["Output Best Solutions"]
+    Eval --> GenLoop{Max Generations <br/> Reached?}
+    
+    GenLoop -- No --> SelectController["Select Parameter Controller <br/> (Fixed, Adaptive, ML Bandit, or RL)"]
+    
+    SelectController --> AdaptLogic["Update Rates (cxpb, mutpb) <br/> & Population Size"]
+    
+    AdaptLogic --> Selection["Selection <br/> (Tournament Selection)"]
+    Selection --> Crossover["Crossover <br/> (Blend or SBX)"]
+    Crossover --> Mutation["Mutation <br/> (Gaussian or Polynomial)"]
+    
+    Mutation --> Resize{"Population <br/> Resize Needed?"}
+    Resize -- Yes --> ResizeLogic["Adjust Population <br/> (Neural Seeding for growth)"]
+    Resize -- No --> EvalOffspring["Evaluate Offspring Fitness"]
+    ResizeLogic --> EvalOffspring
+    
+    EvalOffspring --> Replace["Form New Population <br/> (Elitism & Replacement)"]
+    Replace --> Metrics["Track Resource Metrics <br/> (CPU, RAM, Diversity)"]
+    
+    Metrics --> GenLoop
+    
+    GenLoop -- Yes --> Output["Output Best Solutions & <br/> Statistical Reports"]
+    Output --> End([End GA])
 ```
 
-## Enhanced Adaptive Rates
-While fixed rates (e.g., static $p_{mut}=0.2$) are easy to implement, they often struggle to balance exploration (searching new areas) and exploitation (refining good solutions) across different phases of the optimization. 
+## Intelligent Parameter Controllers
 
-DeVana implements an **Adaptive Rate Controller** that dynamically adjusts mutation rate ($p_{mut}$), crossover rate ($p_{cx}$), and mutation step size ($\eta$) based on:
-1. **Smoothed Success Rate ($\hat{s}$)**: The ratio of offspring outperforming their parents.
-2. **Genetic Diversity ($\hat{D}$)**: The dispersion of genes within the current population.
+### 1. ML Bandit Controller (MAB)
+If enabled, DeVana uses a Multi-Armed Bandit strategy to select the optimal combination of crossover probability, mutation probability, and population size.
+- **Algorithm:** Upper Confidence Bound (UCB).
+- **Action Space:** A Cartesian product of deltas for rates ($\pm 15\%, \pm 30\%$) and population multipliers ($0.75x, 1.25x$).
+- **Reward Function:** Blends fitness improvement, computational efficiency (gen time), and genetic diversity.
 
-### Adaptive Logic Flowchart
 ```mermaid
 flowchart TD
-    Start["Start Parameter Adjustment"] --> CheckS1{"Is success rate < 0.9 * target?"}
-    
-    CheckS1 -- Yes --> MutUp["Increase mutation rate and step size (Explore)"]
-    CheckS1 -- No --> CheckS2{"Is success rate > 1.1 * target?"}
-    
-    CheckS2 -- Yes --> MutDown["Decrease mutation rate (Exploit)"]
-    CheckS2 -- No --> CheckD1{"Is diversity << target?"}
-    
-    CheckD1 -- Yes --> DivLow["Increase mutation, decrease crossover (Prevent Stagnation)"]
-    CheckD1 -- No --> CheckD2{"Is diversity >> target?"}
-    
-    CheckD2 -- Yes --> DivHigh["Increase crossover, decrease mutation (Focus Search)"]
-    CheckD2 -- No --> End["Keep parameters unchanged"]
-    
-    MutUp --> End
-    MutDown --> End
-    DivLow --> End
-    DivHigh --> End
+    StartMAB[Start Generation] --> CalcReward[Calculate Reward from Previous Action <br/> (Improvement + Speed - Diversity Penalty)]
+    CalcReward --> UpdateUCB[Update Action Counts & <br/> Cumulative Rewards]
+    UpdateUCB --> SelectBest[Select Action with Highest UCB Score: <br/> Score = AvgReward + C * sqrt(log(t)/count)]
+    SelectBest --> ApplyAction[Apply Deltas to cxpb, mutpb, pop_size]
+    ApplyAction --> EndMAB[Next Generation]
 ```
 
-## Integrated Controllers
-- **ML Bandit Controller**: Formulates operator selection as a Multi-Armed Bandit problem, using Upper Confidence Bound (UCB) to choose the best genetic operators dynamically.
-- **RL Controller**: Utilizes Reinforcement Learning to adjust hyperparameters based on the historical reward (fitness improvement) signal.
+### 2. RL Controller (Q-Learning)
+An alternative adaptive method that uses a reinforcement learning agent to learn the best parameter adjustments.
+- **Algorithm:** Discrete Q-Learning.
+- **State Space:** Binary state (extended for stagnation/diversity).
+- **Policy:** $\epsilon$-greedy (Exploration vs. Exploitation).
+
+### 3. Adaptive Rate Controller
+A heuristic-based controller that monitors:
+- **Success Rate:** Ratio of offspring outperforming parents.
+- **Genetic Diversity:** Standard deviation of parameters.
+It increases mutation to explore when diversity is low and decreases it to exploit when success is high.
+
+## Advanced Seeding & Population Management
+DeVana supports a high-tier hierarchy of initialization methods:
+- **Sobol & LHS:** Quasi-random sequences for optimal search space coverage.
+- **Memory Seeding:** Reuses high-quality solutions from previous optimization sessions.
+- **Neural Seeding:** Uses an online surrogate model (MLP ensemble) to generate promising candidates when the population grows.

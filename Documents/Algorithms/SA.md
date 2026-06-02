@@ -14,16 +14,16 @@ The Simulated Annealing module (`SAWorker.py`) is a probabilistic technique for 
 
 ```mermaid
 flowchart TD
-    Start([Start SA]) --> InitState[Initialize Current Candidate <br> (Random or Seeded)]
+    Start([Start SA]) --> InitState[Initialize Current Candidate <br/> (Random or Seeded)]
     InitState --> EvalInitial[Evaluate Initial Fitness via FRF]
-    EvalInitial --> InitParams[Set Initial Temperature T, <br> Cooling Rate, and Step Scale]
+    EvalInitial --> InitParams[Set Initial Temperature T, <br/> Cooling Rate, and Step Scale]
     
-    InitParams --> IterLoop{Max Iterations <br> Reached?}
+    InitParams --> IterLoop{Max Iterations <br/> Reached?}
     
     IterLoop -- No --> CheckTermination[Check Termination Flags]
-    CheckTermination --> Adapt[Adapt T, Cooling, Step <br> (ML or RL Controllers)]
+    CheckTermination --> Adapt[Adapt T, Cooling, Step <br/> (ML or RL Controllers)]
     
-    Adapt --> Perturb[Generate New Candidate <br> via Gaussian Perturbation]
+    Adapt --> Perturb[Generate New Candidate <br/> via Gaussian Perturbation]
     Perturb --> Bounds[Apply Parameter Bounds]
     Bounds --> EvalNew[Evaluate New Fitness via FRF]
     
@@ -31,7 +31,7 @@ flowchart TD
     
     CalcDelta --> Improvement{Is Delta f < 0?}
     Improvement -- Yes --> Accept[Accept New Candidate]
-    Improvement -- No --> ProbCheck{Accept with <br> Boltzmann Probability?}
+    Improvement -- No --> ProbCheck{Accept with <br/> Boltzmann Probability?}
     
     ProbCheck -- Yes --> Accept
     ProbCheck -- No --> Reject[Keep Current Candidate]
@@ -39,10 +39,10 @@ flowchart TD
     Accept --> UpdateBest[Update Best Candidate Found]
     Reject --> UpdateBest
     
-    UpdateBest --> Cool[Update Temperature: <br> T = T * CoolingRate]
-    Cool --> Metrics[Calculate Progress & <br> Update Metrics]
+    UpdateBest --> Cool[Update Temperature: <br/> T = T * CoolingRate]
+    Cool --> Metrics[Calculate Progress & <br/> Update Metrics]
     
-    Metrics --> Tolerance{Best Fitness <br> < Tolerance?}
+    Metrics --> Tolerance{Best Fitness <br/> < Tolerance?}
     Tolerance -- No --> IterLoop
     Tolerance -- Yes --> OutputBest
     

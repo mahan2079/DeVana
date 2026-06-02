@@ -14,20 +14,20 @@ CMA-ES (`CMAESWorker.py`) is a derivative-free optimization algorithm for non-li
 
 ```mermaid
 flowchart TD
-    Start([Start CMA-ES]) --> Init[Initialize Mean x0, <br> Step-size Sigma, and Covariance C=I]
-    Init --> IterLoop{Max Generations <br> Reached?}
+    Start([Start CMA-ES]) --> Init[Initialize Mean x0, <br/> Step-size Sigma, and Covariance C=I]
+    Init --> IterLoop{Max Generations <br/> Reached?}
     
     IterLoop -- No --> CheckTermination[Check Termination Flags]
-    CheckTermination --> AdaptSigma[Adapt Sigma <br> (ML/RL Controllers or Path Evolution)]
+    CheckTermination --> AdaptSigma[Adapt Sigma <br/> (ML/RL Controllers or Path Evolution)]
     
-    AdaptSigma --> Sample[Sample Population from <br> Normal Distribution]
+    AdaptSigma --> Sample[Sample Population from <br/> Normal Distribution]
     Sample --> Bounds[Apply Parameter Bounds]
     Bounds --> Eval[Evaluate Population via FRF]
     
     Eval --> Sort[Sort by Fitness]
-    Sort --> UpdateMean[Update Mean m <br> Weighted sum of best individuals]
+    Sort --> UpdateMean[Update Mean m <br/> Weighted sum of best individuals]
     
-    UpdateMean --> UpdateC[Update Covariance Matrix C <br> Rank-1 and Rank-mu updates]
+    UpdateMean --> UpdateC[Update Covariance Matrix C <br/> Rank-1 and Rank-mu updates]
     UpdateC --> UpdatePaths[Update Evolution Paths]
     
     UpdatePaths --> Metrics[Record Metrics & Best Solution]

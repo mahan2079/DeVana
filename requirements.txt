@@ -1,9 +1,28 @@
+# DeVana: Dynamic Vibration Absorber Optimization Framework
+# Comprehensive Requirements File
+
+# Core Data Science & Analysis
 numpy
+scipy
+pandas
 matplotlib
 seaborn
-pandas
-scipy
+
+# GUI Framework
 PyQt5
-SALib
-joblib
-adjustText
+
+# Optimization Libraries
+SALib           # Sobol Sensitivity Analysis
+deap            # Evolutionary Algorithms (used by GA, NSGA-II, AdaVEA)
+cma             # Covariance Matrix Adaptation Evolution Strategy (CMA-ES)
+scikit-learn    # Machine Learning tools (used in GA/SA/PSO mixins for KDE)
+
+# Machine Learning & Seeding
+torch           # PyTorch (used by NeuralSeeder)
+
+# System & Performance
+psutil          # System monitoring (CPU/Memory usage metrics)
+joblib          # Parallel processing and caching
+
+# Visualization Utilities
+adjustText      # Better text placement in matplotlib plots
