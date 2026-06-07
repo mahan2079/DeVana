@@ -16,7 +16,7 @@ The Particle Swarm Optimization (PSO) module (`PSOWorker.py`) mimics the social 
 
 ```mermaid
 flowchart TD
-    Start(["Start PSO"]) --> InitSwarm["Initialize Swarm <br/> (Quasi-random/Sobol or Random)"]
+    Start("[\"Start PSO\"]") --> InitSwarm["Initialize Swarm <br/> (Quasi-random/Sobol or Random)"]
     InitSwarm --> InitVels["Initialize Velocities & Personal Bests"]
     InitVels --> Topology["Establish Neighborhood Topology"]
     Topology --> IterLoop{"Max Iterations <br/> Reached?"}
@@ -48,5 +48,34 @@ flowchart TD
     EarlyStop -- Yes --> OutputBest
     IterLoop -- Yes --> OutputBest
     
-    OutputBest["Output Best Position & Metrics"] --> End(["End PSO"])
+    OutputBest["Output Best Position & Metrics"] --> End("[\"End PSO\"]")
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE [\
+  EXECUTE ]
+  EXECUTE Initialize Swarm   (Quasi-random/Sobol or Random)
+  EXECUTE Initialize Velocities & Personal Bests
+  EXECUTE Establish Neighborhood Topology
+  EXECUTE Max Iterations   Reached?
+  EXECUTE Check Termination Flags
+  EXECUTE Adapt w, c1, c2   (Adaptive, ML, or RL)
+  EXECUTE For Each Particle
+  EXECUTE Calculate Velocity   (Cognitive + Social components)
+  EXECUTE Apply Velocity Clamping & Constriction
+  EXECUTE Update Position
+  EXECUTE Apply Boundary Handling   (Absorbing, Reflecting, etc.)
+  EXECUTE Apply Mutation if Diversity is Low
+  EXECUTE Evaluate Fitness via FRF
+  EXECUTE Update Personal Best
+  EXECUTE More Particles?
+  EXECUTE Update Global/Neighborhood Bests
+  EXECUTE Check Particle Stagnation   Reinitialize if needed
+  EXECUTE Calculate Swarm Diversity
+  EXECUTE Update ML/RL Controllers
+  EXECUTE Convergence or   Early Stop?
+  EXECUTE Output Best Position & Metrics
+END
 ```

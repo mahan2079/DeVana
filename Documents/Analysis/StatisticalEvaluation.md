@@ -17,6 +17,19 @@ flowchart TD
     Validate --> Output["Final Output: Reliable Parameter Ranges"]
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE DeVana Environment
+  EXECUTE 1. Run Multiple Independent Optimizations (Find set of local minima)
+  EXECUTE 2. Extract Parameter Ranges (Determine Min/Max for each parameter)
+  EXECUTE 3. Assess Solution Quality (Filter out poor solutions)
+  EXECUTE 4. Statistical Analysis (Calculate mean, variance, percentiles)
+  EXECUTE 5. Range Validation (Simulate random points within the proposed ranges)
+  EXECUTE Final Output: Reliable Parameter Ranges
+END
+```
+
 ---
 
 ## Strict Statistical Extraction (Top 10% & Median 5%)
@@ -40,6 +53,20 @@ flowchart TD
     Synth --> Out["Output Final Optimal Ranges"]
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Start Extraction
+  EXECUTE Sort all optimization runs by Objective Fitness
+  EXECUTE Select Top 10% of runs
+  EXECUTE Select Median 5% of runs
+  EXECUTE Calculate bounds (Min, Max) for Top 10%
+  EXECUTE Calculate bounds (Min, Max) for Median 5%
+  EXECUTE Synthesize bounds to balance peak performance and stability
+  EXECUTE Output Final Optimal Ranges
+END
+```
+
 ---
 
 ## Algorithm Performance Metrics
@@ -59,6 +86,17 @@ flowchart TD
     T2 --> Calc["Efficiency = Total Generations / (T2 - T1)"]
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Start Execution
+  EXECUTE Record initial CPU Time
+  EXECUTE Execute Algorithm Generation
+  EXECUTE Record final CPU Time
+  EXECUTE Efficiency = Total Generations / (T2 - T1)
+END
+```
+
 ### 3. Wall Time (Operational Efficiency)
 Measures the real-world elapsed time (from the user's perspective), including I/O wait times and GUI updates.
 
@@ -68,6 +106,17 @@ flowchart TD
     W1 --> Run["Execute Full Algorithm Lifecycle"]
     Run --> W2["Record System Clock (End)"]
     W2 --> Calc["Operational Time = W2 - W1"]
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Start Execution
+  EXECUTE Record System Clock (Start)
+  EXECUTE Execute Full Algorithm Lifecycle
+  EXECUTE Record System Clock (End)
+  EXECUTE Operational Time = W2 - W1
+END
 ```
 
 By cross-referencing Best Fitness against CPU and Wall Time, DeVana identifies algorithms that are not only accurate but practically efficient for large-scale engineering problems.

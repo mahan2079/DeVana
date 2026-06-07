@@ -14,29 +14,51 @@ CMA-ES (`CMAESWorker.py`) is a derivative-free optimization algorithm for non-li
 
 ```mermaid
 flowchart TD
-    Start([Start CMA-ES]) --> Init[Initialize Mean x0, <br/> Step-size Sigma, and Covariance C=I]
-    Init --> IterLoop{Max Generations <br/> Reached?}
+    Start("[Start CMA-ES]") --> Init["Initialize Mean x0, <br/> Step-size Sigma, and Covariance C=I"]
+    Init --> IterLoop{"Max Generations <br/> Reached?"}
     
-    IterLoop -- No --> CheckTermination[Check Termination Flags]
-    CheckTermination --> AdaptSigma[Adapt Sigma <br/> (ML/RL Controllers or Path Evolution)]
+    IterLoop -- No --> CheckTermination["Check Termination Flags"]
+    CheckTermination --> AdaptSigma["Adapt Sigma <br/> (ML/RL Controllers or Path Evolution)"]
     
-    AdaptSigma --> Sample[Sample Population from <br/> Normal Distribution]
-    Sample --> Bounds[Apply Parameter Bounds]
-    Bounds --> Eval[Evaluate Population via FRF]
+    AdaptSigma --> Sample["Sample Population from <br/> Normal Distribution"]
+    Sample --> Bounds["Apply Parameter Bounds"]
+    Bounds --> Eval["Evaluate Population via FRF"]
     
-    Eval --> Sort[Sort by Fitness]
-    Sort --> UpdateMean[Update Mean m <br/> Weighted sum of best individuals]
+    Eval --> Sort["Sort by Fitness"]
+    Sort --> UpdateMean["Update Mean m <br/> Weighted sum of best individuals"]
     
-    UpdateMean --> UpdateC[Update Covariance Matrix C <br/> Rank-1 and Rank-mu updates]
-    UpdateC --> UpdatePaths[Update Evolution Paths]
+    UpdateMean --> UpdateC["Update Covariance Matrix C <br/> Rank-1 and Rank-mu updates"]
+    UpdateC --> UpdatePaths["Update Evolution Paths"]
     
-    UpdatePaths --> Metrics[Record Metrics & Best Solution]
-    Metrics --> Converge{Tolerance Met?}
+    UpdatePaths --> Metrics["Record Metrics & Best Solution"]
+    Metrics --> Converge{"Tolerance Met?"}
     
     Converge -- No --> IterLoop
     Converge -- Yes --> OutputBest
     
     IterLoop -- Yes --> OutputBest
     
-    OutputBest[Output Best Solution & Metrics] --> End([End CMA-ES])
+    OutputBest["Output Best Solution & Metrics"] --> End("[End CMA-ES]")
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE [Start CMA-ES]
+  EXECUTE Initialize Mean x0,   Step-size Sigma, and Covariance C=I
+  EXECUTE Max Generations   Reached?
+  EXECUTE Check Termination Flags
+  EXECUTE Adapt Sigma   (ML/RL Controllers or Path Evolution)
+  EXECUTE Sample Population from   Normal Distribution
+  EXECUTE Apply Parameter Bounds
+  EXECUTE Evaluate Population via FRF
+  EXECUTE Sort by Fitness
+  EXECUTE Update Mean m   Weighted sum of best individuals
+  EXECUTE Update Covariance Matrix C   Rank-1 and Rank-mu updates
+  EXECUTE Update Evolution Paths
+  EXECUTE Record Metrics & Best Solution
+  EXECUTE Tolerance Met?
+  EXECUTE Output Best Solution & Metrics
+  EXECUTE [End CMA-ES]
+END
 ```

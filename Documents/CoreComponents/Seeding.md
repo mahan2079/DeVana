@@ -18,6 +18,21 @@ graph TD
     Neural --> EI["Expected Improvement (EI)"]
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE DeVana Seeding Options
+  EXECUTE Uniform Random
+  EXECUTE Sobol Sequence (Quasi-Random)
+  EXECUTE Latin Hypercube Sampling (LHS)
+  EXECUTE Neural Seeder (Machine Learning)
+  EXECUTE Memory Seeder (Historical)
+  EXECUTE Best-Candidate (Targeted)
+  EXECUTE Upper Confidence Bound (UCB)
+  EXECUTE Expected Improvement (EI)
+END
+```
+
 ---
 
 ## 1. Uniform Random Seeding
@@ -32,9 +47,22 @@ Utilizes the `scipy.stats.qmc.Sobol` engine to generate low-discrepancy sequence
 flowchart TD
     Start["Start Sobol"] --> Init["Initialize Sobol Generator for N dimensions"]
     Init --> Sample["Generate base-2 samples"]
-    Sample --> Scale["Scale [0,1] samples to actual bounds"]
+    Sample --> Scale["\"Scale [0,1"] samples to actual bounds"]
     Scale --> Enforce["Enforce fixed parameter constraints"]
     Enforce --> Output["Return Quasi-Random Population"]
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Start Sobol
+  EXECUTE Initialize Sobol Generator for N dimensions
+  EXECUTE Generate base-2 samples
+  EXECUTE \
+  EXECUTE ] samples to actual bounds
+  EXECUTE Enforce fixed parameter constraints
+  EXECUTE Return Quasi-Random Population
+END
 ```
 
 ## 3. Latin Hypercube Sampling (LHS)
@@ -46,6 +74,17 @@ flowchart TD
     Divide --> Sample["Draw one random point per interval"]
     Sample --> Shuffle["Randomly shuffle and pair points across dimensions"]
     Shuffle --> Output["Return LHS Population"]
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Start LHS
+  EXECUTE Divide each parameter range into N intervals
+  EXECUTE Draw one random point per interval
+  EXECUTE Randomly shuffle and pair points across dimensions
+  EXECUTE Return LHS Population
+END
 ```
 
 ## 4. Neural Seeding (Online Surrogate ML)

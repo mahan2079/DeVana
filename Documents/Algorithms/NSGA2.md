@@ -19,27 +19,48 @@ The NSGA-II module (`NSGA2Worker.py`) implements one of the most popular and eff
 
 ```mermaid
 flowchart TD
-    Start([Start NSGA-II]) --> InitPop[Initialize Population <br/> Attribute Generator]
-    InitPop --> EvalInitial[Evaluate Objectives <br/> (f1: FRF, f2: Sparsity, f3: Cost)]
+    Start("[Start NSGA-II]") --> InitPop["Initialize Population <br/> Attribute Generator"]
+    InitPop --> EvalInitial["Evaluate Objectives <br/> (f1: FRF, f2: Sparsity, f3: Cost)"]
     
-    EvalInitial --> GenLoop{Max Generations <br/> Reached?}
+    EvalInitial --> GenLoop{"Max Generations <br/> Reached?"}
     
-    GenLoop -- No --> Select[Tournament Selection <br/> based on Rank & Crowding]
+    GenLoop -- No --> Select["Tournament Selection <br/> based on Rank & Crowding"]
     
-    Select --> Mate[Simulated Binary Crossover]
-    Mate --> Mutate[Polynomial Mutation]
+    Select --> Mate["Simulated Binary Crossover"]
+    Mate --> Mutate["Polynomial Mutation"]
     
-    Mutate --> EvalOffspring[Evaluate Offspring Objectives]
-    EvalOffspring --> Combine[Merge Parents N + Offspring N]
+    Mutate --> EvalOffspring["Evaluate Offspring Objectives"]
+    EvalOffspring --> Combine["Merge Parents N + Offspring N"]
     
-    Combine --> NDSort[Non-dominated Sorting <br/> Assign Fronts F1, F2, ...]
-    NDSort --> Crowding[Calculate Crowding Distance <br/> for each front]
+    Combine --> NDSort["Non-dominated Sorting <br/> Assign Fronts F1, F2, ..."]
+    NDSort --> Crowding["Calculate Crowding Distance <br/> for each front"]
     
-    Crowding --> Replace[Select Best N individuals <br/> for next generation]
+    Crowding --> Replace["Select Best N individuals <br/> for next generation"]
     Replace --> GenLoop
     
-    GenLoop -- Yes --> FinalPareto[Extract First Pareto Front F1]
-    FinalPareto --> Save[Save Pareto Front to JSON]
+    GenLoop -- Yes --> FinalPareto["Extract First Pareto Front F1"]
+    FinalPareto --> Save["Save Pareto Front to JSON"]
     
-    Save --> End([End NSGA-II])
+    Save --> End("[End NSGA-II]")
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE [Start NSGA-II]
+  EXECUTE Initialize Population   Attribute Generator
+  EXECUTE Evaluate Objectives   (f1: FRF, f2: Sparsity, f3: Cost)
+  EXECUTE Max Generations   Reached?
+  EXECUTE Tournament Selection   based on Rank & Crowding
+  EXECUTE Simulated Binary Crossover
+  EXECUTE Polynomial Mutation
+  EXECUTE Evaluate Offspring Objectives
+  EXECUTE Merge Parents N + Offspring N
+  EXECUTE Non-dominated Sorting   Assign Fronts F1, F2, ...
+  EXECUTE Calculate Crowding Distance   for each front
+  EXECUTE Select Best N individuals   for next generation
+  EXECUTE Extract First Pareto Front F1
+  EXECUTE Save Pareto Front to JSON
+  EXECUTE [End NSGA-II]
+END
 ```

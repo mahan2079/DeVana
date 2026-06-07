@@ -31,14 +31,27 @@ graph LR
     style D fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Time t
+  EXECUTE x Weight (w)
+  EXECUTE Summing Node Σ
+  EXECUTE Bias b
+  EXECUTE +
+  EXECUTE Activation f
+  EXECUTE Predicted Displacement x̂
+END
+```
+
 ### 2. Deep Networks: The "Brain" Structure
 When we say "Deep Learning," we mean we stack hundreds of these neurons in layers. This allows the network to "learn" the complex ripples and patterns of a gearbox vibrating at high speeds.
 
 ```mermaid
 graph TD
-    In((Time t)) --> H1_1((Neuron))
-    In --> H1_2((Neuron))
-    In --> H1_3((Neuron))
+    In("(\"Time t\"")) --> H1_1("(\"Neuron\""))
+    In --> H1_2("(\"Neuron\""))
+    In --> H1_3("(\"Neuron\""))
     
     subgraph "Hidden Layer 1 (Captures raw shapes)"
     H1_1
@@ -46,8 +59,8 @@ graph TD
     H1_3
     end
     
-    H1_1 --> H2_1((Neuron))
-    H1_1 --> H2_2((Neuron))
+    H1_1 --> H2_1("(\"Neuron\""))
+    H1_1 --> H2_2("(\"Neuron\""))
     H1_2 --> H2_1
     H1_3 --> H2_2
     
@@ -56,8 +69,17 @@ graph TD
     H2_2
     end
     
-    H2_1 --> Out((x̂_sensor1))
-    H2_2 --> Out2((x̂_sensor2))
+    H2_1 --> Out("(\"x̂_sensor1\""))
+    H2_2 --> Out2("(\"x̂_sensor2\""))
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE (\
+  EXECUTE Hidden Layer 1 (Captures raw shapes)
+  EXECUTE Hidden Layer 2 (Captures complex patterns)
+END
 ```
 
 ### 3. How it Learns (The Training Loop)
@@ -94,6 +116,27 @@ graph TD
     P4 & P6 --> P7["Total Error/Loss"]
     P7 --> P8["Update NN + M,C,K Params"]
     end
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Standard NN (Data Only)
+  EXECUTE Time t
+  EXECUTE NN
+  EXECUTE x̂ Prediction
+  EXECUTE Compare
+  EXECUTE Sensor Data
+  EXECUTE Error/Loss
+  EXECUTE Update NN
+  EXECUTE PINN (Data + Physics)
+  EXECUTE Differentiate
+  EXECUTE v̂, â
+  EXECUTE Plug into F=ma
+  EXECUTE Physics Equation
+  EXECUTE Total Error/Loss
+  EXECUTE Update NN + M,C,K Params
+END
 ```
 
 ### Forward vs. Inverse PINNs (Choosing the Mode)
@@ -229,6 +272,25 @@ graph TD
     Res -- "Calculate Error" --> L_phys["Physics Loss: |Mâ + Cv̂ + Kx̂|²"]
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Collocation Points t_c
+  EXECUTE Neural Network
+  EXECUTE Predicted x̂
+  EXECUTE 1st Deriv (d/dt)
+  EXECUTE Predicted Velocity v̂
+  EXECUTE 2nd Deriv (d/dt)
+  EXECUTE Predicted Acceleration â
+  EXECUTE Current Guess for Mass M
+  EXECUTE Physics Residual
+  EXECUTE Current Guess for Damping C
+  EXECUTE Current Guess for Stiffness K
+  EXECUTE Calculate Error
+  EXECUTE Physics Loss: |Mâ + Cv̂ + Kx̂|²
+END
+```
+
 At \(N_c\) collocation points \(\{t_j^c\}\) sampled uniformly across the time domain:[^5][^1]
 
 \[
@@ -304,6 +366,23 @@ graph TD
     end
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Real Gearbox Housing
+  EXECUTE Place Sensors
+  EXECUTE P Sensor Locations
+  EXECUTE Assume each sensor is a Mass Node
+  EXECUTE Lumped Mass Model
+  EXECUTE PINN finds links
+  EXECUTE Equivalent M, C, K
+  EXECUTE The Hidden Physics
+  EXECUTE Mass m1
+  EXECUTE Mass m2
+  EXECUTE k12, c12
+END
+```
+
 The mass matrix is diagonal (lumped mass assumption):
 
 \[
@@ -373,10 +452,24 @@ PHASE 1: PRE-PROCESSING
 graph TD
     Data["Raw Sensor Data: x, v, a"] --> Check["Consistency Check: a ≈ d²x/dt²"]
     Check --> Filter["Low-pass Filter: Remove high-freq noise"]
-    Filter --> NormT["Normalize Time: t ∈ [0, 1]"]
+    Filter --> NormT["\"Normalize Time: t ∈ [0, 1"]"]
     NormT --> NormX["Normalize Signals: Zero mean, Unit variance"]
     NormX --> IC["Extract Initial Conditions: x0, v0"]
     IC --> Final["Clean Data Ready for Training"]
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Raw Sensor Data: x, v, a
+  EXECUTE Consistency Check: a ≈ d²x/dt²
+  EXECUTE Low-pass Filter: Remove high-freq noise
+  EXECUTE \
+  EXECUTE ]
+  EXECUTE Normalize Signals: Zero mean, Unit variance
+  EXECUTE Extract Initial Conditions: x0, v0
+  EXECUTE Clean Data Ready for Training
+END
 ```
   ① Consistency check: verify a ≈ d²x/dt²
   ② Low-pass filter to remove high-frequency noise
@@ -414,6 +507,25 @@ graph TD
     Holdout --> Verdict{"Accuracy > 98%?"}
     Verdict -- "Yes" --> Done["System Identified Successfully"]
     Verdict -- "No" --> Retrain["Adjust Weights/Layers & Retrain"]
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Trained PINN
+  EXECUTE Extract M, C, K Matrices
+  EXECUTE Check Symmetry & Positivity
+  EXECUTE Calculate Natural Frequencies & Damping
+  EXECUTE Compare
+  EXECUTE Measured FFT Peaks
+  EXECUTE Simulate Response with Identified M,C,K
+  EXECUTE Held-out Sensor Data
+  EXECUTE Accuracy > 98%?
+  EXECUTE Yes
+  EXECUTE System Identified Successfully
+  EXECUTE No
+  EXECUTE Adjust Weights/Layers & Retrain
+END
 ```
   Extract M_eq, C_eq, K_eq from trained model
   Natural frequencies: solve eig(M⁻¹K)

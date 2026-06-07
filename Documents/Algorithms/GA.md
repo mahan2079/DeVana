@@ -8,10 +8,10 @@ The core evolutionary loop is augmented by multiple intelligent controllers that
 
 ```mermaid
 flowchart TD
-    Start([Start GA Optimization]) --> Init["Initialize Population <br/> (Random, Sobol, LHS, Memory, or Neural)"]
+    Start("[Start GA Optimization]") --> Init["Initialize Population <br/> (Random, Sobol, LHS, Memory, or Neural)"]
     Init --> Eval["Evaluate Initial Fitness <br/> (FRF Analysis)"]
     
-    Eval --> GenLoop{Max Generations <br/> Reached?}
+    Eval --> GenLoop{"Max Generations <br/> Reached?"}
     
     GenLoop -- No --> SelectController["Select Parameter Controller <br/> (Fixed, Adaptive, ML Bandit, or RL)"]
     
@@ -32,7 +32,29 @@ flowchart TD
     Metrics --> GenLoop
     
     GenLoop -- Yes --> Output["Output Best Solutions & <br/> Statistical Reports"]
-    Output --> End([End GA])
+    Output --> End("[End GA]")
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE [Start GA Optimization]
+  EXECUTE Initialize Population   (Random, Sobol, LHS, Memory, or Neural)
+  EXECUTE Evaluate Initial Fitness   (FRF Analysis)
+  EXECUTE Max Generations   Reached?
+  EXECUTE Select Parameter Controller   (Fixed, Adaptive, ML Bandit, or RL)
+  EXECUTE Update Rates (cxpb, mutpb)   & Population Size
+  EXECUTE Selection   (Tournament Selection)
+  EXECUTE Crossover   (Blend or SBX)
+  EXECUTE Mutation   (Gaussian or Polynomial)
+  EXECUTE Population   Resize Needed?
+  EXECUTE Adjust Population   (Neural Seeding for growth)
+  EXECUTE Evaluate Offspring Fitness
+  EXECUTE Form New Population   (Elitism & Replacement)
+  EXECUTE Track Resource Metrics   (CPU, RAM, Diversity)
+  EXECUTE Output Best Solutions &   Statistical Reports
+  EXECUTE [End GA]
+END
 ```
 
 ## Intelligent Parameter Controllers
@@ -45,11 +67,24 @@ If enabled, DeVana uses a Multi-Armed Bandit strategy to select the optimal comb
 
 ```mermaid
 flowchart TD
-    StartMAB[Start Generation] --> CalcReward[Calculate Reward from Previous Action <br/> (Improvement + Speed - Diversity Penalty)]
-    CalcReward --> UpdateUCB[Update Action Counts & <br/> Cumulative Rewards]
-    UpdateUCB --> SelectBest[Select Action with Highest UCB Score: <br/> Score = AvgReward + C * sqrt(log(t)/count)]
-    SelectBest --> ApplyAction[Apply Deltas to cxpb, mutpb, pop_size]
-    ApplyAction --> EndMAB[Next Generation]
+    StartMAB["Start Generation"] --> CalcReward["Calculate Reward from Previous Action <br/> (Improvement + Speed - Diversity Penalty)"]
+    CalcReward --> UpdateUCB["Update Action Counts & <br/> Cumulative Rewards"]
+    UpdateUCB --> SelectBest["Select Action with Highest UCB Score: <br/> Score = AvgReward + C * sqrt("log(t")/count)"]
+    SelectBest --> ApplyAction["Apply Deltas to cxpb, mutpb, pop_size"]
+    ApplyAction --> EndMAB["Next Generation"]
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Start Generation
+  EXECUTE Calculate Reward from Previous Action   (Improvement + Speed - Diversity Penalty)
+  EXECUTE Update Action Counts &   Cumulative Rewards
+  EXECUTE Select Action with Highest UCB Score:   Score = AvgReward + C * sqrt(
+  EXECUTE )/count)
+  EXECUTE Apply Deltas to cxpb, mutpb, pop_size
+  EXECUTE Next Generation
+END
 ```
 
 ### 2. RL Controller (Q-Learning)

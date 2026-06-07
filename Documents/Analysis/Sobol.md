@@ -22,19 +22,36 @@ It decomposes the variance of the output ($Y$, usually the singular response) in
 
 ```mermaid
 flowchart TD
-    Start([Start Sobol Analysis]) --> DefineProb[Define Problem <br/> Variable Bounds & Names]
-    DefineProb --> SampleLoop{For each Sample Size N}
+    Start("[Start Sobol Analysis]") --> DefineProb["Define Problem <br/> Variable Bounds & Names"]
+    DefineProb --> SampleLoop{"For each Sample Size N"}
     
-    SampleLoop --> Saltelli[Generate Samples via <br/> Saltelli Sampling Scheme]
-    Saltelli --> ParallelEval[Parallel Evaluation of Samples <br/> via FRF Module]
-    ParallelEval --> SiAnalyze[Perform Sobol Analysis <br/> (SALib.analyze)]
+    SampleLoop --> Saltelli["Generate Samples via <br/> Saltelli Sampling Scheme"]
+    Saltelli --> ParallelEval["Parallel Evaluation of Samples <br/> via FRF Module"]
+    ParallelEval --> SiAnalyze["Perform Sobol Analysis <br/> (SALib.analyze)"]
     
-    SiAnalyze --> Store[Store S1 and ST indices]
+    SiAnalyze --> Store["Store S1 and ST indices"]
     Store --> SampleLoop
     
-    SampleLoop -- All N Done --> Ranking[Rank Parameters by ST <br/> Most to Least Important]
-    Ranking --> Stats[Calculate Statistical Errors <br/> (Variance, Std, CI)]
+    SampleLoop -- All N Done --> Ranking["Rank Parameters by ST <br/> Most to Least Important"]
+    Ranking --> Stats["Calculate Statistical Errors <br/> (Variance, Std, CI)"]
     
-    Stats --> Visuals[Generate Comprehensive <br/> Visualization Suite]
-    Visuals --> End([End Sobol Analysis])
+    Stats --> Visuals["Generate Comprehensive <br/> Visualization Suite"]
+    Visuals --> End("[End Sobol Analysis]")
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE [Start Sobol Analysis]
+  EXECUTE Define Problem   Variable Bounds & Names
+  EXECUTE For each Sample Size N
+  EXECUTE Generate Samples via   Saltelli Sampling Scheme
+  EXECUTE Parallel Evaluation of Samples   via FRF Module
+  EXECUTE Perform Sobol Analysis   (SALib.analyze)
+  EXECUTE Store S1 and ST indices
+  EXECUTE Rank Parameters by ST   Most to Least Important
+  EXECUTE Calculate Statistical Errors   (Variance, Std, CI)
+  EXECUTE Generate Comprehensive   Visualization Suite
+  EXECUTE [End Sobol Analysis]
+END
 ```

@@ -26,6 +26,24 @@ flowchart TD
     Metrics --> Aggregate["Calculate Singular Composite Response"]
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Calculate FRF
+  EXECUTE Unpack System & DVA Parameters
+  EXECUTE Construct Mass, Damping, Stiffness Matrices
+  EXECUTE Eliminate Zero/Inactive DOFs
+  EXECUTE Iterate over Frequencies
+  EXECUTE Build Dynamic Matrix: H = -w^2*M + iw*C + K
+  EXECUTE Solve H * X = F via Robust Solver
+  EXECUTE Process Responses for each Mass
+  EXECUTE Apply Smoothing & Interpolation
+  EXECUTE Detect Significant Peaks
+  EXECUTE Calculate Bandwidth, Slopes, Area
+  EXECUTE Calculate Singular Composite Response
+END
+```
+
 ---
 
 ## 2. Zero DOF Elimination
@@ -38,6 +56,18 @@ flowchart TD
     CheckK --> Intersection["Find DOFs where Mass AND Stiffness are zero"]
     Intersection --> Reduce["Remove inactive rows/cols from M, C, K, F"]
     Reduce --> Output["Return Well-conditioned Reduced Matrices"]
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Analyze System Matrices
+  EXECUTE Identify rows/cols with zero Mass
+  EXECUTE Identify rows/cols with zero Stiffness
+  EXECUTE Find DOFs where Mass AND Stiffness are zero
+  EXECUTE Remove inactive rows/cols from M, C, K, F
+  EXECUTE Return Well-conditioned Reduced Matrices
+END
 ```
 
 ---
@@ -57,6 +87,19 @@ flowchart TD
     LeastSq --> Output
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Solve H * X = F
+  EXECUTE Attempt standard LU/Cholesky solve
+  EXECUTE Return Displacement Vector X
+  EXECUTE Add tiny regularization term to diagonal of H
+  EXECUTE Attempt solve with regularized H
+  EXECUTE Compute Pseudo-Inverse of H
+  EXECUTE X = Pseudo-Inverse * F (Least Squares)
+END
+```
+
 ---
 
 ## 4. Peak Detection via Prominence
@@ -70,6 +113,19 @@ flowchart TD
     Filter --> Sort["Sort remaining peaks by magnitude"]
     Sort --> Limit["Keep top N most significant peaks"]
     Limit --> Output["Return Valid Resonant Peaks"]
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Detect Peaks
+  EXECUTE Identify all local maxima in magnitude array
+  EXECUTE Calculate topological prominence for each maximum
+  EXECUTE Discard peaks with prominence below adaptive threshold
+  EXECUTE Sort remaining peaks by magnitude
+  EXECUTE Keep top N most significant peaks
+  EXECUTE Return Valid Resonant Peaks
+END
 ```
 
 ---
@@ -90,6 +146,20 @@ flowchart TD
     Resample --> Output["Return Smooth Response Curve"]
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Interpolate Data
+  EXECUTE Are there enough data points?
+  EXECUTE Apply Basic Linear Interpolation
+  EXECUTE Is data highly noisy?
+  EXECUTE Apply Savitzky-Golay Smoothing Filter
+  EXECUTE Apply Cubic/Akima Spline Interpolation
+  EXECUTE Resample at high resolution to find exact peak tip
+  EXECUTE Return Smooth Response Curve
+END
+```
+
 ---
 
 ## 6. Mass Data Processing
@@ -103,4 +173,17 @@ flowchart TD
     Bandwidth --> Slope["Calculate magnitude slope between peaks"]
     Slope --> Simpson["Calculate Area under curve via Simpson's Rule"]
     Simpson --> Output["Return Dictionary of Performance Metrics"]
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Process Mass Response
+  EXECUTE Calculate Absolute Magnitude
+  EXECUTE Run Peak Detection Algorithm
+  EXECUTE Calculate distance between primary modes (Bandwidth)
+  EXECUTE Calculate magnitude slope between peaks
+  EXECUTE Calculate Area under curve via Simpson's Rule
+  EXECUTE Return Dictionary of Performance Metrics
+END
 ```

@@ -105,31 +105,52 @@ The parameters identified by the network ($\mathbf{M}_{id}, \mathbf{C}_{id}, \ma
 ```mermaid
 graph TD
     subgraph Data Input
-    A[Raw CSV] --> B[x, v, a extraction]
-    B --> C[Normalization t->0..1]
+    A["Raw CSV"] --> B["x, v, a extraction"]
+    B --> C["Normalization t->"0..1\""]
     end
 
     subgraph PINN Brain
-    C --> D[Fourier Projection Layer]
-    D --> E[Deep MLP: tanh/SiLU]
-    E --> F[Predicted x_hat]
-    F -- Autograd --> G[v_hat, a_hat]
+    C --> D["Fourier Projection Layer"]
+    D --> E["Deep MLP: tanh/SiLU"]
+    E --> F["Predicted x_hat"]
+    F -- Autograd --> G["v_hat, a_hat"]
     end
 
     subgraph Physics constraints
-    H[log_m, K_raw, C_raw] -- Topology Mask --> I[M, C, K Matrices]
-    I --> J[ODE Residual Calculation]
+    H["log_m, K_raw, C_raw"] -- Topology Mask --> I["M, C, K Matrices"]
+    I --> J["ODE Residual Calculation"]
     end
 
     subgraph Optimization
-    F & G & B --> K[Data Loss]
-    J --> L[Physics Loss]
-    K & L --> M[Total Loss]
+    F & G & B --> K["Data Loss"]
+    J --> L["Physics Loss"]
+    K & L --> M["Total Loss"]
     M -- Adam/L-BFGS --> E & H
     end
 
     subgraph Post-Processing
-    H -- Scaling Laws --> N[Physical M, C, K]
-    N --> O[Eigen-analysis: Natural Frequencies]
+    H -- Scaling Laws --> N["Physical M, C, K"]
+    N --> O["Eigen-analysis: Natural Frequencies"]
     end
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE Raw CSV
+  EXECUTE x, v, a extraction
+  EXECUTE Normalization t->
+  EXECUTE Fourier Projection Layer
+  EXECUTE Deep MLP: tanh/SiLU
+  EXECUTE Predicted x_hat
+  EXECUTE v_hat, a_hat
+  EXECUTE log_m, K_raw, C_raw
+  EXECUTE M, C, K Matrices
+  EXECUTE ODE Residual Calculation
+  EXECUTE Data Loss
+  EXECUTE Physics Loss
+  EXECUTE Total Loss
+  EXECUTE Physical M, C, K
+  EXECUTE Eigen-analysis: Natural Frequencies
+END
 ```

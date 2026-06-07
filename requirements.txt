@@ -19,6 +19,8 @@ scikit-learn    # Machine Learning tools (used in GA/SA/PSO mixins for KDE)
 
 # Machine Learning & Seeding
 torch           # PyTorch (used by NeuralSeeder)
+google-genai    # New Google Gemini SDK (Preferred)
+google-generativeai # Legacy Google Gemini API
 
 # System & Performance
 psutil          # System monitoring (CPU/Memory usage metrics)

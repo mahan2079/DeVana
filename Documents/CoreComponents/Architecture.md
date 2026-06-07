@@ -22,6 +22,23 @@ graph TD
     Backend --> OS["os, copy, warnings (System Utils)"]
 ```
 
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE DeVana Libraries
+  EXECUTE Front End (GUI)
+  EXECUTE Back End (Computation)
+  EXECUTE PyQt5 (Interface & Event Loop)
+  EXECUTE Matplotlib (Visualization)
+  EXECUTE NumPy (Matrix Operations)
+  EXECUTE SciPy (Signal Processing & Solvers)
+  EXECUTE DEAP (Evolutionary Algorithms)
+  EXECUTE PyTorch (Neural Networks)
+  EXECUTE psutil (Resource Monitoring)
+  EXECUTE os, copy, warnings (System Utils)
+END
+```
+
 ## Data Flow (Observer Pattern)
 To prevent UI freezing during intensive optimization cycles, DeVana implements a multi-layered architecture based on the **Observer Pattern**. The GUI acts as the observer, receiving real-time updates from independent worker threads.
 
@@ -47,6 +64,21 @@ flowchart LR
     W1 & W2 & W3 --> Save
     Save --> Display & Export
     Save <--> GUI
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE GUI (Observer) Receives updates, handles user input & display
+  EXECUTE User Input Params & Settings
+  EXECUTE Processing Layer Parallel execution
+  EXECUTE Algorithm Worker (e.g., GA, PSO)
+  EXECUTE FRF/Sensitivity Worker
+  EXECUTE Other Workers
+  EXECUTE Persistence Layer (JSON Storage)
+  EXECUTE Presentation Layer (Charts & Tables)
+  EXECUTE Export Layer (CSV, PDF, Excel)
+END
 ```
 
 ### Architectural Layers

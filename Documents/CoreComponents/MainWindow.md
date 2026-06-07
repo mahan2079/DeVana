@@ -16,7 +16,7 @@ The `MainWindow` class inherits from multiple mixins, each providing specialized
 
 ```mermaid
 graph TD
-    App(["DeVana Application"]) --> MW["Main Window"]
+    App("[\"DeVana Application\"]") --> MW["Main Window"]
     MW --> Mixins["Mixin Classes"]
     
     subgraph CoreMixins ["Core Functionality"]
@@ -36,6 +36,28 @@ graph TD
         MW --> Dashboard["ResultsDashboard"]
         MW --> Plots["Matplotlib Figure Canvas"]
     end
+```
+
+#### Pseudo-code
+```text
+BEGIN
+  EXECUTE [\
+  EXECUTE ]
+  EXECUTE Main Window
+  EXECUTE Mixin Classes
+  EXECUTE Core Functionality
+  EXECUTE InputMixin: Parameter Management
+  EXECUTE FRFMixin: Visualization & Peak Analysis
+  EXECUTE SidebarMixin: Navigation
+  EXECUTE Optimization Workers
+  EXECUTE Optimization Mixins: GA, PSO, SA, etc.
+  EXECUTE Worker Threads: QThread-based
+  EXECUTE Results Processing & Logging
+  EXECUTE UI Components
+  EXECUTE ModernQTabWidget
+  EXECUTE ResultsDashboard
+  EXECUTE Matplotlib Figure Canvas
+END
 ```
 
 ## Key UI Features
