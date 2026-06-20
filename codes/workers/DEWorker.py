@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -9,18 +8,16 @@ import time
 import multiprocessing as mp
 from enum import Enum
 from dataclasses import dataclass
-from typing import List, Tuple, Dict, Any, Optional, Union, Callable
+from typing import List, Dict
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 import platform
 import psutil
 
 # Local imports
 from modules.FRF import frf
 from modules.sobol_sensitivity import (
-    perform_sobol_analysis,
-    calculate_and_save_errors,
-    format_parameter_name
+    perform_sobol_analysis
 )
 
 # Define DE strategy options as enum
@@ -890,7 +887,7 @@ class DEWorker(QThread):
                     smoothness_penalty *= self.beta
                 
                 return primary_objective + sparsity_penalty + smoothness_penalty
-        except Exception as e:
+        except Exception:
             return 1e6
 
     def _initialize_population(self, parameter_bounds, fixed_parameters, num_params):
@@ -1739,7 +1736,7 @@ class DEWorker(QThread):
                 best_combination = params
         
         pop_size, f, cr, strategy = best_combination
-        print(f"Best hyperparameters found:")
+        print("Best hyperparameters found:")
         print(f"  Population Size: {pop_size}")
         print(f"  F (mutation factor): {f}")
         print(f"  CR (crossover rate): {cr}")

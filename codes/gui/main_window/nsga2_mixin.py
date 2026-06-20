@@ -1,16 +1,13 @@
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QDoubleSpinBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QSpinBox, QDoubleSpinBox,
     QFormLayout, QGroupBox, QPushButton, QTabWidget, QTextEdit, QProgressBar,
-    QMessageBox, QScrollArea, QFileDialog, QTableWidget, QTableWidgetItem,
-    QHeaderView, QSplitter
+    QMessageBox, QScrollArea, QFileDialog, QSplitter
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import numpy as np
-import json
-import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns

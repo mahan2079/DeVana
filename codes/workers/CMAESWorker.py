@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 import random
 import time
@@ -7,7 +6,6 @@ import psutil
 import cma  # Make sure the cma package is installed
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 from modules.FRF import frf
-from modules.sobol_sensitivity import format_parameter_name
 
 class CMAESWorker(QThread):
     # Emits: finished(final_results, best_candidate, parameter_names, best_fitness)
@@ -182,7 +180,7 @@ class CMAESWorker(QThread):
                                 for criterion, percent_diff in pdiffs.items():
                                     percentage_error_sum += abs(percent_diff)
                         return primary_objective + sparsity_penalty + percentage_error_sum / self.percentage_error_scale
-                except Exception as e:
+                except Exception:
                     return 1e6
 
             # Set up options for CMA-ES, including bounds.

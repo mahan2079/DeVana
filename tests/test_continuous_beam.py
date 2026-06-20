@@ -7,7 +7,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../codes')))
 
 from Continues_beam.backend.model import BeamModel, LayerSpec, TargetSpecification
-from Continues_beam.backend.optimizers import optimize_values_at_locations, Bounds
+from Continues_beam.backend.optimizers import optimize_values_at_locations
 
 class TestContinuousBeam(unittest.TestCase):
     def setUp(self):

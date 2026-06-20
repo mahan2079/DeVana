@@ -7,9 +7,7 @@ except ImportError:
     # Define dummy classes to prevent import errors in other files
     class nn:
         class Module: pass
-import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
-import time
 
 class GearboxPINN(nn.Module):
     def __init__(self, P=3, layers=5, neurons=64, activation='tanh', use_fourier=False, omega_max=100.0, n_freqs=10, topology_mask=None):

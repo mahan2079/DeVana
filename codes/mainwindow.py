@@ -1,43 +1,18 @@
-import sys
-import numpy as np
-import os
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
-from scipy import stats
-import computational_metrics_new  # Added import for computational metrics visualization
 import types  # Added for dynamic method assignment
 
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QLabel, QDoubleSpinBox, QSpinBox,
-    QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QFormLayout, QGroupBox,
-    QTextEdit, QCheckBox, QScrollArea, QFileDialog, QMessageBox, QDockWidget,
-    QMenuBar, QMenu, QAction, QSplitter, QToolBar, QStatusBar, QLineEdit, QComboBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QSizePolicy, QActionGroup,
-    QStackedWidget, QFrame, QListWidget, QListWidgetItem, QApplication, QGraphicsDropShadowEffect,
-    QRadioButton, QButtonGroup, QGridLayout, QDialogButtonBox, QDialog, QGraphicsOpacityEffect,
-    QToolButton, QStyle, QStyledItemDelegate, QProgressBar, QInputDialog, QColorDialog
+    QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QScrollArea, QMessageBox, QStatusBar, QSizePolicy, QStackedWidget, QInputDialog
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize, QPoint, QPropertyAnimation, QEasingCurve, QRect, QTimer, QDateTime
-from PyQt5.QtGui import QIcon, QPalette, QColor, QFont, QPixmap, QCursor, QPainter, QBrush, QLinearGradient, QMovie
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QGuiApplication
 
 # Matplotlib backends
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
 # Local imports from "modules" subfolder
-from modules.FRF import frf
-from modules.plotwindow import PlotWindow
 
 # Local imports from "workers" subfolder
-from workers.FRFWorker import FRFWorker
-from workers.GAWorker import GAWorker
-from workers.PSOWorker import PSOWorker, TopologyType
-from workers.DEWorker import DEWorker
-from workers.SAWorker import SAWorker
-from workers.CMAESWorker import CMAESWorker
 # RL functionality is provided through RLOptimizationMixin
 
 from gui.menu_mixin import MenuMixin
@@ -63,8 +38,6 @@ from gui.main_window.pinn_mixin import PINNIdentificationMixin
 from app_info import APP_NAME, __version__
 
 # Additional libraries used
-import random
-from deap import base, creator, tools
 
 # Seaborn style and LaTeX rendering
 sns.set(style="whitegrid")

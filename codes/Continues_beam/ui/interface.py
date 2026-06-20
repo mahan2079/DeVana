@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Tuple
 
 import numpy as np
-from PyQt5.QtCore import pyqtSignal, Qt, QObject, QThread
+from PyQt5.QtCore import pyqtSignal, QObject, QThread
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,

@@ -1,31 +1,9 @@
-import sys
-import numpy as np
-import os
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QDoubleSpinBox, QSpinBox,
-    QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QFormLayout, QGroupBox,
-    QTextEdit, QCheckBox, QScrollArea, QFileDialog, QMessageBox, QDockWidget,
-    QMenuBar, QMenu, QAction, QSplitter, QToolBar, QStatusBar, QLineEdit, QComboBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QSizePolicy, QActionGroup
-)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QIcon, QPalette, QColor, QFont
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from PyQt5.QtCore import QThread, pyqtSignal
 
-from modules.FRF import frf
 from modules.sobol_sensitivity import (
-    perform_sobol_analysis,
-    calculate_and_save_errors,
-    format_parameter_name
+    perform_sobol_analysis
 )
 
-import random
-from deap import base, creator, tools
 
 
 class SobolWorker(QThread):

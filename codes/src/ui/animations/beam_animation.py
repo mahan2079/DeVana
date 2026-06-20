@@ -3,12 +3,11 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from matplotlib.animation import FuncAnimation
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, 
-    QSlider, QGroupBox, QFormLayout, QSplitter, QDoubleSpinBox,
-    QSpinBox, QComboBox, QSizePolicy
+    QSlider, QGroupBox, QSplitter, QDoubleSpinBox,
+    QSizePolicy
 )
 from PyQt5.QtCore import Qt, QTimer
 

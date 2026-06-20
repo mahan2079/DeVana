@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QFormLayout,
     QSpinBox, QDoubleSpinBox, QPushButton, QProgressBar, QTextEdit,
     QFileDialog, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem,
-    QHeaderView, QCheckBox, QScrollArea
+    QCheckBox, QScrollArea
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPalette, QColor

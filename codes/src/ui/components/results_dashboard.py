@@ -1,12 +1,11 @@
 import numpy as np
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QFormLayout,
+    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QPushButton, QLabel, QTabWidget, QSplitter, QScrollArea, 
     QGroupBox, QTableWidget, QTableWidgetItem, QFrame, QComboBox,
-    QSpacerItem, QSizePolicy, QSlider
+    QSlider
 )
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QFont, QColor, QPalette
+from PyQt5.QtCore import Qt
 
 import matplotlib
 matplotlib.use('Qt5Agg')

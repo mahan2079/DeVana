@@ -112,7 +112,6 @@ Comprehensive Flow Chart & Feature Overview of GAWorker.py
 
 
 # Import the sys module, which provides access to system-specific parameters and functions.
-import sys
 
 # Import numpy, a powerful library for numerical computations and working with arrays.
 import numpy as np
@@ -121,13 +120,10 @@ import numpy as np
 import os
 
 # Import matplotlib's pyplot module for creating static, interactive, and animated plots.
-import matplotlib.pyplot as plt
 
 # Import seaborn, a statistical data visualization library built on top of matplotlib.
-import seaborn as sns
 
 # Import pandas, a library for data manipulation and analysis, especially with tabular data.
-import pandas as pd
 
 # Import traceback, which helps in printing or retrieving stack traces (useful for debugging errors).
 import traceback
@@ -142,7 +138,6 @@ import time
 import platform
 
 # Import json, a module for parsing and creating JSON (JavaScript Object Notation) data.
-import json
 
 # Import datetime from the datetime module, for working with dates and times.
 from datetime import datetime
@@ -152,46 +147,11 @@ from math import sqrt, log, ceil
 
 # Import a large set of widgets and GUI components from PyQt5.QtWidgets.
 # These are used to build the application's graphical user interface.
-from PyQt5.QtWidgets import (
-    QApplication,      # The main application object
-    QMainWindow,       # The main window class
-    QWidget,           # Base class for all UI objects
-    QLabel,            # Display text or images
-    QDoubleSpinBox,    # Spin box for floating-point numbers
-    QSpinBox,          # Spin box for integers
-    QVBoxLayout,       # Vertical layout manager
-    QHBoxLayout,       # Horizontal layout manager
-    QPushButton,       # Button widget
-    QTabWidget,        # Tabbed widget
-    QFormLayout,       # Form layout manager
-    QGroupBox,         # Group box for grouping widgets
-    QTextEdit,         # Multi-line text editor
-    QCheckBox,         # Checkbox widget
-    QScrollArea,       # Scrollable area
-    QFileDialog,       # File dialog for opening/saving files
-    QMessageBox,       # Message box for dialogs
-    QDockWidget,       # Dockable widget
-    QMenuBar,          # Menu bar
-    QMenu,             # Menu
-    QAction,           # Action for menu/toolbars
-    QSplitter,         # Splitter for resizing widgets
-    QToolBar,          # Toolbar
-    QStatusBar,        # Status bar
-    QLineEdit,         # Single-line text editor
-    QComboBox,         # Drop-down list
-    QTableWidget,      # Table widget
-    QTableWidgetItem,  # Item for table widget
-    QHeaderView,       # Header for tables
-    QAbstractItemView, # Abstract base class for item views
-    QSizePolicy,       # Size policy for widgets
-    QActionGroup       # Grouping actions together
-)
 
 # Import core classes from PyQt5.QtCore for threading, signals, and other core functionality.
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QMutex, QWaitCondition, QTimer
+from PyQt5.QtCore import QThread, pyqtSignal, QMutex, QWaitCondition, QTimer
 
 # Import GUI-related classes from PyQt5.QtGui for icons, colors, and fonts.
-from PyQt5.QtGui import QIcon, QPalette, QColor, QFont
 
 # Import a custom function 'frf' from the modules.FRF module.
 # This is likely a user-defined module for a specific purpose (e.g., Frequency Response Function).
@@ -251,7 +211,7 @@ def safe_deap_operation(func):
             try:
                 # Attempt to run the original function with all its arguments
                 return func(*args, **kwargs)
-            except Exception as e:
+            except Exception:
                 # If an error occurs, check if we have more retries left
                 if attempt < max_retries - 1:
                     # Suppress console output on retry; silently attempt cleanup and retry

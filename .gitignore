@@ -1,111 +1,156 @@
-# Byte-compiled / optimized / DLL files
+# ============================================================
+# DeVana — .gitignore
+# ============================================================
+
+# ----------------------------------------------------------
+# Python — bytecode & caches
+# ----------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
 
-# C extensions
-*.so
-
-# Distribution / packaging
-bin/
+# ----------------------------------------------------------
+# Python — build & distribution
+# ----------------------------------------------------------
 build/
-develop-eggs/
 dist/
-eggs/
+*.egg-info/
+*.egg
+.eggs/
+wheels/
+sdist/
+develop-eggs/
+parts/
+var/
+bin/
 lib/
 lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
 .installed.cfg
-*.egg
 
-# PyInstaller
-#  Usually these files are written by a python script, and contain the bin and lib directories for a compiled app
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
+# ----------------------------------------------------------
+# Python — testing & coverage
+# ----------------------------------------------------------
 .coverage
 .coverage.*
-.cache
-nosetests.xml
 coverage.xml
 *.cover
+htmlcov/
+.tox/
+.nox/
+.cache
 .hypothesis/
+nosetests.xml
+.pytest_cache/
 
-# Translations
-*.mo
-*.pot
+# ----------------------------------------------------------
+# Python — type checking & linting
+# ----------------------------------------------------------
+.mypy_cache/
+.pytype/
+.pyre/
+.ruff_cache/
 
-# Django stuff:
-*.log
-local_settings.py
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# celery beat schedule file
-celerybeat-schedule
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
+# ----------------------------------------------------------
+# Python — virtual environments
+# ----------------------------------------------------------
 .env
 .venv
-env/
 venv/
+venv_api/
 ENV/
+env/
 env.bak/
 venv.bak/
+.python-version
 
-# Spyder project settings
-.spyderproject
-.spyproject
+# ----------------------------------------------------------
+# Python — packaging & build tools
+# ----------------------------------------------------------
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+*.mo
+*.pot
+*.sage.py
+celerybeat-schedule
 
-# Rope project settings
-.ropeproject
+# ----------------------------------------------------------
+# Jupyter
+# ----------------------------------------------------------
+.ipynb_checkpoints/
 
-# mkdocs documentation
-/site
+# ----------------------------------------------------------
+# Secrets & local configuration
+# ----------------------------------------------------------
+api_keys.json
+*.secret
+.env.local
+.env.*.local
 
-# mypy
-.mypy_cache/
+# ----------------------------------------------------------
+# Project-specific generated files
+# ----------------------------------------------------------
+# Temporary images generated during documentation builds
+temp_images/
+# Large compiled documentation artifacts (kept in Documents/)
+DeVana_Master_Documentation.html
+DeVana_Master_Documentation.md
+DeVana_Professional_Documentation.pdf
+DeVana_Sovereign_Documentation.pdf
+# One-off documentation / utility scripts
+fix_mermaid.py
+generate_mixin_docs.py
+generate_pro_pdf.py
+mega_documenter.py
+mega_synthesis.py
+merge_to_pdf.py
+mermaid_syncer.py
+# Runtime outputs
+results/
+logs/
+*.log
 
-# IDE settings
+# ----------------------------------------------------------
+# Editor & IDE settings
+# ----------------------------------------------------------
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.spyderproject
+.spyproject
+.ropeproject
+# Obsidian vault settings (inside Documents/)
+Documents/.obsidian/
 
-# Project specific
-results/
-logs/
-*.json
+# ----------------------------------------------------------
+# OS-generated files
+# ----------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ----------------------------------------------------------
+# Documentation build artefacts
+# ----------------------------------------------------------
+docs/_build/
+/site
+
+# ----------------------------------------------------------
+# C extensions
+# ----------------------------------------------------------
+*.so
+
+# ----------------------------------------------------------
+# Paper exceptions (keep tracked)
+# ----------------------------------------------------------
 !paper/paper.bib
 !paper/paper.md

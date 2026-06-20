@@ -2,9 +2,7 @@ import numpy as np
 import random
 import time
 import psutil
-import json
 import os
-from collections import defaultdict
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -112,7 +110,7 @@ class AdaVEAWorker(QObject):
             f1 = results.get('singular_response', 1e9)
             if not np.isfinite(f1):
                 f1 = 1e9
-        except Exception as e:
+        except Exception:
             f1 = 1e9 
 
         # Objective 2: Sparsity 

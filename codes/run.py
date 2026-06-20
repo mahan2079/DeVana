@@ -1,10 +1,8 @@
 import sys
-import os
-import platform
 import traceback
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QSplashScreen, QVBoxLayout, QWidget, QProgressBar, QMessageBox, QTableWidget, QHeaderView, QPushButton, QHBoxLayout, QTableWidgetItem, QGraphicsOpacityEffect
+from PyQt5.QtWidgets import QApplication, QLabel, QSplashScreen, QVBoxLayout, QWidget, QProgressBar, QMessageBox, QGraphicsOpacityEffect
 from PyQt5.QtGui import QColor, QFont, QPixmap, QPainter, QLinearGradient, QBrush, QPen
-from PyQt5.QtCore import Qt, QSize, QTimer, QPropertyAnimation, QRect, QThread, QEasingCurve
+from PyQt5.QtCore import Qt, QSize, QTimer, QPropertyAnimation, QThread, QEasingCurve
 
 from mainwindow import MainWindow
 from app_info import APP_NAME, __version__
@@ -81,7 +79,7 @@ def safe_qthread_del(self):
     """Safe QThread destructor that terminates the thread if it's still running"""
     try:
         if self.isRunning():
-            print(f"Warning: QThread is being destroyed while still running. Forcing termination.")
+            print("Warning: QThread is being destroyed while still running. Forcing termination.")
             self.terminate()
             self.wait(500)  # Short wait to give it a chance to terminate
     except Exception as e:

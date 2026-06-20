@@ -5,7 +5,8 @@ from PyQt5.QtGui import *
 try:
     from workers.PSOWorker import PSOWorker, TopologyType
 except ModuleNotFoundError:
-    import os, sys
+    import os
+    import sys
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
     from workers.PSOWorker import PSOWorker, TopologyType
 import numpy as np
@@ -17,13 +18,10 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationTool
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                            QSpinBox, QDoubleSpinBox, QComboBox, QTabWidget, QGroupBox,
                            QFormLayout, QMessageBox, QTableWidget, QTableWidgetItem,
-                           QHeaderView, QAbstractItemView, QSplitter, QTextEdit,
-                           QSizePolicy)
+                           QHeaderView, QAbstractItemView, QSplitter, QTextEdit)
 from PyQt5.QtCore import Qt
 import os
 import time
-import json
-from datetime import datetime
 
 class PSOMixin:
 
@@ -972,9 +970,7 @@ class PSOMixin:
         if not hasattr(self, 'pso_benchmark_data') or not self.pso_benchmark_data:
             return
             
-        import matplotlib.pyplot as plt
         import numpy as np
-        import pandas as pd
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
         import seaborn as sns
@@ -984,7 +980,7 @@ class PSOMixin:
         # Make sure PSO data is properly formatted for computational_metrics_new
         for idx, run in enumerate(self.pso_benchmark_data):
             if 'optimization_metadata' in run:
-                if not 'benchmark_metrics' in run:
+                if 'benchmark_metrics' not in run:
                     # Create a basic benchmark_metrics structure
                     run['benchmark_metrics'] = {}
                     
@@ -1001,7 +997,7 @@ class PSOMixin:
                     run['benchmark_metrics']['iteration_times'] = [i/10.0 for i in range(iterations)]
                     
                     # Create synthetic PSO operation data if needed
-                    if not 'evaluation_times' in run['benchmark_metrics']:
+                    if 'evaluation_times' not in run['benchmark_metrics']:
                         import numpy as np
                         np.random.seed(42 + idx)  # For reproducibility but different for each run
                         run['benchmark_metrics']['evaluation_times'] = (0.1 + 0.05 * np.random.rand(iterations)).tolist()
@@ -1157,7 +1153,7 @@ class PSOMixin:
             # Add "Open in New Window" button
             open_new_window_button = QPushButton("Open in New Window")
             open_new_window_button.setObjectName("secondary-button")
-            open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig_scatter, f"PSO Parameter Scatter Plot"))
+            open_new_window_button.clicked.connect(lambda: self._open_plot_window(fig_scatter, "PSO Parameter Scatter Plot"))
             self.pso_scatter_plot_widget.layout().addWidget(open_new_window_button)
             
             # Initial plot
@@ -1177,7 +1173,7 @@ class PSOMixin:
                 self.pso_heatmap_plot_widget.setLayout(QVBoxLayout())
                 
             # Create a DataFrame for parameter values if not already created
-            if not 'scatter_df' in locals():
+            if 'scatter_df' not in locals():
                 scatter_data = []
                 
                 for run in self.pso_benchmark_data:
@@ -1484,7 +1480,7 @@ class PSOMixin:
 
             # Add tolerance line with distinct appearance
             ax_violin.axhline(y=tolerance, color='magenta', linestyle='--', linewidth=2.5, alpha=0.9, 
-                           label=f'Tolerance')
+                           label='Tolerance')
             
             # Add a shaded region below tolerance
             ax_violin.axhspan(0, tolerance, color='magenta', alpha=0.1, label=None)
@@ -2046,7 +2042,7 @@ class PSOMixin:
             import pandas as pd
             from PyQt5.QtWidgets import QVBoxLayout, QLabel
             from computational_metrics_new import (
-                visualize_all_metrics, create_ga_visualizations, ensure_all_visualizations_visible
+                create_ga_visualizations, ensure_all_visualizations_visible
             )
             
             # Create a DataFrame with just this run's data
@@ -2542,7 +2538,6 @@ class PSOMixin:
         try:
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
-            import numpy as np
             
             # Check if we have fitness history data
             if 'optimization_metadata' not in run_data or 'convergence_iterations' not in run_data['optimization_metadata']:
@@ -2702,7 +2697,7 @@ class PSOMixin:
     def create_pso_parameter_convergence_plot(self, layout, run_data, metrics):
         """GA-style parameter convergence analysis for PSO selected run."""
         from matplotlib.figure import Figure
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
         from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox
         import numpy as np
 
@@ -2713,11 +2708,11 @@ class PSOMixin:
         view_label = QLabel("View Mode:")
         view_dropdown = QComboBox(); view_dropdown.addItems(["Single Parameter", "All Parameters (Grid)", "Compare Multiple", "Active Parameters Only"]) 
         view_dropdown.setMinimumWidth(150)
-        control_layout.addWidget(param_label);
-        control_layout.addWidget(param_dropdown);
+        control_layout.addWidget(param_label)
+        control_layout.addWidget(param_dropdown)
         control_layout.addWidget(QLabel("  |  "))
-        control_layout.addWidget(view_label);
-        control_layout.addWidget(view_dropdown);
+        control_layout.addWidget(view_label)
+        control_layout.addWidget(view_dropdown)
         control_layout.addStretch()
         layout.addWidget(control_panel)
 
@@ -2885,7 +2880,7 @@ class PSOMixin:
     def create_pso_performance_plot(self, layout, run_data, metrics):
         """Create CPU/Memory, generation times, and run info (GA parity)."""
         from matplotlib.figure import Figure
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
         import numpy as np
 
         fig = Figure(figsize=(12, 8), tight_layout=True)
@@ -2963,7 +2958,7 @@ class PSOMixin:
     def create_pso_timing_analysis_plot(self, layout, run_data, metrics):
         """Create PSO operations timing and iteration time trend (GA parity)."""
         from matplotlib.figure import Figure
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
         import numpy as np
 
         fig = Figure(figsize=(12, 6), tight_layout=True)
@@ -3015,7 +3010,6 @@ class PSOMixin:
         try:
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
-            import numpy as np
             from computational_metrics_new import ensure_all_visualizations_visible
 
             fig = Figure(figsize=(8, 5), tight_layout=True)
@@ -3057,7 +3051,7 @@ class PSOMixin:
     def create_pso_ml_bandit_plots(self, layout, run_data, metrics):
         """Create ML bandit controller plots analogous to GA."""
         from matplotlib.figure import Figure
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
         import numpy as np
 
         fig = Figure(figsize=(12, 8), tight_layout=True)
@@ -3119,7 +3113,7 @@ class PSOMixin:
     def create_pso_surrogate_plots(self, layout, run_data, metrics):
         """Create surrogate screening plots analogous to GA."""
         from matplotlib.figure import Figure
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
         import numpy as np
 
         fig = Figure(figsize=(12, 6), tight_layout=True)
@@ -3161,8 +3155,7 @@ class PSOMixin:
     def create_pso_fitness_components_plot(self, layout, run_data, metrics):
         """Create a fitness components analysis like GA counterpart."""
         from matplotlib.figure import Figure
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
-        import numpy as np
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 
         fig = Figure(figsize=(12, 6), tight_layout=True)
         ax1 = fig.add_subplot(1, 2, 1)
@@ -3302,11 +3295,10 @@ class PSOMixin:
     def pso_create_violin_plot(self, selected_param):
         """Create a violin plot for a parameter - matched to GA mixin's create_violin_plot"""
         try:
-            import matplotlib.pyplot as plt
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
             import seaborn as sns
-            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
+            from PyQt5.QtWidgets import QPushButton
             
             # Get parameter data
             param_data = self.pso_current_parameter_data.get(selected_param)
@@ -3367,11 +3359,10 @@ class PSOMixin:
     def pso_create_distribution_plot(self, selected_param):
         """Create a distribution plot for a parameter - matched to GA mixin's create_distribution_plot"""
         try:
-            import matplotlib.pyplot as plt
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
             import seaborn as sns
-            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
+            from PyQt5.QtWidgets import QPushButton
             import numpy as np
             
             # Get parameter data
@@ -3529,11 +3520,9 @@ class PSOMixin:
     def pso_create_parameter_vs_run_scatter(self, param_name):
         """Create a parameter vs. run number scatter plot - matched to GA mixin's create_parameter_vs_run_scatter"""
         try:
-            import matplotlib.pyplot as plt
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
-            import seaborn as sns
-            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
+            from PyQt5.QtWidgets import QPushButton
             import numpy as np
             
             # Get parameter data
@@ -3593,11 +3582,10 @@ class PSOMixin:
     def pso_create_qq_plot(self, selected_param):
         """Create a Q-Q plot for a parameter - matched to GA mixin's create_qq_plot"""
         try:
-            import matplotlib.pyplot as plt
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
             from scipy import stats
-            from PyQt5.QtWidgets import QPushButton, QVBoxLayout
+            from PyQt5.QtWidgets import QPushButton
             
             # Get parameter data
             param_data = self.pso_current_parameter_data.get(selected_param)

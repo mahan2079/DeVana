@@ -1,9 +1,5 @@
-import sys
 import numpy as np
 import os
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
 from scipy.stats import qmc
 import time
 import math
@@ -12,7 +8,7 @@ import platform
 import psutil
 from datetime import datetime
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 
 # --- Particle Swarm Optimization (PSO) for Beginners Explained ---
 
@@ -116,11 +112,6 @@ import random
 
 # Local imports (assuming similar modules as in GAWorker)
 from modules.FRF import frf
-from modules.sobol_sensitivity import (
-    perform_sobol_analysis,
-    calculate_and_save_errors,
-    format_parameter_name
-)
 
 
 
@@ -1493,7 +1484,7 @@ class PSOWorker(QThread):
             # Print final results summary
             self.update.emit(f"[INFO] Optimization completed in {elapsed_time:.2f} seconds")
             self.update.emit(f"[INFO] Best fitness achieved: {best_fitness:.8f}")
-            self.update.emit(f"[INFO] Parameters found:")
+            self.update.emit("[INFO] Parameters found:")
             for i, name in enumerate(parameter_names):
                 self.update.emit(f"  {name}: {best_particle[i]:.6f}")
 
@@ -1809,7 +1800,7 @@ class PSOWorker(QThread):
             
             return fitness
             
-        except Exception as e:
+        except Exception:
             # Return a large penalty value if evaluation fails
             return 1e6
 

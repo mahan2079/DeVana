@@ -119,7 +119,7 @@ def perform_sobol_analysis(
         all_results['ST'].append(Si['ST'])
         all_results['samples'].append(N)
 
-        print(f"  Analysis for singular response completed.")
+        print("  Analysis for singular response completed.")
 
     if visualize:
         print("\n[INFO] Generating visualizations for the last run and convergence...")
@@ -300,7 +300,7 @@ def calculate_and_save_errors(all_results, param_names, folder_name='sobol_analy
         os.makedirs(folder_name)
 
     errors_file = os.path.join(folder_name, 'singular_response_errors.csv')
-    print(f"\n[INFO] Calculating errors for singular response...")
+    print("\n[INFO] Calculating errors for singular response...")
     with open(errors_file, 'w') as f:
         f.write('parameter,measure,variance,std,MAD,CI_lower,CI_upper\n')
         for param_idx, param in enumerate(param_names):
@@ -331,7 +331,7 @@ def visualize_last_run(all_results, param_names, folder_name='sobol_analysis'):
         param_names (list): List of parameter names.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Visualizing last run results for singular response...")
+    print("\n[INFO] Visualizing last run results for singular response...")
     last_run_idx = -1
     S1_last_run = np.array(all_results['S1'][last_run_idx])
     ST_last_run = np.array(all_results['ST'][last_run_idx])
@@ -362,7 +362,7 @@ def visualize_last_run(all_results, param_names, folder_name='sobol_analysis'):
 
     plt.savefig(os.path.join(folder_name, 'singular_response_S1_ST_grouped_bar.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved grouped bar plot to singular_response_S1_ST_grouped_bar.png.")
+    print("[INFO] Saved grouped bar plot to singular_response_S1_ST_grouped_bar.png.")
 
 
 def visualize_grouped_bar_plot_sorted_on_ST(all_results, param_names, folder_name='sobol_analysis'):
@@ -374,7 +374,7 @@ def visualize_grouped_bar_plot_sorted_on_ST(all_results, param_names, folder_nam
         param_names (list): List of parameter names.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Generating grouped bar plot sorted on ST sensitivity indices...")
+    print("\n[INFO] Generating grouped bar plot sorted on ST sensitivity indices...")
     last_run_idx = -1
     S1_last_run = np.array(all_results['S1'][last_run_idx])
     ST_last_run = np.array(all_results['ST'][last_run_idx])
@@ -402,11 +402,11 @@ def visualize_grouped_bar_plot_sorted_on_ST(all_results, param_names, folder_nam
 
     plt.savefig(os.path.join(folder_name, 'singular_response_S1_ST_grouped_bar_sorted_on_ST.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved grouped bar plot sorted on ST to singular_response_S1_ST_grouped_bar_sorted_on_ST.png.")
+    print("[INFO] Saved grouped bar plot sorted on ST to singular_response_S1_ST_grouped_bar_sorted_on_ST.png.")
 
 
 def visualize_convergence_plots(all_results, param_names, folder_name='sobol_analysis'):
-    print(f"\n[INFO] Generating convergence plots as subplots for parameters...")
+    print("\n[INFO] Generating convergence plots as subplots for parameters...")
     os.makedirs(folder_name, exist_ok=True)
 
     sample_sizes = all_results['samples']
@@ -454,7 +454,7 @@ def visualize_combined_heatmap(all_results, param_names, folder_name='sobol_anal
         param_names (list): List of parameter names.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Generating combined heatmap for sensitivity indices...")
+    print("\n[INFO] Generating combined heatmap for sensitivity indices...")
     last_run_idx = -1
     S1_last_run = np.array(all_results['S1'][last_run_idx])
     ST_last_run = np.array(all_results['ST'][last_run_idx])
@@ -479,7 +479,7 @@ def visualize_combined_heatmap(all_results, param_names, folder_name='sobol_anal
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, 'singular_response_combined_heatmap.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved combined heatmap to singular_response_combined_heatmap.png.")
+    print("[INFO] Saved combined heatmap to singular_response_combined_heatmap.png.")
 
 
 def visualize_comprehensive_radar_plots(all_results, param_names, folder_name='sobol_analysis'):
@@ -491,7 +491,7 @@ def visualize_comprehensive_radar_plots(all_results, param_names, folder_name='s
         param_names (list): List of parameter names.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Generating comprehensive radar plot for all parameters...")
+    print("\n[INFO] Generating comprehensive radar plot for all parameters...")
     last_run_idx = -1
     S1 = np.array(all_results['S1'][last_run_idx])
     ST = np.array(all_results['ST'][last_run_idx])
@@ -537,7 +537,7 @@ def visualize_comprehensive_radar_plots(all_results, param_names, folder_name='s
 
     plt.savefig(os.path.join(folder_name, 'singular_response_comprehensive_radar_plot.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved comprehensive radar plot to singular_response_comprehensive_radar_plot.png.")
+    print("[INFO] Saved comprehensive radar plot to singular_response_comprehensive_radar_plot.png.")
 
 
 def visualize_separate_radar_plots(all_results, param_names, folder_name='sobol_analysis'):
@@ -549,7 +549,7 @@ def visualize_separate_radar_plots(all_results, param_names, folder_name='sobol_
         param_names (list): List of parameter names.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Generating separate radar plots for S1 and ST...")
+    print("\n[INFO] Generating separate radar plots for S1 and ST...")
     last_run_idx = -1
     S1 = np.array(all_results['S1'][last_run_idx])
     ST = np.array(all_results['ST'][last_run_idx])
@@ -576,7 +576,7 @@ def visualize_separate_radar_plots(all_results, param_names, folder_name='sobol_
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, 'singular_response_radar_plot_S1.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved radar plot for S1 to singular_response_radar_plot_S1.png.")
+    print("[INFO] Saved radar plot for S1 to singular_response_radar_plot_S1.png.")
 
     # Radar plot for ST
     fig, ax = plt.subplots(figsize=(30, 30), subplot_kw=dict(polar=True))
@@ -594,7 +594,7 @@ def visualize_separate_radar_plots(all_results, param_names, folder_name='sobol_
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, 'singular_response_radar_plot_ST.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved radar plot for ST to singular_response_radar_plot_ST.png.")
+    print("[INFO] Saved radar plot for ST to singular_response_radar_plot_ST.png.")
 
 
 def visualize_box_plots(all_results, folder_name='sobol_analysis'):
@@ -605,7 +605,7 @@ def visualize_box_plots(all_results, folder_name='sobol_analysis'):
         all_results (dict): Dictionary containing Sobol sensitivity results.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Generating box plots for sensitivity indices...")
+    print("\n[INFO] Generating box plots for sensitivity indices...")
     # Combine all runs into a DataFrame
     data = {
         'S1': np.concatenate(all_results['S1']),
@@ -623,7 +623,7 @@ def visualize_box_plots(all_results, folder_name='sobol_analysis'):
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, 'singular_response_box_plots.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved box plots to singular_response_box_plots.png.")
+    print("[INFO] Saved box plots to singular_response_box_plots.png.")
 
 
 def visualize_violin_plots(all_results, folder_name='sobol_analysis'):
@@ -634,7 +634,7 @@ def visualize_violin_plots(all_results, folder_name='sobol_analysis'):
         all_results (dict): Dictionary containing Sobol sensitivity results.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Generating violin plots for sensitivity indices...")
+    print("\n[INFO] Generating violin plots for sensitivity indices...")
     # Combine all runs into a DataFrame
     data = {
         'S1': np.concatenate(all_results['S1']),
@@ -652,7 +652,7 @@ def visualize_violin_plots(all_results, folder_name='sobol_analysis'):
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, 'singular_response_violin_plots.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved violin plots to singular_response_violin_plots.png.")
+    print("[INFO] Saved violin plots to singular_response_violin_plots.png.")
 
 
 def visualize_scatter_S1_ST(all_results, param_names, folder_name='sobol_analysis'):
@@ -664,7 +664,7 @@ def visualize_scatter_S1_ST(all_results, param_names, folder_name='sobol_analysi
         param_names (list): List of parameter names.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Generating scatter plot of S1 vs ST...")
+    print("\n[INFO] Generating scatter plot of S1 vs ST...")
     last_run_idx = -1
     S1_last_run = np.array(all_results['S1'][last_run_idx])
     ST_last_run = np.array(all_results['ST'][last_run_idx])
@@ -685,7 +685,7 @@ def visualize_scatter_S1_ST(all_results, param_names, folder_name='sobol_analysi
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, 'singular_response_S1_vs_ST_scatter.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved scatter plot of S1 vs ST to singular_response_S1_vs_ST_scatter.png.")
+    print("[INFO] Saved scatter plot of S1 vs ST to singular_response_S1_vs_ST_scatter.png.")
 
 
 def visualize_parallel_coordinates(all_results, param_names, folder_name='sobol_analysis'):
@@ -697,7 +697,7 @@ def visualize_parallel_coordinates(all_results, param_names, folder_name='sobol_
         param_names (list): List of parameter names.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Generating parallel coordinates plot for sensitivity indices...")
+    print("\n[INFO] Generating parallel coordinates plot for sensitivity indices...")
     data = []
     for run_idx, num_samples in enumerate(all_results['samples']):
         row = {'Sample Size': num_samples}
@@ -719,7 +719,7 @@ def visualize_parallel_coordinates(all_results, param_names, folder_name='sobol_
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, 'singular_response_parallel_coordinates.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved parallel coordinates plot to singular_response_parallel_coordinates.png.")
+    print("[INFO] Saved parallel coordinates plot to singular_response_parallel_coordinates.png.")
 
 
 def visualize_histograms(all_results, folder_name='sobol_analysis'):
@@ -730,7 +730,7 @@ def visualize_histograms(all_results, folder_name='sobol_analysis'):
         all_results (dict): Dictionary containing Sobol sensitivity results.
         folder_name (str): Base folder where results are saved.
     """
-    print(f"\n[INFO] Generating histograms for sensitivity indices...")
+    print("\n[INFO] Generating histograms for sensitivity indices...")
     last_run_idx = -1
     S1_last_run = np.array(all_results['S1'][last_run_idx])
     ST_last_run = np.array(all_results['ST'][last_run_idx])
@@ -746,7 +746,7 @@ def visualize_histograms(all_results, folder_name='sobol_analysis'):
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, 'singular_response_S1_histogram.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved S1 histogram to singular_response_S1_histogram.png.")
+    print("[INFO] Saved S1 histogram to singular_response_S1_histogram.png.")
 
     # Histogram for ST
     plt.figure(figsize=(18, 12))
@@ -759,7 +759,7 @@ def visualize_histograms(all_results, folder_name='sobol_analysis'):
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, 'singular_response_ST_histogram.png'), bbox_inches='tight')
     plt.close()
-    print(f"[INFO] Saved ST histogram to singular_response_ST_histogram.png.")
+    print("[INFO] Saved ST histogram to singular_response_ST_histogram.png.")
 
 
 def format_parameter_name(param):

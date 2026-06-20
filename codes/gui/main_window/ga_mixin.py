@@ -75,12 +75,8 @@ class GAOptimizationMixin:
         from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
         from PyQt5.QtWidgets import (
             QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QComboBox,
-            QSpinBox, QPushButton, QCheckBox, QTableWidget, QTableWidgetItem,
-            QHeaderView
+            QSpinBox, QPushButton, QCheckBox, QTableWidget, QHeaderView
         )
-        from PyQt5.QtCore import Qt
-        from PyQt5.QtGui import QColor
-        import numpy as np
 
         self._ensure_frf_overlay_state()
 
@@ -227,7 +223,6 @@ class GAOptimizationMixin:
 
     def _frf_auto_select_runs_from_df(self, df):
         """Fill self._frf_selected_runs based on Top-K per group settings and 9-cap if enabled."""
-        import numpy as np
         groups = ['Best', 'Mid', 'Worst']
         counts = {
             'Best': int(self.frf_best_count.value()) if hasattr(self, 'frf_best_count') else 3,
@@ -899,7 +894,6 @@ class GAOptimizationMixin:
         source_table is expected to have columns [Parameter, Low, High, Width, Center].
         """
         try:
-            import json
             cfg = {}
             # Global GA settings from controls
             cfg['ga_settings'] = {
@@ -5396,7 +5390,7 @@ class GAOptimizationMixin:
                 print(f"Debug: Convergence generation values: {df['convergence_generation'].dropna().head().tolist()}")
                 print(f"Debug: Number of valid convergence_generation values: {df['convergence_generation'].notna().sum()}")
             elif 'convergence_generation' in df.columns:
-                print(f"Debug: convergence_generation already exists in dataframe")
+                print("Debug: convergence_generation already exists in dataframe")
                 print(f"Debug: Existing convergence generation values: {df['convergence_generation'].dropna().head().tolist()}")
                 print(f"Debug: Number of valid convergence_generation values: {df['convergence_generation'].notna().sum()}")
         except Exception:
@@ -5582,7 +5576,7 @@ class GAOptimizationMixin:
 
             # Add tolerance line with distinct appearance
             ax_violin.axhline(y=tolerance, color='magenta', linestyle='--', linewidth=2.5, alpha=0.9, 
-                           label=f'Tolerance')
+                           label='Tolerance')
             
             # Add a shaded region below tolerance (without redundant legend entry)
             ax_violin.axhspan(0, tolerance, color='magenta', alpha=0.1, label=None)
@@ -7704,7 +7698,7 @@ class GAOptimizationMixin:
     
     def _get_distribution_interpretation(self, skewness, kurtosis, p_normal, cv):
         """Generate interpretation text for the distribution"""
-        interpretation = f"Interpretation: "
+        interpretation = "Interpretation: "
         
         # Normality
         if p_normal > 0.05:
@@ -7903,7 +7897,7 @@ class GAOptimizationMixin:
         try:
             print(f"Debug: create_distribution_plot called with parameter: {selected_param}")
             if selected_param == 'convergence_generation':
-                print(f"Debug: SPECIAL - Creating distribution plot for convergence_generation")
+                print("Debug: SPECIAL - Creating distribution plot for convergence_generation")
             if hasattr(self, 'current_parameter_data'):
                 print(f"Debug: current_parameter_data keys: {list(self.current_parameter_data.keys())}")
                 if 'convergence_generation' in self.current_parameter_data:
@@ -7984,7 +7978,7 @@ class GAOptimizationMixin:
                 try:
                     # Special handling for convergence_generation
                     if param_name == 'convergence_generation':
-                        print(f"Debug: Attempting KDE for convergence_generation")
+                        print("Debug: Attempting KDE for convergence_generation")
                         # Check if we have enough unique values for KDE
                         unique_vals = len(np.unique(finite_values))
                         print(f"Debug: Convergence generation unique values for KDE: {unique_vals}")
@@ -8027,7 +8021,7 @@ class GAOptimizationMixin:
 
                     # For convergence_generation, at least show the histogram without KDE
                     if param_name == 'convergence_generation':
-                        print(f"Debug: Creating histogram-only plot for convergence_generation due to KDE failure")
+                        print("Debug: Creating histogram-only plot for convergence_generation due to KDE failure")
                         # The histogram was already created above, so we just skip the KDE overlay
                 
                 # Calculate comprehensive statistics
@@ -8131,7 +8125,7 @@ class GAOptimizationMixin:
             # Fallback: create a simple plot for convergence_generation if everything fails
             if selected_param == 'convergence_generation':
                 try:
-                    print(f"Debug: Attempting fallback plot for convergence_generation")
+                    print("Debug: Attempting fallback plot for convergence_generation")
                     # Get the data if not already available
                     if 'finite_values' not in locals():
                         if hasattr(self, 'current_parameter_data') and selected_param in self.current_parameter_data:
@@ -8162,7 +8156,7 @@ class GAOptimizationMixin:
                     # Add plot buttons
                     self.add_plot_buttons(fig_fallback, "Distribution Plot", selected_param)
 
-                    print(f"Debug: Fallback bar plot created successfully for convergence_generation")
+                    print("Debug: Fallback bar plot created successfully for convergence_generation")
                     return  # Exit the function since we successfully created a fallback plot
                 except Exception as fallback_e:
                     print(f"Debug: Fallback plot also failed: {str(fallback_e)}")
@@ -8219,7 +8213,6 @@ class GAOptimizationMixin:
             
             # Add confidence intervals
             try:
-                from scipy import stats
                 # Calculate prediction intervals
                 residuals = values - trend_line
                 mse = np.mean(residuals**2)
@@ -8488,7 +8481,7 @@ class GAOptimizationMixin:
             
             # Add trend line
             ax_main.plot(x_trend, y_trend, "r--", linewidth=2, alpha=0.8, 
-                        label=f'Trend Line')
+                        label='Trend Line')
             
             # Calculate statistics
             ss_res = np.sum((values_y - p(values_x)) ** 2)
@@ -8742,7 +8735,7 @@ class GAOptimizationMixin:
                             ad_result = f"Normal (a={sl}%)"
                             break
                     
-                except Exception as e:
+                except Exception:
                     anderson_test = None
                     jarque_bera_test = None
                     ad_result = "N/A"
@@ -8763,7 +8756,7 @@ class GAOptimizationMixin:
                 skewness = stats.skew(values)
                 kurtosis = stats.kurtosis(values)
                 
-                test_text += f"\nDistribution Properties:\n"
+                test_text += "\nDistribution Properties:\n"
                 test_text += f"Mean: {mean_val:.4f}\n"
                 test_text += f"Std Dev: {std_val:.4f}\n"
                 test_text += f"Skewness: {skewness:.3f}\n"
@@ -8982,7 +8975,6 @@ class GAOptimizationMixin:
     def export_ga_benchmark_data(self):
         """Export GA benchmark data to a JSON file with all visualization data"""
         try:
-            import pandas as pd
             import json
             import numpy as np
             from datetime import datetime
@@ -9551,7 +9543,6 @@ class GAOptimizationMixin:
             run_data: Dictionary containing the run data to visualize
         """
         try:
-            import pandas as pd
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 
@@ -11643,7 +11634,7 @@ All parameters remain constant during optimization.''',
                     
                     info_layout.addWidget(analysis_label)
                     plot_layout.addWidget(info_widget)
-                except Exception as e:
+                except Exception:
                     # Fallback if analysis fails
                     pass
             
@@ -12274,7 +12265,6 @@ All parameters remain constant during optimization.''',
     def show_parameter_selection_dialog(self, param_names):
         """Show a dialog for selecting parameters to compare"""
         from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel, QScrollArea
-        from PyQt5.QtCore import Qt
         
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Parameters to Compare")
@@ -13207,7 +13197,7 @@ All parameters remain constant during optimization.''',
                     kde = KernelDensity(kernel='gaussian', bandwidth=bw).fit(scores.values.reshape(-1, 1))
                     kde_scores = np.exp(kde.score_samples(x_range.reshape(-1, 1)))
                     ax_main.plot(x_range, kde_scores, 'purple', linewidth=3, alpha=0.9, 
-                               label=f'KDE (Actual Shape)')
+                               label='KDE (Actual Shape)')
                     
                     # 2. Try different distributions and find best fit
                     distributions_to_try = [

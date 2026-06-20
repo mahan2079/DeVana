@@ -162,10 +162,10 @@ class OmegaSensitivityMixin:
             
             if hit_iter_limit:
                 self.sensitivity_results_text.append(f"   Reason: Maximum number of iterations reached ({self.sensitivity_max_iterations.value()})\n")
-                self.sensitivity_results_text.append(f"   Solution: Increase 'Maximum Iterations' parameter to analyze more points\n")
+                self.sensitivity_results_text.append("   Solution: Increase 'Maximum Iterations' parameter to analyze more points\n")
             else:
-                self.sensitivity_results_text.append(f"   Possible reasons: calculation constraints or memory limits\n")
-                self.sensitivity_results_text.append(f"   Try using an even larger step size for higher point values\n")
+                self.sensitivity_results_text.append("   Possible reasons: calculation constraints or memory limits\n")
+                self.sensitivity_results_text.append("   Try using an even larger step size for higher point values\n")
         
         # Show convergence status
         if converged:

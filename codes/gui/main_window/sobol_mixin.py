@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QTabWidget, QTextEdit,
     QPushButton, QComboBox, QLabel, QSpinBox, QLineEdit, QFileDialog,
-    QMessageBox, QScrollArea, QGroupBox, QTableWidget, QTableWidgetItem, QCheckBox,
+    QMessageBox, QGroupBox, QTableWidget, QTableWidgetItem, QCheckBox,
     QDoubleSpinBox, QHeaderView, QAbstractItemView
 )
 from PyQt5.QtCore import Qt
@@ -14,10 +14,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 import matplotlib.pyplot as plt
 
 from modules.sobol_sensitivity import (
-    perform_sobol_analysis,
-    calculate_and_save_errors,
     format_parameter_name,
-    save_results,
 )
 from workers.SobolWorker import SobolWorker
 

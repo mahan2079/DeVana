@@ -5,9 +5,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
 from workers.DEWorker import DEWorker
 import seaborn as sns
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 class DEOptimizationMixin:
     def create_de_tab(self):

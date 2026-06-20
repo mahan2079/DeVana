@@ -57,7 +57,7 @@ class IntroductionMixin:
             frame = QFrame()
             frame.setFixedHeight(40)
             if is_future:
-                frame.setStyleSheet(f"background-color: transparent; border: 1.5px dashed #757575; border-radius: 6px;")
+                frame.setStyleSheet("background-color: transparent; border: 1.5px dashed #757575; border-radius: 6px;")
             else:
                 frame.setStyleSheet(f"background-color: {color}; border-radius: 6px; border: none;")
             

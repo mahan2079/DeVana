@@ -1,5 +1,5 @@
 import numpy as np
-from deap import base, creator, tools, algorithms
+from deap import base, creator, tools
 from PyQt5.QtCore import QThread, pyqtSignal
 import time
 import random
@@ -14,7 +14,7 @@ def safe_deap_operation(func):
         for attempt in range(max_retries):
             try:
                 return func(*args, **kwargs)
-            except Exception as e:
+            except Exception:
                 if attempt < max_retries - 1:
                     try:
                         if hasattr(creator, "FitnessMulti"):

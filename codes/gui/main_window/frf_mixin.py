@@ -661,8 +661,6 @@ class FRFMixin:
     
     def _add_zone_highlights(self, ax):
         """Add zone highlighting to the plot with invisible boundary lines and text labels"""
-        import matplotlib.patches as patches
-        import matplotlib.pyplot as plt
         
         # Ensure zones attribute exists
         if not hasattr(self, 'zones'):
@@ -1067,7 +1065,7 @@ class FRFMixin:
         ax_all_combined = fig_all_combined.add_subplot(111)
         
         # Get interpolation settings if not already defined
-        if not 'use_interpolation' in locals():
+        if 'use_interpolation' not in locals():
             interpolation_method = self.interp_method_combo.currentText()
             interpolation_points = self.interp_points_box.value()
             use_interpolation = interpolation_method != 'none'

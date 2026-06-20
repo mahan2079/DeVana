@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 from scipy.integrate import simpson
 from scipy.signal import find_peaks, peak_prominences
 from scipy.interpolate import interp1d
-from adjustText import adjust_text
 
 # -----------------------------------------------------------------------------
 # Helper functions
@@ -294,7 +293,6 @@ def remove_zero_mass_dofs(
 # -----------------------------------------------------------------------------
 
 def safe_structure(key, value, ensure_serializable=True, recursive=True, tol=1e-8):
-    import collections.abc
 
     def serialize(obj):
         if isinstance(obj, (np.integer,)):
@@ -567,7 +565,6 @@ def process_mass(a_mass, omega, user_peak_positions=None):
 # Remaining plotting utilities (unchanged)
 # -----------------------------------------------------------------------------
 
-import matplotlib.pyplot as plt
 
 class DraggableAnnotation:
     def __init__(self, annotation):

@@ -2,7 +2,6 @@ import unittest
 import numpy as np
 import sys
 import os
-import time
 from PyQt5.QtCore import QCoreApplication
 
 # Add 'codes' directory to sys.path
@@ -10,7 +9,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../c
 
 from workers.MemorySeeder import MemorySeeder
 from workers.GAWorker import GAWorker
-from modules.FRF import frf
 
 class TestIntegration(unittest.TestCase):
     @classmethod
