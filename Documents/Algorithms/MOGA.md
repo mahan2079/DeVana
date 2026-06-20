@@ -15,7 +15,7 @@ The MOGA module (`MOGAWorker.py`) is designed to handle optimization problems wi
 
 ```mermaid
 flowchart TD
-    Start("[\"Start MOGA\"]") --> InitPop["Initialize Population"]
+    Start([Start MOGA]) --> InitPop["Initialize Population"]
     InitPop --> Eval["Evaluate Multiple Objectives <br/> (FRF, Cost, Sparsity)"]
     
     Eval --> ParetoRank["Perform Non-dominated Sorting <br/> Assign Pareto Ranks"]
@@ -33,14 +33,13 @@ flowchart TD
     
     GenLoop -- Yes --> OutputFront
     
-    OutputFront["Output Pareto Front Set"] --> End("[\"End MOGA\"]")
+    OutputFront["Output Pareto Front Set"] --> End([End MOGA])
 ```
 
 #### Pseudo-code
 ```text
 BEGIN
-  EXECUTE [\
-  EXECUTE ]
+  EXECUTE Start MOGA
   EXECUTE Initialize Population
   EXECUTE Evaluate Multiple Objectives   (FRF, Cost, Sparsity)
   EXECUTE Perform Non-dominated Sorting   Assign Pareto Ranks

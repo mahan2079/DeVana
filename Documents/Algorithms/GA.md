@@ -69,7 +69,7 @@ If enabled, DeVana uses a Multi-Armed Bandit strategy to select the optimal comb
 flowchart TD
     StartMAB["Start Generation"] --> CalcReward["Calculate Reward from Previous Action <br/> (Improvement + Speed - Diversity Penalty)"]
     CalcReward --> UpdateUCB["Update Action Counts & <br/> Cumulative Rewards"]
-    UpdateUCB --> SelectBest["Select Action with Highest UCB Score: <br/> Score = AvgReward + C * sqrt("log(t")/count)"]
+    UpdateUCB --> SelectBest["Select Action with Highest UCB Score: <br/> Score = AvgReward + C * sqrt(log(t)/count)"]
     SelectBest --> ApplyAction["Apply Deltas to cxpb, mutpb, pop_size"]
     ApplyAction --> EndMAB["Next Generation"]
 ```
@@ -80,8 +80,7 @@ BEGIN
   EXECUTE Start Generation
   EXECUTE Calculate Reward from Previous Action   (Improvement + Speed - Diversity Penalty)
   EXECUTE Update Action Counts &   Cumulative Rewards
-  EXECUTE Select Action with Highest UCB Score:   Score = AvgReward + C * sqrt(
-  EXECUTE )/count)
+  EXECUTE Select Action with Highest UCB Score:   Score = AvgReward + C * sqrt(log(t)/count)
   EXECUTE Apply Deltas to cxpb, mutpb, pop_size
   EXECUTE Next Generation
 END

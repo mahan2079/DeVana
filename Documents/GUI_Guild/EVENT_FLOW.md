@@ -9,7 +9,7 @@ Navigation events are triggered in the `SidebarMixin` and executed within the `M
 ```mermaid
 graph LR
     User["User Click"] -->|mousePressEvent| Sidebar["SidebarButton"]
-    Sidebar -->|change_page("index")| Orchestrator["MainWindow"]
+    Sidebar -->|change_page(index)| Orchestrator["MainWindow"]
     Orchestrator -->|setCurrentIndex| Stack["QStackedWidget"]
     Stack -->|Trigger| Page["Target Page"]
     Page -->|Apply| Theme["Theme Refresh"]

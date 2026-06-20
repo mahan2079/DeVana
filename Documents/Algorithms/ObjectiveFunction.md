@@ -27,7 +27,7 @@ $$ f_{\mathrm{cost}}(\mathbf{x}) = \sum_{k=1}^{N_p} C_k \cdot \mathbb{I}(|x_k| >
 ```mermaid
 flowchart TD
     Start["Start Evaluation"] --> Input["Input Design Parameters (x)"]
-    Input --> Obj["Compute Objective f("x")"]
+    Input --> Obj["Compute Objective f(x)"]
     Obj --> Penalty["Apply Penalties (Constraints)"]
     Penalty --> Fitness["Compute Final Fitness"]
     Fitness --> Output["Return Fitness to Optimizer"]
@@ -38,8 +38,7 @@ flowchart TD
 BEGIN
   EXECUTE Start Evaluation
   EXECUTE Input Design Parameters (x)
-  EXECUTE Compute Objective f(
-  EXECUTE )
+  EXECUTE Compute Objective f(x)
   EXECUTE Apply Penalties (Constraints)
   EXECUTE Compute Final Fitness
   EXECUTE Return Fitness to Optimizer
@@ -50,7 +49,7 @@ END
 
 ```mermaid
 graph TD
-    Root["Fitness Function f("x")"] --> FRF["FRF Performance"]
+    Root["Fitness Function f(x)"] --> FRF["FRF Performance"]
     Root --> Sparsity["Sparsity & Activation"]
     Root --> Cost["Cost/Benefit Ratio"]
     
@@ -67,8 +66,7 @@ graph TD
 #### Pseudo-code
 ```text
 BEGIN
-  EXECUTE Fitness Function f(
-  EXECUTE )
+  EXECUTE Fitness Function f(x)
   EXECUTE FRF Performance
   EXECUTE Sparsity & Activation
   EXECUTE Cost/Benefit Ratio

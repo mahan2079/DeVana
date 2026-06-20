@@ -63,7 +63,7 @@ flowchart TD
     Perturb --> EvalNew["Evaluate Neighbor Fitness"]
     EvalNew --> CheckBetter{"New < Current?"}
     CheckBetter -- Yes --> Accept["Accept Neighbor"]
-    CheckBetter -- No --> Metropolis["Calc P = exp("-Delta/T")"]
+    CheckBetter -- No --> Metropolis["Calc P = exp(-Delta/T)"]
     Metropolis --> RandomCheck{"Rand < P?"}
     RandomCheck -- Yes --> Accept
     RandomCheck -- No --> Reject["Keep Current"]

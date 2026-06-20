@@ -31,7 +31,7 @@ flowchart TD
     Crossover --> Constraints["Apply Constraint Handling <br/> (Reflection, Projection)"]
     Constraints --> EvalTrial["Evaluate Trial Vector u"]
     
-    EvalTrial --> Selection{"Is f("\\"u\\"") < f("\\"x_i\\"")?"}
+    EvalTrial --> Selection{"Is f(u) < f(x_i)?"}
     Selection -- Yes --> Replace["Replace x_i with u"]
     Selection -- No --> Keep["Keep x_i"]
     
@@ -65,9 +65,7 @@ BEGIN
   EXECUTE Apply Binomial Crossover   Create Trial Vector u
   EXECUTE Apply Constraint Handling   (Reflection, Projection)
   EXECUTE Evaluate Trial Vector u
-  EXECUTE Is f(\
-  EXECUTE ) < f(\
-  EXECUTE )?
+  EXECUTE Is f(u) < f(x_i)?
   EXECUTE Replace x_i with u
   EXECUTE Keep x_i
   EXECUTE More targets?

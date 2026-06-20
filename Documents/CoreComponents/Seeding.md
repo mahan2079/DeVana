@@ -47,7 +47,7 @@ Utilizes the `scipy.stats.qmc.Sobol` engine to generate low-discrepancy sequence
 flowchart TD
     Start["Start Sobol"] --> Init["Initialize Sobol Generator for N dimensions"]
     Init --> Sample["Generate base-2 samples"]
-    Sample --> Scale["\"Scale [0,1"] samples to actual bounds"]
+    Sample --> Scale["Scale [0,1] samples to actual bounds"]
     Scale --> Enforce["Enforce fixed parameter constraints"]
     Enforce --> Output["Return Quasi-Random Population"]
 ```
@@ -58,8 +58,7 @@ BEGIN
   EXECUTE Start Sobol
   EXECUTE Initialize Sobol Generator for N dimensions
   EXECUTE Generate base-2 samples
-  EXECUTE \
-  EXECUTE ] samples to actual bounds
+  EXECUTE Scale [0,1] samples to actual bounds
   EXECUTE Enforce fixed parameter constraints
   EXECUTE Return Quasi-Random Population
 END
