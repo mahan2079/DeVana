@@ -1,4 +1,4 @@
 APP_NAME = "DeVana"
-__version__ = "V0.6.6"
+__version__ = "v1.0.0"
 
 

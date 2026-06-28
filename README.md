@@ -7,7 +7,7 @@
     <b>An advanced, production-ready engineering framework bridging the gap between theoretical vibration analysis and algorithmic, multi-objective Dynamic Vibration Absorber (DVA) design.</b>
   </p>
 
-  [![Version](https://img.shields.io/badge/version-v0.5.0-blue.svg?style=for-the-badge)](https://github.com/mahan2079/DeVana)
+  [![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg?style=for-the-badge)](https://github.com/mahan2079/DeVana)
   [![License](https://img.shields.io/badge/license-Apache%202.0-orange.svg?style=for-the-badge)](LICENSE)
   [![Python](https://img.shields.io/badge/python-3.8%2B-green.svg?style=for-the-badge)](https://www.python.org/)
   [![Docker](https://img.shields.io/badge/docker-ready-2496ED.svg?style=for-the-badge&logo=docker&logoColor=white)]()
