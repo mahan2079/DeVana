@@ -1,28 +1,28 @@
 # DeVana: Dynamic Vibration Absorber Optimization Framework
 
 <div align="center">
-  <img src="Logo.png" alt="DeVana Logo" width="300">
+  <img src="Logo.png" alt="DeVana Logo" width="600">
   <br />
   <p align="center">
-    <b>A state-of-the-art engineering suite bridging the gap between theoretical vibration analysis and algorithmic, multi-objective DVA design.</b>
+    <b>An advanced, production-ready engineering framework bridging the gap between theoretical vibration analysis and algorithmic, multi-objective Dynamic Vibration Absorber (DVA) design.</b>
   </p>
 
-  [![Version](https://img.shields.io/badge/version-v0.5.0-blue.svg)](https://github.com/mahan2079/DeVana)
-  [![License](https://img.shields.io/badge/license-Apache%202.0-orange.svg)](LICENSE)
-  [![Python](https://img.shields.io/badge/python-3.8%2B-green.svg)](https://www.python.org/)
-  [![Platform](https://img.shields.io/badge/platform-win32%20%7C%20linux%20%7C%20macos-lightgrey.svg)]()
+  [![Version](https://img.shields.io/badge/version-v0.5.0-blue.svg?style=for-the-badge)](https://github.com/mahan2079/DeVana)
+  [![License](https://img.shields.io/badge/license-Apache%202.0-orange.svg?style=for-the-badge)](LICENSE)
+  [![Python](https://img.shields.io/badge/python-3.8%2B-green.svg?style=for-the-badge)](https://www.python.org/)
+  [![Docker](https://img.shields.io/badge/docker-ready-2496ED.svg?style=for-the-badge&logo=docker&logoColor=white)]()
 </div>
 
 ---
 
 ## 🛑 The Engineering Challenge & Research Gap
 
-In the real world, mechanical systems—from rotary devices to robotic arms, aerospace components, and large civil structures—are **continuous systems**. Analyzing these systems for vibration control is fundamentally complex. For simple geometries (like uniform beams), elegant mathematical theories exist. However, for complex real-world geometries, engineers must either reduce them to combinations of simple geometries or rely heavily on numerical methods like Finite Element Analysis (FEM) or mesh-free methods. 
+In real-world mechanical systems—from precision rotary devices and robotic arms to aerospace components and large civil infrastructure—**continuous structures** pose immense vibration control challenges. For simple uniform geometries, elegant mathematical models apply. But for complex real-world systems, engineers must rely heavily on numerical techniques like Finite Element Analysis (FEM) or mesh-free discretization.
 
-Historically, designing Dynamic Vibration Absorbers (DVAs)—which consist of masses, springs, dampers, and inerters—has relied intensely on **engineering intuition, heuristic knowledge bases, and manual trial-and-error**. There has been a distinct lack of open-source, algorithmic frameworks that can systematically handle:
+Historically, designing Dynamic Vibration Absorbers (DVAs)—systems of masses, springs, dampers, and inerters—has relied entirely on **engineering intuition, heuristic knowledge bases, and manual trial-and-error**. There has been a crucial lack of open-source, algorithmic software capable of systematically managing:
 1. The vast, high-dimensional design space of DVA parameters.
-2. Multi-criteria objectives (e.g., minimizing cost, weight, complexity, and vibration simultaneously).
-3. The transition from finding theoretical "single optimal points" to defining **manufacturable parameter ranges**.
+2. Competing multi-criteria objectives (e.g., minimizing cost, weight, complexity, and vibration simultaneously).
+3. The transition from discovering theoretical "perfect points" to extracting **manufacturable, robust parameter tolerance ranges**.
 
 ---
 

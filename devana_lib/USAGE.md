@@ -1,6 +1,6 @@
 # DeVana Python Library: User Guide
 
-The `devana` library is a standalone, headless framework for vibration analysis and metaheuristic optimization. It decouples the core engineering logic of DeVana from its PyQt5 GUI, allowing for automation, scripting, and integration into other Python applications.
+The `devana_lib` library is a standalone, headless framework for vibration analysis and metaheuristic optimization. It decouples the core engineering logic of DeVana from its PyQt5 GUI, allowing for automation, scripting, and integration into other Python applications.
 
 ## 📦 Installation & Setup
 
@@ -12,10 +12,10 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-To use the library in your scripts, simply import the `devana` package:
+To use the library in your scripts, simply import the `devana_lib` package:
 
 ```python
-import devana
+import devana_lib as devana
 ```
 
 ---
@@ -27,7 +27,7 @@ Use the `physics` and `systems` modules to define your vibrational models.
 The `DVASystem` class provides a high-level interface for configuring the main structure and its absorbers.
 
 ```python
-from devana import DVASystem
+from devana_lib import DVASystem
 
 # 1. Initialize system with Characteristic Frequency and Damping
 system = DVASystem(omega_dc=5000.0, zeta_dc=0.01)
@@ -58,7 +58,7 @@ print(f"Singular Response (Fitness): {results['singular_response']}")
 
 ### Continuous Beam Modeling
 ```python
-from devana import BeamModel
+from devana_lib import BeamModel
 
 # Define a beam: Length, Width, Thickness, Young's Modulus, Density
 beam = BeamModel(
@@ -87,7 +87,7 @@ Solvers expect a configuration dictionary with the following keys:
 
 ### Running a Genetic Algorithm (GA)
 ```python
-from devana import GASolver
+from devana_lib import GASolver
 
 # 1. Setup Configuration
 config = {
@@ -139,7 +139,7 @@ The library includes cutting-edge AI tools for system identification and acceler
 Train a neural network to learn the "mechanical intuition" of your system.
 
 ```python
-from devana import PINNSolver
+from devana_lib import PINNSolver
 
 # Initialize solver for a system with 48 parameters
 pinn = PINNSolver(param_dim=48)
@@ -156,7 +156,7 @@ Accelerate optimization using intelligent seeding.
 
 ```python
 import numpy as np
-from devana import MemorySeeder
+from devana_lib import MemorySeeder
 
 lows = np.array([0.0, 0.0])
 highs = np.array([1.0, 1.0])
@@ -176,7 +176,7 @@ new_seeds = seeder.propose(n=10)
 Analyze which parameters impact your results the most.
 
 ```python
-from devana import perform_sobol_analysis
+from devana_lib import perform_sobol_analysis
 
 # Define parameter bounds
 bounds = {

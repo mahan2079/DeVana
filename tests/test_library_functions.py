@@ -5,8 +5,8 @@ import numpy as np
 # Add the current directory to path to ensure devana is found
 sys.path.append(os.getcwd())
 
-import devana
-from devana import BeamModel, GASolver, PSOSolver, MemorySeeder
+import devana_lib as devana
+from devana_lib import BeamModel, GASolver, PSOSolver, MemorySeeder
 
 def test_physics_layer():
     print("\n--- Testing Physics Layer ---")
