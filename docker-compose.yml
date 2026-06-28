@@ -1,0 +1,39 @@
+services:
+  devana-api:
+    build:
+      context: .
+      network: host
+    container_name: devana-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - .:/app
+    command: uvicorn codes.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  test:
+    build:
+      context: .
+      network: host
+    container_name: devana-test
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - .:/app
+    command: pytest tests/ -v
+
+  devana-gui:
+    build:
+      context: .
+      network: host
+    container_name: devana-gui
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - PYTHONPATH=/app
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - .:/app
+    command: python codes/run.py

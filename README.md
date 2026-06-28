@@ -132,6 +132,28 @@ DeVana/
    python codes/run.py
    ```
 
+### 🐳 Docker Deployment (Production API & Testing)
+For production-ready headless execution or automated testing, DeVana is fully containerized.
+
+1. **Run the FastAPI Backend**
+   ```bash
+   docker-compose up devana-api -d
+   ```
+   The API will be available at `http://localhost:8000/api/docs`.
+
+2. **Run the Test Suite in Docker**
+   ```bash
+   docker-compose run test
+   ```
+   Executes the entire comprehensive suite of 25+ integration and unit tests in a clean container.
+
+3. **Run the GUI inside Docker (Cross-Platform)**
+   The GUI can also be spun up natively in Docker. Ensure you have an X11 server running on your host machine (e.g., XQuartz on macOS, VcXsrv on Windows, or native X11 on Linux) and have allowed connections (`xhost +`).
+   ```bash
+   # Export your DISPLAY variable if not already set (e.g. export DISPLAY=:0 on Linux)
+   docker-compose up devana-gui
+   ```
+
 ---
 
 ## 📚 Documentation

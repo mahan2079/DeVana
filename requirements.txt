@@ -18,6 +18,7 @@ cma             # Covariance Matrix Adaptation Evolution Strategy (CMA-ES)
 scikit-learn    # Machine Learning tools (used in GA/SA/PSO mixins for KDE)
 
 # Machine Learning & Seeding
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch           # PyTorch (used by NeuralSeeder)
 google-genai    # New Google Gemini SDK (Preferred)
 google-generativeai # Legacy Google Gemini API
@@ -28,3 +29,12 @@ joblib          # Parallel processing and caching
 
 # Visualization Utilities
 adjustText      # Better text placement in matplotlib plots
+
+# API & Backend
+fastapi
+uvicorn
+pydantic
+
+# Testing
+pytest
+pytest-qt
