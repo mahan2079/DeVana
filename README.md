@@ -181,6 +181,10 @@ Lead Developer & Researcher
 📧 [mahan.dashti.gohari@gmail.com](mailto:mahan.dashti.gohari@gmail.com)  
 🔗 [GitHub Profile](https://github.com/mahan2079)
 
+**Professor Mehdi Mohammadimehr**  
+Project Supervisor  
+📧 [mmohammadimehr@kashanu.ac.ir](mailto:mmohammadimehr@kashanu.ac.ir)
+
 ---
 
 ## 📜 License
