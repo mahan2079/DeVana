@@ -15,12 +15,11 @@
 
 ---
 
-### 🎥 Algorithmic DVA Design in DeVana
-
 <div align="center">
-  <video src="https://github.com/mahan2079/DeVana/raw/main/NotebookLM/DeVana__Algorithmic_DVA_Design.mp4" autoplay loop controls muted style="max-width: 100%;">
-  </video>
+  <h3>🎥 Algorithmic DVA Design in DeVana</h3>
 </div>
+
+https://github.com/mahan2079/DeVana/blob/main/NotebookLM/DeVana__Algorithmic_DVA_Design.mp4
 
 ---
 
