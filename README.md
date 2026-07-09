@@ -15,10 +15,9 @@
 
 ---
 
-<div align="center">
-  <h3>🎥 Algorithmic DVA Design in DeVana</h3>
-  <video src="https://github.com/mahan2079/DeVana/raw/main/NotebookLM/DeVana__Algorithmic_DVA_Design.mp4" width="100%" controls></video>
-</div>
+### 🎥 Algorithmic DVA Design in DeVana
+
+https://github.com/mahan2079/DeVana/raw/main/NotebookLM/DeVana__Algorithmic_DVA_Design.mp4
 
 ---
 
