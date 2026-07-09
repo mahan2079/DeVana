@@ -15,6 +15,13 @@
 
 ---
 
+<div align="center">
+  <h3>🎥 Algorithmic DVA Design in DeVana</h3>
+  <video src="https://github.com/mahan2079/DeVana/raw/main/NotebookLM/DeVana__Algorithmic_DVA_Design.mp4" width="100%" controls></video>
+</div>
+
+---
+
 ## 🛑 The Engineering Challenge & Research Gap
 
 In real-world mechanical systems—from precision rotary devices and robotic arms to aerospace components and large civil infrastructure—**continuous structures** pose immense vibration control challenges. For simple uniform geometries, elegant mathematical models apply. But for complex real-world systems, engineers must rely heavily on numerical techniques like Finite Element Analysis (FEM) or mesh-free discretization.
@@ -36,6 +43,8 @@ The software operates by taking a discrete vibrational model (masses, springs, d
 2. **The Safe Ranges (Q2):** Real-world manufacturing cannot produce infinite-precision continuous values (e.g., a spring stiffness of exactly 145.32 N/m). Given the infinite combinations of parameters, what are the **safe, reliable ranges** for each DVA parameter? DeVana performs deep statistical extraction so that *any* combination chosen within these ranges will satisfy the performance thresholds.
 
 ### The Algorithmic Paradigm
+
+![Engineering Vibration Optimization Process](NotebookLM/Engineering_Vibration_Optimization_Process.png)
 
 ```mermaid
 flowchart TD
