@@ -32,10 +32,9 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      - QT_QPA_PLATFORM=xcb
       - PYTHONPATH=/app
-      - XAUTHORITY=/root/.Xauthority
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ~/.Xauthority:/root/.Xauthority:rw
       - .:/app
     command: python codes/run.py
