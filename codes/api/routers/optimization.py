@@ -5,7 +5,7 @@ import os
 import uuid
 
 # Ensure codes directory is in path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from workers.GAWorker import GAWorker
 from workers.PSOWorker import PSOWorker
 

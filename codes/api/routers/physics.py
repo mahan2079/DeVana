@@ -4,7 +4,7 @@ import sys
 import os
 
 # Ensure codes directory is in path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from modules.FRF import frf
 
 router = APIRouter(prefix="/physics", tags=["Physics"])
