@@ -693,6 +693,8 @@ class SobolAnalysisMixin:
             
             # Run button
             self.hyper_run_sobol_button = QPushButton("Run Sobol Analysis")
+            self.hyper_run_sobol_button.setObjectName("primary-button")
+            self.hyper_run_sobol_button.setMinimumHeight(40)
             self.hyper_run_sobol_button.clicked.connect(self.run_sobol)
             settings_layout.addWidget(self.hyper_run_sobol_button)
             

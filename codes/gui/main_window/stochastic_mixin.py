@@ -114,79 +114,15 @@ class StochasticDesignMixin:
 
         left_layout.addWidget(self.design_tabs)
 
-        run_card = QFrame()
-        run_card.setObjectName("run-card")
-        run_card.setMinimumHeight(120)
-        run_card_layout = QVBoxLayout(run_card)
-
-        run_title = QLabel("Actions")
-        run_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
-        run_card_layout.addWidget(run_title)
-
-        run_buttons_layout = QHBoxLayout()
-
-        self.run_frf_button = QPushButton("Run FRF")
-        self.run_frf_button.setObjectName("primary-button")
-        self.run_frf_button.setMinimumHeight(40)
-        self.run_frf_button.clicked.connect(self.run_frf)
-        self.run_frf_button.setVisible(False)
-
-        self.run_sobol_button = QPushButton("Run Sobol")
-        self.run_sobol_button.setObjectName("primary-button")
-        self.run_sobol_button.setMinimumHeight(40)
-        self.run_sobol_button.clicked.connect(self.run_sobol)
-        self.run_sobol_button.setVisible(False)
-
-        self.run_ga_button = QPushButton("Run GA")
-        self.run_ga_button.setObjectName("primary-button")
-        self.run_ga_button.setMinimumHeight(40)
-        self.run_ga_button.clicked.connect(self.run_ga)
-        self.run_ga_button.setVisible(False)
-
-        self.run_pso_button = QPushButton("Run PSO")
-        self.run_pso_button.setObjectName("primary-button")
-        self.run_pso_button.setMinimumHeight(40)
-        self.run_pso_button.clicked.connect(self.run_pso)
-        self.run_pso_button.setVisible(False)
-
-        # Restore DE button
-        self.run_de_button = QPushButton("Run DE")
-        self.run_de_button.setObjectName("primary-button")
-        self.run_de_button.setMinimumHeight(40)
-        self.run_de_button.clicked.connect(self.run_de)
-        self.run_de_button.setVisible(False)
-
-        self.run_sa_button = QPushButton("Run SA")
-        self.run_sa_button.setObjectName("primary-button")
-        self.run_sa_button.setMinimumHeight(40)
-        self.run_sa_button.clicked.connect(self.run_sa)
-        self.run_sa_button.setVisible(False)
-
-        self.run_cmaes_button = QPushButton("Run CMA-ES")
-        self.run_cmaes_button.setObjectName("primary-button")
-        self.run_cmaes_button.setMinimumHeight(40)
-        self.run_cmaes_button.clicked.connect(self.run_cmaes)
-        self.run_cmaes_button.setVisible(False)
-
-        # New: Run MOO-GA button
-        self.run_moo_ga_button = QPushButton("Run MOO-GA")
-        self.run_moo_ga_button.setObjectName("primary-button")
-        self.run_moo_ga_button.setMinimumHeight(40)
-        self.run_moo_ga_button.clicked.connect(self.run_moo_ga)
-        self.run_moo_ga_button.setVisible(True) # Make the button visible
-
-        run_buttons_layout.addWidget(self.run_frf_button)
-        run_buttons_layout.addWidget(self.run_sobol_button)
-        run_buttons_layout.addWidget(self.run_ga_button)
-        run_buttons_layout.addWidget(self.run_pso_button)
-        run_buttons_layout.addWidget(self.run_de_button)
-        run_buttons_layout.addWidget(self.run_sa_button)
-        run_buttons_layout.addWidget(self.run_cmaes_button)
-        run_buttons_layout.addWidget(self.run_moo_ga_button) # Add new button
-
-        run_card_layout.addLayout(run_buttons_layout)
-        run_card.setVisible(False)
-        left_layout.addWidget(run_card)
+        # Initialize dummy buttons to prevent AttributeErrors from legacy code that expects global run buttons
+        self.run_frf_button = QPushButton()
+        self.run_sobol_button = QPushButton()
+        self.run_ga_button = QPushButton()
+        self.run_pso_button = QPushButton()
+        self.run_de_button = QPushButton()
+        self.run_sa_button = QPushButton()
+        self.run_cmaes_button = QPushButton()
+        self.run_moo_ga_button = QPushButton()
 
         content_splitter.addWidget(left_panel)
 
@@ -459,6 +395,12 @@ class StochasticDesignMixin:
         
         # Add stretch to push everything to the top
         layout.addStretch(1)
+        
+        self.contextual_run_de_button = QPushButton("Run DE")
+        self.contextual_run_de_button.setObjectName("primary-button")
+        self.contextual_run_de_button.setMinimumHeight(40)
+        self.contextual_run_de_button.clicked.connect(self.run_de)
+        layout.addWidget(self.contextual_run_de_button)
         
         return self.de_tab
 

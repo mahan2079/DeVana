@@ -740,23 +740,7 @@ class InputTabsMixin:
         self.run_frf_button.setMinimumWidth(200)  # Make button wider
         self.run_frf_button.setMinimumHeight(40)  # Make button taller
         self.run_frf_button.clicked.connect(self.run_frf)
-        self.run_frf_button.setStyleSheet("""
-            QPushButton#primary-button {
-                background-color: #4B67F0;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 20px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton#primary-button:hover {
-                background-color: #3B57E0;
-            }
-            QPushButton#primary-button:pressed {
-                background-color: #2B47D0;
-            }
-        """)
+
         run_frf_layout.addWidget(self.run_frf_button)
         
         # Add stretch to push button to center

@@ -30,6 +30,12 @@ class MOGAOptimizationMixin:
             self.create_adavea_tab()
             self.moga_method_tabs.addTab(self.adavea_tab, "AdaVEA")
 
+        self.contextual_run_moga_button = QPushButton("Run MOO-GA")
+        self.contextual_run_moga_button.setObjectName("primary-button")
+        self.contextual_run_moga_button.setMinimumHeight(40)
+        self.contextual_run_moga_button.clicked.connect(self.run_moo_ga)
+        main_layout.addWidget(self.contextual_run_moga_button)
+
         return self.moga_main_tab
 
     def create_nsga2_sub_tab(self):

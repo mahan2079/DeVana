@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QPushButton
 from PyQt5.QtCore import Qt
 
 class DEOptimizationMixin:
@@ -8,6 +8,12 @@ class DEOptimizationMixin:
         label = QLabel("<h2>🚧 Under Construction 🚧</h2><br><br>The GUI for Differential Evolution (DE) is currently under construction.<br><br><b>Note:</b> The DE functions and the backend in the library are fully operational.")
         label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
+        
+        self.contextual_run_de_button = QPushButton("Run DE")
+        self.contextual_run_de_button.setObjectName("primary-button")
+        self.contextual_run_de_button.setMinimumHeight(40)
+        self.contextual_run_de_button.clicked.connect(self.run_de)
+        layout.addWidget(self.contextual_run_de_button)
 
     def run_de(self):
         QMessageBox.information(self.de_tab, "Under Construction", "The GUI for DE is currently under construction.\n\nThe functions and backend in the library work perfectly.")

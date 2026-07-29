@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QMessageBox, QPushButton
 from PyQt5.QtCore import Qt
 
 class PSOMixin:
@@ -8,6 +8,12 @@ class PSOMixin:
         label = QLabel("<h2>🚧 Under Construction 🚧</h2><br><br>The GUI for Particle Swarm Optimization (PSO) is currently under construction.<br><br><b>Note:</b> The PSO functions and the backend in the library are fully operational.")
         label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
+        
+        self.contextual_run_pso_button = QPushButton("Run PSO")
+        self.contextual_run_pso_button.setObjectName("primary-button")
+        self.contextual_run_pso_button.setMinimumHeight(40)
+        self.contextual_run_pso_button.clicked.connect(self.run_pso)
+        layout.addWidget(self.contextual_run_pso_button)
 
     def run_pso(self):
         QMessageBox.information(self.pso_tab, "Under Construction", "The GUI for PSO is currently under construction.\n\nThe functions and backend in the library work perfectly.")

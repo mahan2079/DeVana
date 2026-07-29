@@ -2804,6 +2804,14 @@ class GAOptimizationMixin:
 
         # Add the GA sub-tabs widget to the main GA tab layout
         layout.addWidget(self.ga_sub_tabs)
+        
+        # Contextual Run Button
+        self.contextual_run_ga_button = QPushButton("Run GA")
+        self.contextual_run_ga_button.setObjectName("primary-button")
+        self.contextual_run_ga_button.setMinimumHeight(40)
+        self.contextual_run_ga_button.clicked.connect(self.run_ga)
+        layout.addWidget(self.contextual_run_ga_button)
+        
         self.ga_tab.setLayout(layout)
         
     def toggle_fixed(self, state, row, table=None):
