@@ -2,20 +2,9 @@ import random
 import numpy as np
 import psutil
 from deap import base, creator, tools
-from devana.optimize.base import Solver
+from devana_lib.optimize.base import Solver
 
-def safe_deap_operation(func):
-    """Decorator to handle DEAP creator issues."""
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception:
-            if hasattr(creator, "FitnessMulti"):
-                del creator.FitnessMulti
-            if hasattr(creator, "Individual"):
-                del creator.Individual
-            raise
-    return wrapper
+from devana_lib.optimization.utils import safe_deap_operation
 
 class MOGASolver(Solver):
     """

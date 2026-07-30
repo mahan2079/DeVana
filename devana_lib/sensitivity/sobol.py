@@ -3,7 +3,7 @@ import os
 from SALib.sample import saltelli
 from SALib.analyze import sobol
 from joblib import Parallel, delayed
-from devana.physics.frf import frf
+from devana_lib.physics.frf import frf
 import pandas as pd
 
 def perform_sobol_analysis(

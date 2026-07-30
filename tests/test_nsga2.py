@@ -32,12 +32,9 @@ class TestNSGA2Worker(unittest.TestCase):
             (f"param_{i}", 0.01, 1.0, False, 0.0, 1.0) for i in range(48)
         ]
         
-        # (target_values_dict, weights_dict)
-        targets = {"peak_value_1": 1.0}
-        weights = {"peak_value_1": 1.0}
-        target_dict = {f"mass_{i}": targets for i in range(1, 6)}
-        weight_dict = {f"mass_{i}": weights for i in range(1, 6)}
-        self.target_values_weights = (target_dict, weight_dict)
+        targets = [1.0]
+        weights = [1.0]
+        self.target_values_weights = [(targets, weights) for _ in range(5)]
 
     def test_nsga2_worker_run(self):
         """Test if NSGA2Worker can run and emit progress"""
@@ -48,7 +45,7 @@ class TestNSGA2Worker(unittest.TestCase):
             omega_start=0, 
             omega_end=200, 
             omega_points=20,
-            pop_size=10,
+            pop_size=12,
             generations=2,
             cxpb=0.7,
             mutpb=0.2,
@@ -65,12 +62,15 @@ class TestNSGA2Worker(unittest.TestCase):
             progress_calls.append((run_idx, current_gen, total_gens, metrics))
             
         worker.progress.connect(capture_progress)
+        worker.error.connect(lambda e: print(f"WORKER ERROR: {e}"))
         
         worker.start()
         timeout = time.time() + 30
         while worker.isRunning() and time.time() < timeout:
             self.app.processEvents()
             time.sleep(0.1)
+            
+        self.app.processEvents()
         
         if worker.isRunning():
             worker.stop()

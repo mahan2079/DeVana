@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 @dataclass
@@ -13,10 +13,20 @@ class FrequencyRange:
     points: int
 
 @dataclass
+class DVAParameter:
+    name: str
+    low: float
+    high: float
+    is_fixed: bool
+    fixed_value: float
+    cost_coeff: float
+
+@dataclass
 class PhysicsConfig:
     main_system_parameters: List[float]
     target_values_weights: List[TargetWeight]
     frequency_range: FrequencyRange
+    dva_parameters: List[DVAParameter] = field(default_factory=list)
 
 @dataclass
 class SparsityConfig:
@@ -31,7 +41,7 @@ class SparsityConfig:
     beta: float
 
 @dataclass
-class NSGAIIHyperparameters:
+class NSGA2Hyperparameters:
     """
     NSGA-II specific parameters.
     - eta_c (\\eta_c): Crowding distance distribution index for crossover.
@@ -50,4 +60,4 @@ class NSGAIIHyperparameters:
 class OptimizationConfig:
     physics: PhysicsConfig
     sparsity: SparsityConfig
-    hyperparameters: NSGAIIHyperparameters
+    hyperparameters: NSGA2Hyperparameters

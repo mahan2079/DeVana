@@ -1,6 +1,6 @@
 import random
 import math
-from devana.optimize.base import Solver
+from devana_lib.optimize.base import Solver
 
 class SASolver(Solver):
     """

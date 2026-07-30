@@ -4,7 +4,7 @@ import time
 import psutil
 import os
 from deap import base, creator, tools, algorithms
-from devana.optimize.base import Solver
+from devana_lib.optimize.base import Solver
 
 class AdaVEASolver(Solver):
     """

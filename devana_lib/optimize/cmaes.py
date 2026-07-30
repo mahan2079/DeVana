@@ -1,6 +1,6 @@
 import random
 import cma
-from devana.optimize.base import Solver
+from devana_lib.optimize.base import Solver
 
 class CMAESSolver(Solver):
     """

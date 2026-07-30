@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from devana.optimize.base import Solver
+from devana_lib.optimize.base import Solver
 
 class PSOSolver(Solver):
     """
