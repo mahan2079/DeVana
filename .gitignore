@@ -154,3 +154,4 @@ docs/_build/
 # ----------------------------------------------------------
 !paper/paper.bib
 !paper/paper.md
+nsga2_results/
