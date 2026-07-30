@@ -8,53 +8,46 @@ In DeVana, NSGA-II minimizes three distinct objectives:
 2.  **Sparsity & Complexity ($f_2$):** A penalty for the number of active DVA parameters (using an $L_0$-like threshold and $L_1$ norm).
 3.  **Cost ($f_3$):** Direct manufacturing/material cost based on user-defined coefficients.
 
-## Class: `NSGA2Worker` (inherits `QThread`)
+## Class: `NSGA2Engine` (Headless Engine) & `NSGA2Worker` (Adapter)
 
 ### Purpose
-Executes the NSGA-II optimization in a background thread. It uses DEAP to handle the multi-objective selection, Simulated Binary Crossover (SBX), and Polynomial Mutation operators. It tracks Hypervolume (HV) and Pareto front size to determine convergence.
+The NSGA-II implementation utilizes a headless `NSGA2Engine` in the `devana_lib/` domain layer, completely decoupled from the UI. It uses DEAP to handle the multi-objective selection, Simulated Binary Crossover (SBX), and Polynomial Mutation operators. 
 
-### Key Initialization Parameters
-*   `main_params`: Core configuration of the primary system.
-*   `dva_params`: List of parameters including bounds, fixed flags, and cost coefficients.
-*   `target_values_weights`: Objectives and weighting for each mass during FRF evaluation.
-*   `omega_start`, `omega_end`, `omega_points`: Frequency ranges.
-*   `pop_size`, `generations`: Standard GA parameters.
-*   **Genetic Operators:**
-    *   `cxpb`, `mutpb`: Probabilities for crossover and mutation.
-    *   `eta_c`: Crowding degree for Simulated Binary Crossover.
-    *   `eta_m`: Crowding degree for Polynomial Mutation.
-    *   `indpb`: Independent probability for mutating each attribute.
-*   **Sparsity Objectives:** `sparsity_tau` (activation threshold), `sparsity_alpha`, `sparsity_beta`.
-*   **Convergence Controls:** `convergence_epsilon`, `convergence_window`, `convergence_min_gen`.
+The `NSGA2Worker` (inherits `QThread`) acts as a thin adapter. It translates unstructured UI parameters into an `OptimizationConfig` domain object, instantiates the `NSGA2Engine`, and bridges the engine's Python callbacks into PyQt signals.
+
+### Key Configuration (`OptimizationConfig`)
+*   **Physics (`PhysicsConfig`):** Core parameters, `target_values_weights`, frequency ranges, and `dva_params` with fixed flags and cost coefficients.
+*   **Sparsity (`SparsityConfig`):** `tau` (activation threshold), `alpha`, `beta`.
+*   **Hyperparameters (`NSGA2Hyperparameters`):** `pop_size`, `generations`, `cxpb`, `mutpb`, `eta_c`, `eta_m`, `indpb`, `num_runs`.
 *   **Performance Metrics:** `hv_ref_point` for hypervolume calculation.
-*   **Acceleration:** `use_pinn_solver`, `pinn_model_path`, `pinn_online_learning`.
 
-### Methods
+### Methods (`NSGA2Engine`)
 
-#### 1. `evaluate(self, individual)`
+#### 1. `_evaluate(self, individual, config)`
 **Purpose:** Calculates the three multi-objective fitness values.
-**Parameters:** `individual` (A candidate solution's parameter vector).
+**Parameters:** `individual` (A candidate solution's parameter vector), `config` (The `OptimizationConfig`).
 **Logic:**
-1.  **$f_1$ (Performance):** Runs standard `frf` analysis or queries the `PINNSolver` for accelerated scalar response. Includes a 5% random chance of evaluating the true FRF for online PINN refinement.
+1.  **$f_1$ (Performance):** Runs standard `frf` analysis based on the provided configuration.
 2.  **$f_2$ (Sparsity):** Counts parameters above `sparsity_tau` and multiplies by `sparsity_alpha`, plus an $L_1$ norm weighted by `sparsity_beta`.
 3.  **$f_3$ (Cost):** Computes the dot product of the individual and `cost_coeffs`.
 **Outputs:** Tuple `(f1, f2, f3)`.
 
-#### 2. `run(self)`
+#### 2. `run(self, config, controller, on_progress, on_finished, on_error)`
 **Purpose:** Main execution loop for NSGA-II.
 **Logic Flow:**
-1.  **Initialization:** Uses `@safe_deap_operation` to register `FitnessMulti` (minimizing 3 objectives) and the `Individual` class. 
+1.  **Initialization:** Uses `@safe_deap_operation` to register `FitnessMulti` and `Individual`.
 2.  **Operators:** 
     - `tools.cxSimulatedBinaryBounded` (SBX) is used for crossover.
     - `tools.mutPolynomialBounded` is used for mutation.
     - `tools.selNSGA2` is used for environmental selection.
 3.  **Evolution Loop:**
-    - Generates offspring using `tools.selTournamentDCD` (Tournament selection based on dominance and crowding distance).
+    - Checks `controller.should_abort()` and `controller.wait_if_paused()`.
+    - Generates offspring using `tools.selTournamentDCD`.
     - Applies SBX and Polynomial Mutation.
     - Evaluates invalid offspring.
-    - Selects the next generation using `tools.selNSGA2(pop + offspring, pop_size)`.
-4.  **Metrics:** Extracts the first Pareto front (`sortNondominated`). Computes the Hypervolume (HV) relative to `hv_ref_point`. Checks for convergence if the HV difference over `convergence_window` generations is less than `convergence_epsilon`.
-5.  **Output:** Saves each run's data to a JSON file in `nsga2_results/` and emits `finished`.
+    - Selects the next generation using `tools.selNSGA2`.
+4.  **Metrics:** Extracts the first Pareto front (`sortNondominated`), calculates Hypervolume (HV), invokes `on_progress` callback, and checks for convergence.
+5.  **Output:** Saves JSON to `nsga2_results/` and invokes `on_finished`.
 
 ---
 
@@ -62,22 +55,25 @@ Executes the NSGA-II optimization in a background thread. It uses DEAP to handle
 
 ```mermaid
 flowchart TD
-    Start["Start NSGA2Worker"] --> Init["Init DEAP Multi-Objective Types"]
+    Start["Start NSGA2Worker (Adapter)"] --> Config["Build OptimizationConfig & ExecutionController"]
+    Config --> EngineRun["Call NSGA2Engine.run()"]
+    EngineRun --> Init["Init DEAP Multi-Objective Types"]
     Init --> Pop["Initialize Population"]
     Pop --> EvalInit["Evaluate f1, f2, f3"]
     EvalInit --> GenLoop{"Gen 1 to Max"}
-    GenLoop -- Yes --> SelectParents["Tournament DCD Selection"]
+    GenLoop -- Yes --> ControlCheck{"Controller Abort/Pause?"}
+    ControlCheck --> SelectParents["Tournament DCD Selection"]
     SelectParents --> Cross["Simulated Binary Crossover Bounded"]
     Cross --> Mutate["Polynomial Mutation Bounded"]
     Mutate --> EvalOff["Evaluate Invalid Offspring"]
     EvalOff --> Merge["Merge Pop + Offspring"]
     Merge --> SelNSGA2["Non-Dominated Sorting & Crowding Distance"]
     SelNSGA2 --> UpdatePop["New Population = Top N"]
-    UpdatePop --> Metrics["Calc Pareto Front & Hypervolume"]
+    UpdatePop --> Metrics["Calc Pareto Front & HV"]
     Metrics --> CheckConv{"Hypervolume Converged?"}
     CheckConv -- No --> GenLoop
     CheckConv -- Yes --> Finish
-    GenLoop -- No --> Finish["Save JSON & Emit Pareto Front"]
+    GenLoop -- No --> Finish["Save JSON & Call on_finished"]
 ```
 
 ### Flowchart Pseudo-code

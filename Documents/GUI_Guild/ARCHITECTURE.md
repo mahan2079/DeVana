@@ -67,10 +67,12 @@ Handles the primary navigation. It uses a custom `SidebarButton` widget and comm
 - **Algorithm Mixins**: `GAOptimizationMixin`, `PSOMixin`, `NSGA2Mixin`, etc. These handle the specific parameters, UI tabs, and worker coordination for each optimization algorithm.
 - **Analysis Mixins**: `SobolAnalysisMixin`, `OmegaSensitivityMixin`. Focused on post-optimization or pre-optimization analysis.
 
-### 4. The Worker Pattern (Threading)
+### 4. The Worker Adapter Pattern (Threading)
 To keep the UI responsive, all long-running tasks (optimization, FRF calculation) are offloaded to **Workers** located in `codes/workers/`.
+- Historically, workers contained the optimization logic directly. Under the new headless architecture, a Worker acts as a thin **Adapter**.
 - The Mixin creates a `Worker` instance (inheriting from `QThread`).
-- Signals (e.g., `progress`, `finished`, `error`) are connected to Mixin methods.
+- The Worker parses unstructured UI parameters into a strongly-typed `OptimizationConfig` and passes it to a headless `AlgorithmEngine` (e.g., `NSGA2Engine` in `devana_lib`).
+- Engine Python callbacks are translated by the Worker into PyQt Signals (e.g., `progress`, `finished`, `error`) and connected to Mixin methods.
 - The Mixin handles UI updates (progress bars, result text) based on these signals.
 
 ## Data Flow & Signal Architecture

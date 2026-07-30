@@ -4,46 +4,46 @@ The DeVana framework employs a **two-tiered architecture** for optimization rout
 
 ## 1. Two-Tiered Optimization Architecture
 
-### 1.1 Core Solvers (`devana/optimize/`)
-The foundation of the optimization suite is located in `devana/optimize/`, offering GUI-independent classes.
+### 1.1 Core Solvers (`devana_lib/optimization/engines/` & `devana_lib/optimize/`)
+The foundation of the optimization suite is located in the domain layer, offering GUI-independent execution.
 
-- **`Solver` Base Class (`base.py`)**: An abstract base class (ABC) that all algorithms implement. It provides standardized initialization for configuration, bounds extraction, fixed parameter handling, and a unified `callback` interface for progress reporting.
-- **Implementations**: `GASolver`, `PSOSolver`, `NSGA2Solver`, `RLSolver`, etc.
-- **Purpose**: Primarily used by the headless REST API (`codes/api/`) and automated testing scripts. They ensure the mathematical core is decoupled from PyQT dependencies.
+- **Headless Algorithm Engines (e.g., `NSGA2Engine`)**: Pure mathematical engines housed in `devana_lib/optimization/engines/`. They accept a strongly-typed `OptimizationConfig` interface and an `ExecutionController` for lifecycle management (`abort()`, `pause()`). 
+- **Legacy Solvers (`base.py`)**: An abstract base class (`Solver`) that older algorithms implement, transitioning towards the new Headless Engine pattern.
+- **Purpose**: Primarily used by the headless REST API (`codes/api/`) and automated testing scripts, ensuring the mathematical core runs in Docker or background workers without any PyQT dependencies. They communicate state changes via standard Python callbacks (`on_progress`, `on_finished`).
 
-### 1.2 Worker Threads (`codes/workers/`)
-The GUI execution layer utilizes `QThread` subclasses located in `codes/workers/`.
+### 1.2 Worker Adapters (`codes/workers/`)
+The GUI execution layer utilizes `QThread` subclasses located in `codes/workers/`, acting as thin adapters for the core engines.
 
 - **Inheritance**: Subclasses `QThread` from `PyQt5.QtCore`.
-- **Communication**: Emits PyQT signals (`finished`, `progress`, `update`, `error`, `benchmark_data`, `generation_metrics`) to interact safely with the UI thread.
-- **Features**: Wraps the core optimization logic with robust exception handling (`@safe_deap_operation`), resource monitoring (`psutil`), pausing/resuming mechanisms, and a watchdog timer (usually 10 minutes) for infinite loop protection.
+- **Communication**: The worker translates Python callbacks emitted by the engine into PyQT signals (`finished`, `progress`, `error`) to interact safely with the UI thread.
+- **Features**: Instantiates the `OptimizationConfig` and `ExecutionController` from unstructured UI data, invoking the engine's `run()` method in the background.
 
 ```mermaid
 classDiagram
     class QThread {
         <<PyQt5>>
     }
-    class Solver {
-        <<ABC>>
-        +config: dict
-        +evaluate_fn: callable
-        +solve()
+    class OptimizationConfig {
+        <<DataClass>>
+    }
+    class ExecutionController {
+        +abort()
+        +pause()
+        +resume()
+    }
+    class NSGA2Engine {
+        +run(config, controller, callbacks)
     }
     
-    class GAWorker {
+    class NSGA2Worker {
         +run()
-        +pause()
-        +cleanup()
         -signals
     }
-    class GASolver {
-        +solve()
-    }
     
-    QThread <|-- GAWorker
-    Solver <|-- GASolver
-    
-    GAWorker ..> GASolver : Conceptual mapping\n(Implementation details vary)
+    QThread <|-- NSGA2Worker
+    NSGA2Worker *-- OptimizationConfig : builds
+    NSGA2Worker *-- ExecutionController : manages
+    NSGA2Worker ..> NSGA2Engine : invokes
 ```
 
 ## 2. Universal Fitness and Penalty Formulation
